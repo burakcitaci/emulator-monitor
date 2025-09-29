@@ -5,14 +5,15 @@
   "scripts": {},
   "private": true,
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "class-variance-authority": "^0.7.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.2",
-    "class-variance-authority": "^0.7.1",
-    "@tailwindcss/vite": "^4.1.11"
+    "lucide-react": "^0.525.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
@@ -20,6 +21,7 @@
     "@nx/eslint": "21.5.3",
     "@nx/eslint-plugin": "21.5.3",
     "@nx/js": "21.5.3",
+    "@nx/nest": "21.5.3",
     "@nx/playwright": "21.5.3",
     "@nx/react": "21.5.3",
     "@nx/vite": "21.5.3",
