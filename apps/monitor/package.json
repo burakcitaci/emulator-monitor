@@ -1,5 +1,13 @@
 {
   "name": "@emulator-monitor/monitor",
   "version": "0.0.1",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@tanstack/react-table": "^8.21.3"
+  }
 }

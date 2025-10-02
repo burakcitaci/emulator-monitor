@@ -1,5 +1,6 @@
 import NxWelcome from './nx-welcome';
 
+import { loadDockerCompose } from './types/dockerCompose';
 export function App() {
   return (
     <div>
