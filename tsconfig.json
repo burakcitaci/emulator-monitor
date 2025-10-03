@@ -8,6 +8,12 @@
     },
     {
       "path": "./apps/monitor"
+    },
+    {
+      "path": "./apps/backend-e2e"
+    },
+    {
+      "path": "./apps/backend"
     }
   ]
 }
