@@ -14,9 +14,9 @@ import { FileService } from './file.service';
 export class FileController {
   constructor(private readonly fileService: FileService) {}
 
-  @Get(':id')
-  async getFile(@Param('id') id: string) {
-    const file = await this.fileService.getFile(id);
+  @Get(':name')
+  async getFile(@Param('name') name: string) {
+    const file = await this.fileService.getFile(name);
     return file;
   }
 }
