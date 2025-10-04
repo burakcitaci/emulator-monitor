@@ -12,7 +12,9 @@ import { useFile } from '../hooks/useFile';
 import { useDocker } from '../hooks/useDocker';
 import Docker from 'dockerode';
 import { DockerService } from '../types/dockerCompose';
-import { PauseIcon, PlayIcon } from 'lucide-react';
+import { PauseIcon, PlayIcon, Square, StopCircleIcon } from 'lucide-react';
+import { Label } from './ui/label';
+import { useDockerCompose } from '../hooks/useDockerCompose';
 
 interface ContainerWithStatus {
   serviceName: string;
@@ -38,8 +40,8 @@ export const ContainerSidebar = () => {
     fetchContainers,
   } = useDocker();
 
+  const { composeUp } = useDockerCompose();
   const [selectedProject, setSelectedProject] = useState<string>('all');
-
   useEffect(() => {
     // Initial load
     fetchFile('docker-compose.yml', true);
@@ -207,35 +209,52 @@ export const ContainerSidebar = () => {
           {/* Project Filter Dropdown */}
           {projects.length > 0 && (
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">
-                Filter by Project
-              </label>
-              <Select
-                value={selectedProject}
-                onValueChange={setSelectedProject}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    All Projects ({allContainersWithStatus.length})
-                  </SelectItem>
-                  {projects.map((project) => {
-                    const count = allContainersWithStatus.filter(
-                      (c) =>
-                        c.containerInfo?.Labels?.[
-                          'com.docker.compose.project'
-                        ] === project
-                    ).length;
-                    return (
-                      <SelectItem key={project} value={project}>
-                        {project} ({count})
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium  text-muted-foreground">
+                  Filter by Project
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Select
+                  value={selectedProject}
+                  onValueChange={setSelectedProject}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      All Projects ({allContainersWithStatus.length})
+                    </SelectItem>
+                    {projects.map((project) => {
+                      const count = allContainersWithStatus.filter(
+                        (c) =>
+                          c.containerInfo?.Labels?.[
+                            'com.docker.compose.project'
+                          ] === project
+                      ).length;
+                      return (
+                        <SelectItem key={project} value={project}>
+                          {project} ({count})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <div className="flex space-x-1">
+                  <PlayIcon className="w-5 h-5" onClick={() => composeUp()} />
+                  <Square
+                    className="w-5 h-5"
+                    onClick={() => {
+                      containersWithStatus.forEach((c) => {
+                        if (c.containerInfo?.Id) {
+                          stopContainer(c.containerInfo.Id);
+                        }
+                      });
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
