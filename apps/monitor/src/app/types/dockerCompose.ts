@@ -1,20 +1,19 @@
 import fs from 'fs';
 import yaml from 'yaml';
 
-export interface DockerCompose {
-  services: Record<string, Service>;
-  networks?: Record<string, any>;
-}
-
-export interface Service {
+export interface DockerService {
   container_name?: string;
   image?: string;
-  pull_policy?: string;
-  volumes?: string[];
   ports?: string[];
   environment?: Record<string, string>;
+  volumes?: string[];
   depends_on?: string[];
-  networks?: Record<string, any>;
+  networks?: Record<string, { aliases?: string[] }>;
+}
+
+export interface DockerCompose {
+  version?: string;
+  services: Record<string, DockerService>;
 }
 
 export function loadDockerCompose(path: string): DockerCompose {

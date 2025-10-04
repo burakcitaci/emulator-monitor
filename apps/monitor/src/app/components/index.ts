@@ -11,3 +11,4 @@ export { MessageFilters } from './MessageFilters';
 export { DLQTable } from './DLQTable';
 export { MessagesDataTable } from './MessagesDataTable';
 export { DLQDataTable } from './DLQDataTable';
+export { ContainerSidebar } from './ContainerSidebar';

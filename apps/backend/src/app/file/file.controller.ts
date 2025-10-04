@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Res,
-  Req,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { FileService } from './file.service';
 
 @Controller('file')

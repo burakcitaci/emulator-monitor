@@ -1,3 +1,4 @@
+name: app
 services:
   emulator:
     container_name: "servicebus-emulator"

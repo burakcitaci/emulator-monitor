@@ -28,8 +28,11 @@ export default defineConfig(() => ({
       transformMixedEsModules: true,
     },
   },
+  optimizeDeps: {
+    exclude: ['ssh2', 'cpu-features'],
+  },
   test: {
-    projects: [{ extends: './apps/monitor/vitest.config.mts' }],
+    projects: [{ extends: './vitest.config.mts' }],
     name: '@emulator-monitor/monitor',
     watch: false,
     globals: true,
