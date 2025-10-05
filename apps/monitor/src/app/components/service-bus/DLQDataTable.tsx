@@ -1,16 +1,19 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Eye, RotateCw } from 'lucide-react';
 import React from 'react';
-import { Message } from '../types';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
+import {
+  DeadLetterMessage,
+  DeadLetterMessageResponse,
+} from '../../hooks/useServiceBus';
 
 interface DLQDataTableProps {
-  messages: Message[];
+  messages: DeadLetterMessageResponse;
   onReplay: (messageId: string) => void;
-  onView: (message: Message) => void;
+  onView: (message: DeadLetterMessage) => void;
 }
 
 export const DLQDataTable: React.FC<DLQDataTableProps> = ({
@@ -18,14 +21,15 @@ export const DLQDataTable: React.FC<DLQDataTableProps> = ({
   onReplay,
   onView,
 }) => {
-  const columns: ColumnDef<Message>[] = [
+  const columns: ColumnDef<DeadLetterMessage>[] = [
     {
-      accessorKey: 'queueName',
+      accessorKey: 'subject',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Queue/Topic" />
+        <DataTableColumnHeader column={column} title="Subject" />
       ),
       cell: ({ row }) => {
-        return <div className="font-medium">{row.getValue('queueName')}</div>;
+        const subject = row.getValue('subject') as string;
+        return <div className="font-medium">{subject || 'N/A'}</div>;
       },
     },
     {
@@ -34,46 +38,46 @@ export const DLQDataTable: React.FC<DLQDataTableProps> = ({
         <DataTableColumnHeader column={column} title="Message Body" />
       ),
       cell: ({ row }) => {
-        const body = row.getValue('body') as string;
+        const body = row.getValue('body') as unknown;
+        const bodyText =
+          typeof body === 'string' ? body : JSON.stringify(body, null, 2);
         return (
-          <div className="max-w-md truncate font-mono text-xs">{body}</div>
+          <div className="max-w-md truncate font-mono text-xs">{bodyText}</div>
         );
       },
     },
     {
-      accessorKey: 'properties',
+      accessorKey: 'deadLetterReason',
       header: 'Failure Reason',
       cell: ({ row }) => {
-        const properties = row.getValue('properties') as any;
-        const failureReason = properties?.failureReason || 'Unknown';
+        const deadLetterReason = row.getValue('deadLetterReason') as string;
         return (
           <Badge variant="destructive" className="font-mono text-xs">
-            {failureReason}
+            {deadLetterReason || 'Unknown'}
           </Badge>
         );
       },
     },
     {
-      accessorKey: 'timestamp',
+      accessorKey: 'enqueuedTimeUtc',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Dead Letter Time" />
+        <DataTableColumnHeader column={column} title="Enqueued Time" />
       ),
       cell: ({ row }) => {
-        const timestamp = row.getValue('timestamp') as string;
+        const enqueuedTime = row.getValue('enqueuedTimeUtc') as Date;
         return (
           <div className="text-sm text-muted-foreground">
-            {new Date(timestamp).toLocaleString()}
+            {enqueuedTime ? new Date(enqueuedTime).toLocaleString() : 'N/A'}
           </div>
         );
       },
     },
     {
-      id: 'retryCount',
-      header: 'Retry Count',
+      accessorKey: 'deliveryCount',
+      header: 'Delivery Count',
       cell: ({ row }) => {
-        const properties = row.original.properties as any;
-        const retryCount = properties?.retryCount || 0;
-        return <Badge variant="outline">{retryCount} attempts</Badge>;
+        const deliveryCount = row.getValue('deliveryCount') as number;
+        return <Badge variant="outline">{deliveryCount || 0} attempts</Badge>;
       },
     },
     {
@@ -86,7 +90,7 @@ export const DLQDataTable: React.FC<DLQDataTableProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onReplay(message.id)}
+              onClick={() => onReplay(message.messageId || '')}
             >
               <RotateCw className="h-4 w-4 mr-1" />
               Replay
@@ -103,7 +107,7 @@ export const DLQDataTable: React.FC<DLQDataTableProps> = ({
   return (
     <DataTable
       columns={columns}
-      data={messages}
+      data={messages.messages || []}
       searchKey="body"
       searchPlaceholder="Search dead letter messages..."
     />

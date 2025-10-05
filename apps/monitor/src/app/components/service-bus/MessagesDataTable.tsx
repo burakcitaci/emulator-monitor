@@ -1,22 +1,22 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Eye, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import React from 'react';
-import { Message } from '../types';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
+import { DeadLetterMessage } from '../../hooks/useServiceBus';
 
 interface MessagesDataTableProps {
-  messages: Message[];
-  onMessageSelect: (message: Message) => void;
+  messages: DeadLetterMessage[];
+  onMessageSelect: (message: DeadLetterMessage) => void;
 }
 
 export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
   messages,
   onMessageSelect,
 }) => {
-  const columns: ColumnDef<Message>[] = [
+  const columns: ColumnDef<DeadLetterMessage>[] = [
     {
       accessorKey: 'direction',
       header: ({ column }) => (

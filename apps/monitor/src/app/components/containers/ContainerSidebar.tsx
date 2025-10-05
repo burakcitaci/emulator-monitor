@@ -1,20 +1,21 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Badge } from '../ui/badge';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './ui/select';
-import { useFile } from '../hooks/useFile';
-import { useDocker } from '../hooks/useDocker';
+} from '../ui/select';
+import { useFile } from '../../hooks/useFile';
+import { useDocker } from '../../hooks/useDocker';
 import Docker from 'dockerode';
-import { DockerService } from '../types/dockerCompose';
-import { PauseIcon, PlayIcon, Square, StopCircleIcon } from 'lucide-react';
-import { Label } from './ui/label';
-import { useDockerCompose } from '../hooks/useDockerCompose';
+import { DockerService } from '../../types/dockerCompose';
+import { PauseIcon, PlayIcon, Square } from 'lucide-react';
+import { Label } from '../ui/label';
+import { useDockerCompose } from '../../hooks/useDockerCompose';
+import { ContainerSkeleton } from '../ui/skeleton';
 
 interface ContainerWithStatus {
   serviceName: string;
@@ -158,11 +159,11 @@ export const ContainerSidebar = () => {
   if (fileLoading || dockerLoading) {
     return (
       <div className="w-80 border-r bg-muted/30 p-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-300 rounded mb-4"></div>
+        <div className="space-y-4">
+          <div className="h-8 bg-muted rounded mb-4"></div>
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-gray-300 rounded"></div>
+              <ContainerSkeleton key={i} />
             ))}
           </div>
         </div>

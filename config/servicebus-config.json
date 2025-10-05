@@ -2,7 +2,7 @@
   "UserConfig": {
     "Namespaces": [
       {
-        "Name": "solution-monitor-ns",
+        "Name": "sbemulatorns",
         "Topics": [
           {
             "Name": "system-messages",
@@ -24,6 +24,12 @@
     ],
     "Logging": {
       "Type": "File"
+    }
+  },
+  "ServiceBus": {
+    "Persistence": {
+      "Provider": "SqlServer",
+      "ConnectionString": "Server=sqledge,1433;Database=ServiceBusEmulator;User Id=sa;Password=P@ssw0rd;TrustServerCertificate=True"
     }
   }
 }

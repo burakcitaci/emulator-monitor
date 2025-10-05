@@ -1,15 +1,14 @@
 import React from 'react';
-import { Search, Filter, X } from 'lucide-react';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
+import { Search, Filter } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './ui/select';
-
+} from '../ui/select';
 interface MessageFiltersProps {
   searchTerm: string;
   filterQueue: string;

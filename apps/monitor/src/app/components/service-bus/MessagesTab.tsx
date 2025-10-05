@@ -1,15 +1,15 @@
 import React from 'react';
-import { Message } from '../types';
 import { MessagesDataTable } from './MessagesDataTable';
+import { DeadLetterMessage } from '../../hooks/useServiceBus';
 
 interface MessagesTabProps {
-  messages: Message[];
+  messages: DeadLetterMessage[];
   searchTerm: string;
   filterQueue: string;
   onSearchChange: (value: string) => void;
   onFilterChange: (value: string) => void;
   onClearFilters: () => void;
-  onMessageSelect: (message: Message) => void;
+  onMessageSelect: (message: DeadLetterMessage) => void;
 }
 
 export const MessagesTab: React.FC<MessagesTabProps> = ({

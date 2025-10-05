@@ -1,6 +1,6 @@
 import React from 'react';
-import { Activity, Wifi, WifiOff } from 'lucide-react';
-import { ConnectionInfo, Message } from '../types';
+import { Wifi, WifiOff } from 'lucide-react';
+import { ConnectionInfo, Message } from '../../types';
 
 interface HeaderProps {
   connectionInfo: ConnectionInfo;

@@ -1,14 +1,22 @@
-export { Header } from './Header';
-export { TabNavigation } from './TabNavigation';
-export { MessagesTab } from './MessagesTab';
-export { SendMessageTab } from './SendMessageTab';
-export { DeadLetterQueueTab } from './DeadLetterQueueTab';
+// Common components
+export { Header, TabNavigation } from './common';
+
+// Service Bus components
+export {
+  MessagesTab,
+  SendMessageTab,
+  DeadLetterQueueTab,
+  MessageDetailModal,
+  MessageTable,
+  MessageFilters,
+  DLQTable,
+  MessagesDataTable,
+  DLQDataTable,
+} from './service-bus';
+
+// Container components
+export { ContainerSidebar } from './containers';
+
+// Other components
 export { ConnectionTab } from './ConnectionTab';
 export { ConfigurationTab } from './ConfigurationTab';
-export { MessageDetailModal } from './MessageDetailModal';
-export { MessageTable } from './MessageTable';
-export { MessageFilters } from './MessageFilters';
-export { DLQTable } from './DLQTable';
-export { MessagesDataTable } from './MessagesDataTable';
-export { DLQDataTable } from './DLQDataTable';
-export { ContainerSidebar } from './ContainerSidebar';

@@ -2,7 +2,7 @@
   "UserConfig": {
     "Namespaces": [
       {
-        "Name": "solution-monitor-ns",
+        "Name": "sbemulatorns",
         "Topics": [
           {
             "Name": "system-messages",

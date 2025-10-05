@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
-import { Message } from '../types';
-import { getStatusColor, getDirectionColor } from '../utils/messageUtils';
+import { Message } from '../../types';
+import { getStatusColor, getDirectionColor } from '../../utils/messageUtils';
 
 interface MessageTableProps {
   messages: Message[];

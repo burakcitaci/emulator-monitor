@@ -11,7 +11,7 @@ export interface Message {
   id: string;
   queueName: string;
   body: string;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   timestamp: string;
   direction: MessageDirection;
   status: MessageStatus;

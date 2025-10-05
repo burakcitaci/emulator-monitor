@@ -5,7 +5,7 @@ services:
     image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest@sha256:353913ece3d9124cebd40f4b91d00dd197846b8cf86eae9a4790698709c64a1d
     pull_policy: always
     volumes:
-      - "./servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
+      - "./config/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
     ports:
       - "5672:5672"
       - "5300:5300"
@@ -23,6 +23,8 @@ services:
         aliases:
           - "sbemulator"
 
+  # --------------------------------------------------------------------------------------------------
+
   sqledge:
     container_name: "sqledge"
     image: "mcr.microsoft.com/azure-sql-edge:latest@sha256:902628a8be89e35dfb7895ca31d602974c7bafde4d583a0d0873844feb1c42cf"
@@ -36,7 +38,12 @@ services:
       ACCEPT_EULA: Y
       MSSQL_SA_PASSWORD: P@ssw0rd
     volumes:
+      # EXISTING: Initializes the database on first run
       - "./init-test-db.sql:/opt/init-test-db.sql"
+      # FIX: Add a volume mount to persist the SQL data directory
+      - "sqldata:/var/opt/mssql"
+
+  # --------------------------------------------------------------------------------------------------
 
   azurite:
     container_name: "azurite"
@@ -53,6 +60,7 @@ services:
       sb-emulator:
         aliases:
           - "azurite"
+
   mongodb:
     image: mongo:7.0@sha256:e5a902689e34e4fc635d4bc494aa45aea44924db9afeb58ea451d22826ce5afd
     container_name: mongodb
@@ -88,5 +96,11 @@ services:
     volumes:
       - ./.mocks:/home/wiremock/mappings
 
+# --------------------------------------------------------------------------------------------------
+
 networks:
   sb-emulator:
+
+# NEW SECTION: Define the named volume for persistence
+volumes:
+  sqldata:

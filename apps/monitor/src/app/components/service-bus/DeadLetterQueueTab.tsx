@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { Message } from '../types';
 import { DLQDataTable } from './DLQDataTable';
 import {
   Select,
@@ -8,17 +7,22 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './ui/select';
-import { Label } from './ui/label';
-import { Badge } from './ui/badge';
+} from '../ui/select';
+import { Label } from '../ui/label';
+import { Badge } from '../ui/badge';
+import {
+  DeadLetterMessage,
+  DeadLetterMessageResponse,
+  useServiceBus,
+} from '../../hooks/useServiceBus';
 
 interface DeadLetterQueueTabProps {
-  dlqMessages: Message[];
+  dlqMessages: DeadLetterMessageResponse;
   dlqQueue: string;
   uniqueQueues: string[];
   onQueueChange: (queue: string) => void;
   onReplay: (messageId: string) => void;
-  onView: (message: Message) => void;
+  onView: (message: DeadLetterMessage) => void;
 }
 
 export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
@@ -29,6 +33,32 @@ export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
   onReplay,
   onView,
 }) => {
+  const { getDeadLetterMessages } = useServiceBus();
+  const [messages, setMessages] = useState<DeadLetterMessageResponse>();
+  useEffect(() => {
+    // Define an async function inside useEffect
+    const fetchDLQMessages = async () => {
+      try {
+        const dlqMessages = await getDeadLetterMessages({
+          namespace: 'solution-monitor-ns',
+          topic: 'system-messages',
+          subscription: 'funcapp-processor-dev',
+          maxMessages: 20,
+          maxWaitTimeInSeconds: 10,
+        });
+
+        dlqMessages.messages.forEach((msg) => {
+          console.log('Message:', msg);
+          console.log('Dead Letter Reason:', msg.deadLetterReason);
+        });
+        setMessages(dlqMessages);
+      } catch (err) {
+        console.error('Failed to fetch DLQ messages:', err);
+      }
+    };
+
+    fetchDLQMessages();
+  }, [getDeadLetterMessages]); // Add getDeadLette
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -51,7 +81,7 @@ export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
           <Trash2 className="w-5 h-5 text-destructive" />
           <span className="text-sm text-muted-foreground">
             <Badge variant="destructive" className="mr-1">
-              {dlqMessages.length}
+              {messages?.messages?.length || 0}
             </Badge>
             messages in DLQ
           </span>
@@ -59,7 +89,7 @@ export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
       </div>
 
       <DLQDataTable
-        messages={dlqMessages}
+        messages={messages || ({} as DeadLetterMessageResponse)}
         onReplay={onReplay}
         onView={onView}
       />

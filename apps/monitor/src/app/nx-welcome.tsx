@@ -1,27 +1,25 @@
 import React, { useState } from 'react';
-import { Message, ConnectionInfo, SendForm, ConnectionForm } from './types';
-import { useMessages, useServiceBusConfig } from './hooks';
+import { ConnectionInfo, SendForm, ConnectionForm } from './types';
+import { useMessages } from './hooks';
 import {
-  Header,
   TabNavigation,
   MessagesTab,
   SendMessageTab,
   DeadLetterQueueTab,
   ConnectionTab,
   ConfigurationTab,
-  MessageDetailModal,
 } from './components';
+import { DeadLetterMessageResponse } from './hooks/useServiceBus';
 
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
 export default function ServiceBusMonitor() {
   const [activeTab, setActiveTab] = useState<TabId>('messages');
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [filterQueue, setFilterQueue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { messages, dlqMessages, addMessage, replayMessage } = useMessages();
-  const { allDestinations, getQueueNames } = useServiceBusConfig();
+  const { messages, addMessage, replayMessage } = useMessages();
+  // const { allDestinations, getQueueNames } = useServiceBusConfig();
 
   const [sendForm, setSendForm] = useState<SendForm>({
     queueName: '',
@@ -68,10 +66,10 @@ export default function ServiceBusMonitor() {
   };
 
   // Use configured destinations instead of extracting from messages
-  const uniqueQueues =
-    allDestinations.length > 0
-      ? allDestinations
-      : [...new Set(messages.map((m) => m.queueName))];
+  // const uniqueQueues =
+  //   allDestinations.length > 0
+  //     ? allDestinations
+  //     : [...new Set(messages.map((m) => m.deliveryCount.toString()))];
 
   return (
     <div className="min-h-screen ">
@@ -102,9 +100,9 @@ export default function ServiceBusMonitor() {
 
             {activeTab === 'dlq' && (
               <DeadLetterQueueTab
-                dlqMessages={dlqMessages}
+                dlqMessages={{} as DeadLetterMessageResponse}
                 dlqQueue={dlqQueue}
-                uniqueQueues={uniqueQueues}
+                uniqueQueues={[]}
                 onQueueChange={setDlqQueue}
                 onReplay={handleReplayMessage}
                 onView={setSelectedMessage}
@@ -127,10 +125,10 @@ export default function ServiceBusMonitor() {
         </div>
       </div>
 
-      <MessageDetailModal
+      {/* <MessageDetailModal
         message={selectedMessage}
         onClose={() => setSelectedMessage(null)}
-      />
+      /> */}
     </div>
   );
 }
