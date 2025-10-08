@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import {
   ServiceBusClient,
   ServiceBusSender,
@@ -6,7 +6,6 @@ import {
   ServiceBusReceiver,
 } from '@azure/service-bus';
 import {
-  ServiceBusConfig,
   SendMessageDto,
   SendBatchDto,
   InitializeResponse,
@@ -15,13 +14,16 @@ import {
   SendBatchResponse,
   DeadLetterMessageResponse,
 } from './types';
+import { ConfigService, ServiceBusConfig } from '../common/config.service';
 
 @Injectable()
-export class ServiceBusService implements OnModuleDestroy {
+export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   private clients: Map<string, ServiceBusClient> = new Map();
   private senders: Map<string, ServiceBusSender> = new Map();
   private receivers: Map<string, ServiceBusReceiver> = new Map(); // 👈 New Map for receivers
   private config: ServiceBusConfig | null = null;
+
+  constructor(private readonly configService: ConfigService) {}
 
   /**
    * Initialize Service Bus with configuration
@@ -125,6 +127,11 @@ export class ServiceBusService implements OnModuleDestroy {
             maxDeliveryCount: sub.MaxDeliveryCount,
           })),
         })),
+        queues:
+          ns.Queues?.map((queue: any) => ({
+            name: queue.Name,
+            properties: queue.Properties,
+          })) || [],
       })),
     };
   }
@@ -133,6 +140,7 @@ export class ServiceBusService implements OnModuleDestroy {
    * Send a message to a topic
    */
   async sendMessage(dto: SendMessageDto): Promise<SendMessageResponse> {
+    console.log('Sending message to:', dto.topic);
     const senderKey = `${dto.namespace}:${dto.topic}`;
     console.log(`Looking for sender with key: ${senderKey}`);
     console.log(`Available senders:`, Array.from(this.senders.keys()));
@@ -382,6 +390,25 @@ export class ServiceBusService implements OnModuleDestroy {
     this.senders.clear();
     this.receivers.clear(); // 👈 Clear new map
     this.clients.clear();
+  }
+
+  /**
+   * Auto-initialize Service Bus when module starts
+   */
+  async onModuleInit() {
+    try {
+      // Load configuration from file
+      const config = this.configService.getServiceBusConfiguration();
+      const connectionString = this.configService.serviceBusConnectionString;
+
+      console.log('Auto-initializing Service Bus on module start...');
+      await this.initialize(config, connectionString);
+      console.log('Service Bus auto-initialization completed');
+    } catch (error) {
+      console.error('Failed to auto-initialize Service Bus:', error);
+      // Don't throw error here as it might prevent the app from starting
+      // The service will remain uninitialized and endpoints will handle this gracefully
+    }
   }
 
   /**

@@ -18,6 +18,8 @@ export const useDocker = (): UseDockerReturn => {
   const hasInitialLoad = useRef(false);
 
   const fetchContainers = useCallback(async (isInitial = false) => {
+    console.log('Fetching containers, isInitial:', isInitial);
+
     // Only show loading spinner on initial load
     if (isInitial || !hasInitialLoad.current) {
       setLoading(true);
@@ -28,15 +30,24 @@ export const useDocker = (): UseDockerReturn => {
     setError(null);
 
     try {
-      const response = await fetch(`http://localhost:3000/api/docker`);
+      console.log('Making API call to:', `http://localhost:3000/api/v1/docker`);
+      const response = await fetch(`http://localhost:3000/api/v1/docker`);
 
+      console.log('Response status:', response.status);
       if (!response.ok) {
-        throw new Error(`Failed to fetch containers: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Response error text:', errorText);
+        throw new Error(
+          `Failed to fetch containers: ${response.statusText} - ${errorText}`
+        );
       }
+
       const containers = (await response.json()) as Docker.ContainerInfo[];
+      console.log('Received containers:', containers.length);
       setContainers(containers);
       hasInitialLoad.current = true;
     } catch (err) {
+      console.error('Fetch containers error:', err);
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setLoading(false);
@@ -50,7 +61,7 @@ export const useDocker = (): UseDockerReturn => {
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/docker/${containerId}/start`,
+          `http://localhost:3000/api/v1/docker/${containerId}/start`,
           {
             method: 'POST',
           }
@@ -76,7 +87,7 @@ export const useDocker = (): UseDockerReturn => {
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/docker/${containerId}/stop`,
+          `http://localhost:3000/api/v1/docker/${containerId}/stop`,
           {
             method: 'POST',
           }

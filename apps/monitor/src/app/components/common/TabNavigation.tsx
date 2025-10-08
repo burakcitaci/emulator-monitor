@@ -1,5 +1,6 @@
 import React from 'react';
 import { Activity, Send, Trash2, Database, Settings } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
@@ -9,11 +10,36 @@ interface TabNavigationProps {
 }
 
 const tabs = [
-  { id: 'messages' as const, name: 'Messages', icon: Activity },
-  { id: 'send' as const, name: 'Send Message', icon: Send },
-  { id: 'dlq' as const, name: 'Dead Letter Queue', icon: Trash2 },
-  { id: 'configuration' as const, name: 'Configuration', icon: Settings },
-  { id: 'connection' as const, name: 'Connection', icon: Database },
+  {
+    id: 'messages' as const,
+    name: 'Messages',
+    icon: Activity,
+    color: 'text-blue-600',
+  },
+  {
+    id: 'send' as const,
+    name: 'Send Message',
+    icon: Send,
+    color: 'text-green-600',
+  },
+  {
+    id: 'dlq' as const,
+    name: 'Dead Letter Queue',
+    icon: Trash2,
+    color: 'text-red-600',
+  },
+  {
+    id: 'configuration' as const,
+    name: 'Configuration',
+    icon: Settings,
+    color: 'text-purple-600',
+  },
+  {
+    id: 'connection' as const,
+    name: 'Connection',
+    icon: Database,
+    color: 'text-orange-600',
+  },
 ];
 
 export const TabNavigation: React.FC<TabNavigationProps> = ({
@@ -21,26 +47,50 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   onTabChange,
 }) => {
   return (
-    <div className="border-b border-gray-200">
-      <nav
-        className="flex flex-wrap sm:flex-nowrap overflow-x-auto px-4 sm:px-6"
-        aria-label="Tabs"
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`flex items-center space-x-1 sm:space-x-2 py-3 sm:py-4 sm:px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <tab.icon className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden xs:inline">{tab.name}</span>
-            <span className="xs:hidden">{tab.name.split(' ')[0]}</span>
-          </button>
-        ))}
+    <div className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <nav className="flex overflow-x-auto px-6" aria-label="Main navigation">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={cn(
+                'relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 whitespace-nowrap group',
+                isActive
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <Icon
+                className={cn(
+                  'w-4 h-4 transition-colors',
+                  isActive ? tab.color : 'group-hover:text-foreground'
+                )}
+              />
+              <span className="hidden sm:inline">{tab.name}</span>
+              <span className="sm:hidden">{tab.name.split(' ')[0]}</span>
+
+              {/* Active indicator */}
+              <div
+                className={cn(
+                  'absolute bottom-0 left-0 right-0 h-0.5 bg-primary transition-all duration-200',
+                  isActive ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+
+              {/* Hover effect */}
+              <div
+                className={cn(
+                  'absolute inset-0 bg-muted/50 opacity-0 transition-opacity duration-200',
+                  !isActive && 'group-hover:opacity-100'
+                )}
+              />
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

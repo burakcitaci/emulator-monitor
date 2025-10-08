@@ -5,13 +5,12 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
+import { SendForm, ConnectionInfo } from '../types';
 import {
-  SendForm,
-  ConnectionInfo,
+  useServiceBus,
   DeadLetterMessage,
   DeadLetterMessageResponse,
-} from '../types';
-import { useServiceBus } from './useServiceBus';
+} from './useServiceBus';
 import toast from 'react-hot-toast';
 
 interface MonitorState {
@@ -30,6 +29,7 @@ interface MonitorState {
   // UI states
   selectedMessage: DeadLetterMessage | null;
   isLoading: boolean;
+  isSendingMessage: boolean;
   error: string | null;
 }
 
@@ -70,7 +70,12 @@ const initialState: MonitorState = {
   },
   dlqQueue: '',
   messages: [],
-  dlqMessages: { messages: [] },
+  dlqMessages: {
+    success: false,
+    messageCount: 0,
+    messages: [],
+    entityPath: '',
+  },
   connectionInfo: {
     connectionString: '',
     endpoint: '',
@@ -79,6 +84,7 @@ const initialState: MonitorState = {
   },
   selectedMessage: null,
   isLoading: false,
+  isSendingMessage: false,
   error: null,
 };
 
@@ -140,7 +146,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
       return;
     }
 
-    setLoading(true);
+    setState((prev) => ({ ...prev, isSendingMessage: true }));
     setError(null);
 
     try {
@@ -153,7 +159,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         : undefined;
 
       await serviceBusSendMessage({
-        namespace: 'solution-monitor-ns',
+        namespace: 'sbemulatorns',
         topic: state.sendForm.queueName,
         message: {
           body: messageBody,
@@ -181,15 +187,9 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
       setError(errorMessage);
       toast.error(errorMessage, { duration: 5000 });
     } finally {
-      setLoading(false);
+      setState((prev) => ({ ...prev, isSendingMessage: false }));
     }
-  }, [
-    state.sendForm,
-    serviceBusSendMessage,
-    setLoading,
-    setError,
-    setSendForm,
-  ]);
+  }, [state.sendForm, serviceBusSendMessage, setError, setSendForm]);
 
   const loadDlqMessages = useCallback(
     async (queueName: string) => {
@@ -227,7 +227,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
       try {
         // Find the message to replay
         const messageToReplay = state.dlqMessages.messages.find(
-          (msg) => msg.messageId === messageId
+          (msg: DeadLetterMessage) => msg.messageId === messageId
         );
         if (!messageToReplay) {
           throw new Error('Message not found');

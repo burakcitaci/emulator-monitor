@@ -15,7 +15,7 @@ export class ServiceBusController {
   constructor(private readonly serviceBusService: ServiceBusService) {}
 
   /**
-   * Initialize Service Bus with configuration
+   * Initialize Service Bus with configuration (legacy endpoint - auto-initialization now happens on startup)
    */
   @Post('initialize')
   async initialize(@Body() dto: types.InitializeDto) {
@@ -31,9 +31,9 @@ export class ServiceBusController {
         dto.config,
         dto.connectionString
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new HttpException(
-        error.message || 'Failed to initialize Service Bus',
+        (error as Error).message || 'Failed to initialize Service Bus',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -75,10 +75,22 @@ export class ServiceBusController {
         );
       }
 
+      // Check if service is initialized
+      const config = this.serviceBusService.getConfig();
+      if (!config) {
+        throw new HttpException(
+          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
       return await this.serviceBusService.sendMessage(dto);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
-        error.message || 'Failed to send message',
+        (error as Error).message || 'Failed to send message',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -100,6 +112,15 @@ export class ServiceBusController {
         );
       }
 
+      // Check if service is initialized
+      const config = this.serviceBusService.getConfig();
+      if (!config) {
+        throw new HttpException(
+          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
       const maxMsg = maxMessages ? parseInt(maxMessages, 10) : 10;
       const maxWait = maxWaitTimeInSeconds
         ? parseInt(maxWaitTimeInSeconds, 10)
@@ -112,9 +133,12 @@ export class ServiceBusController {
         maxMsg,
         maxWait
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
-        error.message || 'Failed to retrieve Dead Letter Messages',
+        (error as Error).message || 'Failed to retrieve Dead Letter Messages',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -137,10 +161,22 @@ export class ServiceBusController {
         );
       }
 
+      // Check if service is initialized
+      const config = this.serviceBusService.getConfig();
+      if (!config) {
+        throw new HttpException(
+          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
       return await this.serviceBusService.sendMessageBatch(dto);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
-        error.message || 'Failed to send message batch',
+        (error as Error).message || 'Failed to send message batch',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }

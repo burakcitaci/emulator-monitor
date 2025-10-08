@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ConnectionInfo, SendForm, ConnectionForm } from './types';
-import { useMessages } from './hooks';
 import {
   TabNavigation,
   MessagesTab,
@@ -9,7 +8,7 @@ import {
   ConnectionTab,
   ConfigurationTab,
 } from './components';
-import { DeadLetterMessageResponse } from './hooks/useServiceBus';
+import { DeadLetterMessage } from './hooks/useServiceBus';
 
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
@@ -17,8 +16,9 @@ export default function ServiceBusMonitor() {
   const [activeTab, setActiveTab] = useState<TabId>('messages');
   const [filterQueue, setFilterQueue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-
-  const { messages, addMessage, replayMessage } = useMessages();
+  const [deadLetterMessages, setDeadLetterMessages] = useState<
+    DeadLetterMessage[]
+  >([]);
   // const { allDestinations, getQueueNames } = useServiceBusConfig();
 
   const [sendForm, setSendForm] = useState<SendForm>({
@@ -32,8 +32,6 @@ export default function ServiceBusMonitor() {
     queues: 'test-queue,orders-queue',
   });
 
-  const [dlqQueue, setDlqQueue] = useState('');
-
   const [connectionInfo] = useState<ConnectionInfo>({
     isConnected: true,
     isLocal: true,
@@ -41,35 +39,35 @@ export default function ServiceBusMonitor() {
     connectionString: '',
   });
 
+  // Handle viewing a DeadLetterMessage
+  const handleViewMessage = (message: DeadLetterMessage) => {
+    console.log('Viewing message:', message);
+  };
+
   const handleSendMessage = () => {
-    const newMessage: Message = {
-      id: `msg-${Date.now()}`,
-      queueName: sendForm.queueName,
+    const newMessage: DeadLetterMessage = {
+      messageId: `msg-${Date.now()}`,
       body: sendForm.body,
-      properties: sendForm.properties ? JSON.parse(sendForm.properties) : {},
-      timestamp: new Date().toISOString(),
-      direction: 'outgoing',
-      status: 'sent',
-      isDeadLetter: false,
+      subject: sendForm.queueName,
+      applicationProperties: sendForm.properties
+        ? JSON.parse(sendForm.properties)
+        : {},
+      enqueuedTimeUtc: new Date(),
     };
-    addMessage(newMessage);
+    setDeadLetterMessages((prev) => [...prev, newMessage]);
     setSendForm({ ...sendForm, body: '', properties: '' });
   };
 
   const handleReplayMessage = (messageId: string) => {
-    replayMessage(messageId);
+    setDeadLetterMessages((prev) =>
+      prev.filter((msg) => msg.messageId !== messageId)
+    );
   };
 
   const handleClearFilters = () => {
     setSearchTerm('');
     setFilterQueue('');
   };
-
-  // Use configured destinations instead of extracting from messages
-  // const uniqueQueues =
-  //   allDestinations.length > 0
-  //     ? allDestinations
-  //     : [...new Set(messages.map((m) => m.deliveryCount.toString()))];
 
   return (
     <div className="min-h-screen ">
@@ -80,13 +78,15 @@ export default function ServiceBusMonitor() {
           <div className="p-6">
             {activeTab === 'messages' && (
               <MessagesTab
-                messages={messages}
+                messages={deadLetterMessages}
                 searchTerm={searchTerm}
                 filterQueue={filterQueue}
                 onSearchChange={setSearchTerm}
                 onFilterChange={setFilterQueue}
                 onClearFilters={handleClearFilters}
-                onMessageSelect={setSelectedMessage}
+                onMessageSelect={(message) =>
+                  console.log('Selected message:', message)
+                }
               />
             )}
 
@@ -100,12 +100,8 @@ export default function ServiceBusMonitor() {
 
             {activeTab === 'dlq' && (
               <DeadLetterQueueTab
-                dlqMessages={{} as DeadLetterMessageResponse}
-                dlqQueue={dlqQueue}
-                uniqueQueues={[]}
-                onQueueChange={setDlqQueue}
                 onReplay={handleReplayMessage}
-                onView={setSelectedMessage}
+                onView={handleViewMessage}
               />
             )}
 

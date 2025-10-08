@@ -23,6 +23,8 @@ export const useFile = (): UseFileReturn => {
   const hasInitialLoad = useRef(false);
 
   const fetchFile = useCallback(async (name: string, isInitial = false) => {
+    console.log('Fetching file:', name, 'isInitial:', isInitial);
+
     // Only show loading spinner on initial load
     if (isInitial || !hasInitialLoad.current) {
       setLoading(true);
@@ -30,19 +32,35 @@ export const useFile = (): UseFileReturn => {
     setError(null);
 
     try {
-      const response = await fetch(`http://localhost:3000/api/file/${name}`);
+      const url = `http://localhost:3000/api/v1/file/${name}`;
+      console.log('Making API call to:', url);
+      const response = await fetch(url);
 
+      console.log('File response status:', response.status);
       if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('File response error text:', errorText);
+        throw new Error(
+          `Failed to fetch file: ${response.statusText} - ${errorText}`
+        );
       }
+
       const fileResponse = await response.text();
+      console.log('File content length:', fileResponse.length);
 
-      const yamlContent = yaml.parse(fileResponse) as DockerCompose;
-      const fileData = { name: name, content: yamlContent };
+      try {
+        const yamlContent = yaml.parse(fileResponse) as DockerCompose;
+        const fileData = { name: name, content: yamlContent };
+        console.log('Parsed YAML successfully');
 
-      setData(fileData);
-      hasInitialLoad.current = true;
+        setData(fileData);
+        hasInitialLoad.current = true;
+      } catch (parseError) {
+        console.error('YAML parsing error:', parseError);
+        throw new Error(`Failed to parse YAML file: ${parseError}`);
+      }
     } catch (err) {
+      console.error('Fetch file error:', err);
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setLoading(false);

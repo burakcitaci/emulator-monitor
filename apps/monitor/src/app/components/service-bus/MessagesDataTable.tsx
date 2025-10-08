@@ -18,34 +18,21 @@ export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
 }) => {
   const columns: ColumnDef<DeadLetterMessage>[] = [
     {
-      accessorKey: 'direction',
+      accessorKey: 'messageId',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Direction" />
+        <DataTableColumnHeader column={column} title="Message ID" />
       ),
       cell: ({ row }) => {
-        const direction = row.getValue('direction') as string;
-        return (
-          <div className="flex items-center">
-            {direction === 'incoming' ? (
-              <ArrowDownLeft className="mr-2 h-4 w-4 text-green-600" />
-            ) : (
-              <ArrowUpRight className="mr-2 h-4 w-4 text-blue-600" />
-            )}
-            <span className="capitalize">{direction}</span>
-          </div>
-        );
-      },
-      filterFn: (row, id, value) => {
-        return value.includes(row.getValue(id));
+        return <div className="font-medium">{row.getValue('messageId')}</div>;
       },
     },
     {
-      accessorKey: 'queueName',
+      accessorKey: 'subject',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Queue/Topic" />
+        <DataTableColumnHeader column={column} title="Subject" />
       ),
       cell: ({ row }) => {
-        return <div className="font-medium">{row.getValue('queueName')}</div>;
+        return <div className="font-medium">{row.getValue('subject')}</div>;
       },
     },
     {
@@ -61,12 +48,12 @@ export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
       },
     },
     {
-      accessorKey: 'timestamp',
+      accessorKey: 'enqueuedTimeUtc',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Timestamp" />
       ),
       cell: ({ row }) => {
-        const timestamp = row.getValue('timestamp') as string;
+        const timestamp = row.getValue('enqueuedTimeUtc') as Date;
         return (
           <div className="text-sm text-muted-foreground">
             {new Date(timestamp).toLocaleString()}

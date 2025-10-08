@@ -85,7 +85,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
         if (options?.projectName)
           params.append('projectName', options.projectName);
 
-        const url = `http://localhost:3000/api/docker-compose/ps${
+        const url = `http://localhost:3000/api/v1/docker-compose/ps${
           params.toString() ? `?${params.toString()}` : ''
         }`;
 
@@ -120,7 +120,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
 
       try {
         const response = await fetch(
-          'http://localhost:3000/api/docker-compose/up',
+          'http://localhost:3000/api/v1/docker-compose/up',
           {
             method: 'POST',
             headers: {
@@ -163,7 +163,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
 
       try {
         const response = await fetch(
-          'http://localhost:3000/api/docker-compose/down',
+          'http://localhost:3000/api/v1/docker-compose/down',
           {
             method: 'POST',
             headers: {
@@ -211,7 +211,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
       if (options?.service) params.append('service', options.service);
       if (options?.tail) params.append('tail', options.tail.toString());
 
-      const url = `http://localhost:3000/api/docker-compose/logs${
+      const url = `http://localhost:3000/api/v1/docker-compose/logs${
         params.toString() ? `?${params.toString()}` : ''
       }`;
 
@@ -243,7 +243,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
 
       try {
         const response = await fetch(
-          'http://localhost:3000/api/docker-compose/restart',
+          'http://localhost:3000/api/v1/docker-compose/restart',
           {
             method: 'POST',
             headers: {

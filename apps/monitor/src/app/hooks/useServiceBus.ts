@@ -97,14 +97,9 @@ export interface DeadLetterMessageResponse {
 
 interface UseServiceBusReturn {
   namespaces: Namespace[];
-  config: ServiceBusConfig | null;
   loading: boolean;
   error: Error | null;
   isInitialized: boolean;
-  initialize: (
-    config: ServiceBusConfig,
-    connectionString: string
-  ) => Promise<void>;
   fetchNamespaces: () => Promise<void>;
   sendMessage: (options: SendMessageOptions) => Promise<{
     success: boolean;
@@ -123,11 +118,10 @@ interface UseServiceBusReturn {
   ) => Promise<DeadLetterMessageResponse>;
 }
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://localhost:3000/api/v1';
 
 export const useServiceBus = (): UseServiceBusReturn => {
   const [namespaces, setNamespaces] = useState<Namespace[]>([]);
-  const [config, setConfig] = useState<ServiceBusConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -140,6 +134,12 @@ export const useServiceBus = (): UseServiceBusReturn => {
       const response = await fetch(`${API_BASE_URL}/servicebus/namespaces`);
 
       if (!response.ok) {
+        // If service unavailable, it might mean Service Bus is not initialized yet
+        if (response.status === 503) {
+          setNamespaces([]);
+          setIsInitialized(false);
+          return;
+        }
         throw new Error('Failed to fetch namespaces');
       }
 
@@ -156,51 +156,11 @@ export const useServiceBus = (): UseServiceBusReturn => {
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
       setNamespaces([]);
+      setIsInitialized(false);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const initialize = useCallback(
-    async (config: ServiceBusConfig, connectionString: string) => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/servicebus/initialize`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ config, connectionString }),
-        });
-
-        console.log('Initialization response status:', config);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || 'Failed to initialize Service Bus'
-          );
-        }
-
-        const data = await response.json();
-        setIsInitialized(true);
-        setConfig(config);
-
-        // Fetch namespaces after initialization
-        await fetchNamespaces();
-
-        return data;
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Unknown error');
-        setError(error);
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [fetchNamespaces]
-  );
 
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
     setLoading(true);
@@ -215,7 +175,14 @@ export const useServiceBus = (): UseServiceBusReturn => {
         body: JSON.stringify(options),
       });
 
+      console.log('Send message response:', response);
       if (!response.ok) {
+        // If service unavailable, it might mean Service Bus is not initialized yet
+        if (response.status === 503) {
+          throw new Error(
+            'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
+          );
+        }
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to send message');
       }
@@ -245,6 +212,12 @@ export const useServiceBus = (): UseServiceBusReturn => {
       });
 
       if (!response.ok) {
+        // If service unavailable, it might mean Service Bus is not initialized yet
+        if (response.status === 503) {
+          throw new Error(
+            'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
+          );
+        }
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to send message batch');
       }
@@ -289,6 +262,12 @@ export const useServiceBus = (): UseServiceBusReturn => {
         );
 
         if (!response.ok) {
+          // If service unavailable, it might mean Service Bus is not initialized yet
+          if (response.status === 503) {
+            throw new Error(
+              'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
+            );
+          }
           const errorData = await response.json();
           throw new Error(
             errorData.message || 'Failed to retrieve dead letter messages'
@@ -310,11 +289,9 @@ export const useServiceBus = (): UseServiceBusReturn => {
 
   return {
     namespaces,
-    config,
     loading,
     error,
     isInitialized,
-    initialize,
     fetchNamespaces,
     sendMessage,
     sendMessageBatch,

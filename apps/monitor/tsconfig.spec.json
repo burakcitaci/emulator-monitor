@@ -17,7 +17,6 @@
   },
   "include": [
     "vite.config.mts",
-    "vite.config.mts",
     "vitest.config.mts",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",

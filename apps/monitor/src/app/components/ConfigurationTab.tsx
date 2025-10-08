@@ -18,12 +18,41 @@ import {
 import { Badge } from './ui/badge';
 
 export const ConfigurationTab: React.FC = () => {
-  const { config } = useServiceBusConfig();
+  const { config, loading: configLoading, error } = useServiceBusConfig();
 
-  if (!config) {
+  // Show loading state only during initial loading, not when backend is unavailable
+  if (configLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-muted-foreground">Loading configuration...</p>
+      </div>
+    );
+  }
+
+  // Show backend unavailable state when not loading but config is null
+  if (!config) {
+    return (
+      <div className="space-y-6">
+        {/* Header Section */}
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold">Service Bus Configuration</h2>
+          <p className="text-muted-foreground">
+            View and manage your Service Bus emulator configuration.
+          </p>
+        </div>
+
+        {/* Backend Unavailable Status */}
+        <div className="rounded-lg border p-8 text-center bg-muted/50">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-red-700 mb-2">
+            Backend Service Unavailable
+          </h3>
+          <p className="text-muted-foreground">
+            Unable to connect to backend service. Please ensure the backend is
+            running and accessible.
+          </p>
+          {error && <p className="text-sm text-red-600 mt-2">Error: {error}</p>}
+        </div>
       </div>
     );
   }
@@ -45,19 +74,21 @@ export const ConfigurationTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {config.UserConfig.Namespaces.map((namespace) => (
-        <div key={namespace.Name} className="space-y-4">
+        <div key={namespace.Name} className="space-y-6">
           {/* Namespace Header */}
-          <Card className="border-2 border-primary">
-            <CardHeader>
-              <div className="flex items-center space-x-2">
-                <Database className="size-6 text-primary" />
+          <Card className="border-2 border-primary shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Database className="size-6 text-primary" />
+                </div>
                 <div>
-                  <CardTitle className="text-xl">
+                  <CardTitle className="text-2xl font-semibold">
                     Namespace: {namespace.Name}
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-base mt-1">
                     Azure Service Bus Namespace Configuration
                   </CardDescription>
                 </div>

@@ -1,6 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '../ui/accordion';
 import {
   Select,
   SelectContent,
@@ -12,10 +18,18 @@ import { useFile } from '../../hooks/useFile';
 import { useDocker } from '../../hooks/useDocker';
 import Docker from 'dockerode';
 import { DockerService } from '../../types/dockerCompose';
-import { PauseIcon, PlayIcon, Square } from 'lucide-react';
+import {
+  PauseIcon,
+  PlayIcon,
+  Square,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Label } from '../ui/label';
 import { useDockerCompose } from '../../hooks/useDockerCompose';
 import { ContainerSkeleton } from '../ui/skeleton';
+import { Button } from '../ui/button';
 
 interface ContainerWithStatus {
   serviceName: string;
@@ -41,8 +55,16 @@ export const ContainerSidebar = () => {
     fetchContainers,
   } = useDocker();
 
+  // Log errors for debugging
+  React.useEffect(() => {
+    if (dockerError) {
+      console.error('Docker error:', dockerError);
+    }
+  }, [dockerError]);
+
   const { composeUp } = useDockerCompose();
   const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   useEffect(() => {
     // Initial load
     fetchFile('docker-compose.yml', true);
@@ -51,7 +73,7 @@ export const ContainerSidebar = () => {
     // Refresh container status every 5 seconds (without loading state)
     const interval = setInterval(() => {
       fetchContainers(false);
-    }, 5000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [fetchFile, fetchContainers]);
@@ -81,37 +103,62 @@ export const ContainerSidebar = () => {
     return 'exited';
   };
 
-  const getStatusBadgeVariant = (status: ContainerWithStatus['status']) => {
+  const getStatusDisplay = (status: ContainerWithStatus['status']) => {
     switch (status) {
       case 'running':
-        return 'default'; // green
+        return {
+          icon: PlayIcon,
+          label: 'Running',
+          color: 'text-green-600 dark:text-green-400',
+          bgColor:
+            'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800',
+          dotColor: 'bg-green-500',
+        };
       case 'exited':
-        return 'destructive'; // red
+        return {
+          icon: Square,
+          label: 'Stopped',
+          color: 'text-red-600 dark:text-red-400',
+          bgColor:
+            'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800',
+          dotColor: 'bg-red-500',
+        };
       case 'paused':
-        return 'secondary'; // yellow
+        return {
+          icon: PauseIcon,
+          label: 'Paused',
+          color: 'text-yellow-600 dark:text-yellow-400',
+          bgColor:
+            'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800',
+          dotColor: 'bg-yellow-500',
+        };
       case 'restarting':
-        return 'outline';
+        return {
+          icon: AlertCircle,
+          label: 'Restarting',
+          color: 'text-blue-600 dark:text-blue-400',
+          bgColor:
+            'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800',
+          dotColor: 'bg-blue-500',
+        };
       case 'not-found':
-        return 'outline';
+        return {
+          icon: AlertCircle,
+          label: 'Not Found',
+          color: 'text-gray-600 dark:text-gray-400',
+          bgColor:
+            'bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800',
+          dotColor: 'bg-gray-500',
+        };
       default:
-        return 'outline';
-    }
-  };
-
-  const getStatusColor = (status: ContainerWithStatus['status']) => {
-    switch (status) {
-      case 'running':
-        return 'bg-green-500';
-      case 'exited':
-        return 'bg-red-500';
-      case 'paused':
-        return 'bg-yellow-500';
-      case 'restarting':
-        return 'bg-blue-500';
-      case 'not-found':
-        return 'bg-gray-500';
-      default:
-        return 'bg-gray-500';
+        return {
+          icon: AlertCircle,
+          label: status,
+          color: 'text-gray-600 dark:text-gray-400',
+          bgColor:
+            'bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800',
+          dotColor: 'bg-gray-500',
+        };
     }
   };
 
@@ -175,12 +222,45 @@ export const ContainerSidebar = () => {
     return (
       <div className="w-80 border-r bg-muted/30 p-4">
         <Card className="border-destructive">
-          <CardContent className="pt-6">
-            <p className="text-sm text-destructive">
-              {fileError?.message ||
-                dockerError?.message ||
-                'Failed to load data'}
-            </p>
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive" />
+              <p className="text-sm font-medium text-destructive">
+                Failed to Load Data
+              </p>
+            </div>
+
+            {fileError && (
+              <div className="text-xs">
+                <p className="font-medium text-muted-foreground">File Error:</p>
+                <p className="text-destructive">{fileError.message}</p>
+              </div>
+            )}
+
+            {dockerError && (
+              <div className="text-xs">
+                <p className="font-medium text-muted-foreground">
+                  Docker Error:
+                </p>
+                <p className="text-destructive">{dockerError.message}</p>
+                <p className="text-muted-foreground mt-1">
+                  Make sure Docker Desktop is running and the backend server is
+                  accessible.
+                </p>
+              </div>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                fetchFile('docker-compose.yml', true);
+                fetchContainers(true);
+              }}
+              className="w-full"
+            >
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -188,30 +268,73 @@ export const ContainerSidebar = () => {
   }
 
   return (
-    <div className="w-80 border-r bg-muted/30 overflow-y-auto h-screen">
-      <div className="p-4 space-y-4">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Emulator Containers</h2>
-              {isRefreshing && (
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-              )}
+    <div
+      className={`${
+        isCollapsed ? 'w-16' : 'w-80 lg:w-96'
+      } border-r bg-background/50 backdrop-blur-sm overflow-y-auto h-screen transition-all duration-300`}
+    >
+      <div className={`${isCollapsed ? 'p-2' : 'p-4'} space-y-4`}>
+        {/* Header with collapse button */}
+        <div className={`${isCollapsed ? 'flex justify-center' : 'space-y-3'}`}>
+          {!isCollapsed && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">Emulator Containers</h2>
+                {isRefreshing && (
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {
+                    containersWithStatus.filter((c) => c.status === 'running')
+                      .length
+                  }
+                  /{containersWithStatus.length}
+                </Badge>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsCollapsed(!isCollapsed)}
+                  className="h-6 w-6 p-0"
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="w-3 h-3" />
+                  ) : (
+                    <ChevronLeft className="w-3 h-3" />
+                  )}
+                </Button>
+              </div>
             </div>
-            <Badge variant="outline" className="text-xs">
-              {
-                containersWithStatus.filter((c) => c.status === 'running')
-                  .length
-              }
-              /{containersWithStatus.length}
-            </Badge>
-          </div>
+          )}
 
-          {/* Project Filter Dropdown */}
-          {projects.length > 0 && (
+          {isCollapsed && (
+            <div className="flex flex-col items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <Badge variant="outline" className="text-xs">
+                  {
+                    containersWithStatus.filter((c) => c.status === 'running')
+                      .length
+                  }
+                </Badge>
+              </div>
+            </div>
+          )}
+
+          {/* Project Filter Dropdown - Hidden when collapsed */}
+          {!isCollapsed && projects.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium  text-muted-foreground">
+                <Label className="text-sm font-medium text-muted-foreground">
                   Filter by Project
                 </Label>
               </div>
@@ -243,9 +366,17 @@ export const ContainerSidebar = () => {
                   </SelectContent>
                 </Select>
                 <div className="flex space-x-1">
-                  <PlayIcon className="w-5 h-5" onClick={() => composeUp()} />
-                  <Square
-                    className="w-5 h-5"
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => composeUp()}
+                    className="h-8 w-8 p-0"
+                  >
+                    <PlayIcon className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => {
                       containersWithStatus.forEach((c) => {
                         if (c.containerInfo?.Id) {
@@ -253,142 +384,155 @@ export const ContainerSidebar = () => {
                         }
                       });
                     }}
-                  />
+                    className="h-8 w-8 p-0"
+                  >
+                    <Square className="w-3 h-3" />
+                  </Button>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="space-y-3">
-          {containersWithStatus.map((container) => (
-            <Card
-              key={container.serviceName}
-              className={`transition-all duration-300 ease-in-out hover:shadow-md ${
-                container.status === 'running' ? 'border-green-500/50' : ''
-              }`}
-            >
-              <CardHeader className="p-4 pb-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-sm font-semibold truncate">
+        <Accordion type="multiple" className="space-y-2">
+          {containersWithStatus.map((container) => {
+            const statusDisplay = getStatusDisplay(container.status);
+            const StatusIcon = statusDisplay.icon;
+
+            return (
+              <AccordionItem
+                key={container.serviceName}
+                value={container.serviceName}
+                className={`transition-all duration-300 border rounded-md ${statusDisplay.bgColor}`}
+              >
+                {/* Custom header */}
+                <div className="flex items-center justify-between w-full p-3">
+                  {/* Left section: status + name + image */}
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <div />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-semibold truncate">
                         {container.serviceConfig.container_name ||
                           container.serviceName}
-                      </CardTitle>
-                      {container.containerInfo?.Labels?.[
-                        'com.docker.compose.project'
-                      ] && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {
-                            container.containerInfo.Labels[
-                              'com.docker.compose.project'
-                            ]
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {container.serviceConfig.image?.split('@')[0] ||
+                          'No image specified'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right section: status badge + toggle */}
+                  <div className="flex items-center flex-shrink-0 gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`flex items-center gap-1 px-2 py-0.5 ${statusDisplay.bgColor}`}
+                    >
+                      <statusDisplay.icon
+                        className={`w-3 h-3 ${statusDisplay.color}`}
+                      />
+                      <span
+                        className={`text-xs font-medium ${statusDisplay.color}`}
+                      >
+                        {statusDisplay.label}
+                      </span>
+                    </Badge>
+
+                    {/* Accordion toggle only here */}
+                    <AccordionTrigger className="ml-1 p-1 rounded-md hover:bg-muted transition-all hover:cursor-pointer" />
+                  </div>
+                </div>
+
+                <AccordionContent className="p-3 pt-0 space-y-3 text-sm">
+                  {/* Status text + buttons */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {container.containerInfo?.Status || 'No status available'}
+                    </span>
+
+                    <div className="flex flex-wrap gap-2">
+                      {container.status === 'exited' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            startContainer(container.containerInfo?.Id || '')
                           }
-                        </Badge>
+                        >
+                          <PlayIcon className="w-3 h-3 mr-1" />
+                          Start
+                        </Button>
+                      )}
+                      {container.status === 'running' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            stopContainer(container.containerInfo?.Id || '')
+                          }
+                        >
+                          <PauseIcon className="w-3 h-3 mr-1" />
+                          Stop
+                        </Button>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 truncate transition-opacity duration-200">
-                      {container.serviceConfig.image?.split('@')[0] ||
-                        'No image'}
-                    </p>
                   </div>
-                  <div className="ml-2 flex-shrink-0">
-                    <div
-                      className={`w-2.5 h-2.5 rounded-full bg-amber-300 transition-colors duration-300 ${getStatusColor(
-                        container.status
-                      )} ${
-                        container.status === 'running' ? 'animate-pulse' : ''
-                      }`}
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Badge
-                    variant={getStatusBadgeVariant(container.status)}
-                    className="text-xs transition-all duration-200"
-                  >
-                    {container.status}
-                  </Badge>
-                  {container.containerInfo && (
-                    <span className="text-xs text-muted-foreground transition-opacity duration-200">
-                      {container.containerInfo.Status}
-                    </span>
-                  )}
-                  {container.status === 'exited' ? (
-                    <button
-                      onClick={() =>
-                        startContainer(container.containerInfo?.Id || '')
-                      }
-                      className="..."
-                    >
-                      <PlayIcon className="w-4 h-4" />
-                      <span className="sr-only">Start container</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        stopContainer(container.containerInfo?.Id || '')
-                      }
-                      className="..."
-                    >
-                      <PauseIcon className="w-4 h-4" />
-                      <span className="sr-only">Stop container</span>
-                    </button>
-                  )}
-                </div>
 
-                {container.serviceConfig.ports &&
-                  container.serviceConfig.ports.length > 0 && (
-                    <div className="text-xs">
-                      <span className="font-medium text-muted-foreground">
-                        Ports:
-                      </span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {container.serviceConfig.ports
-                          .slice(0, 3)
-                          .map((port, idx) => (
-                            <Badge
-                              key={idx}
-                              variant="outline"
-                              className="text-xs"
-                            >
-                              {port}
-                            </Badge>
-                          ))}
-                        {container.serviceConfig.ports.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{container.serviceConfig.ports.length - 3}
-                          </Badge>
+                  {/* Ports + dependencies (same TS-safe logic) */}
+                  {(!!container.serviceConfig.ports?.length ||
+                    !!container.serviceConfig.depends_on?.length) && (
+                    <div className="border-t pt-3 space-y-2">
+                      {container.serviceConfig.ports &&
+                        container.serviceConfig.ports.length > 0 && (
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Ports:
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {container.serviceConfig.ports
+                                .slice(0, 3)
+                                .map((port, i) => (
+                                  <Badge
+                                    key={i}
+                                    variant="outline"
+                                    className="text-xs"
+                                  >
+                                    {port}
+                                  </Badge>
+                                ))}
+                              {container.serviceConfig.ports.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{container.serviceConfig.ports.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    </div>
-                  )}
 
-                {container.serviceConfig.depends_on &&
-                  container.serviceConfig.depends_on.length > 0 && (
-                    <div className="text-xs">
-                      <span className="font-medium text-muted-foreground">
-                        Depends on:
-                      </span>
-                      <p className="text-xs mt-0.5">
-                        {container.serviceConfig.depends_on
-                          .slice(0, 2)
-                          .join(', ')}
-                        {container.serviceConfig.depends_on.length > 2 &&
-                          ` +${container.serviceConfig.depends_on.length - 2}`}
-                      </p>
+                      {container.serviceConfig.depends_on &&
+                        container.serviceConfig.depends_on.length > 0 && (
+                          <div>
+                            <span className="font-medium text-muted-foreground">
+                              Depends on:
+                            </span>
+                            <div className="mt-1 text-xs text-muted-foreground break-words">
+                              {container.serviceConfig.depends_on
+                                .slice(0, 2)
+                                .join(', ')}
+                              {container.serviceConfig.depends_on.length > 2 &&
+                                ` +${
+                                  container.serviceConfig.depends_on.length - 2
+                                } more`}
+                            </div>
+                          </div>
+                        )}
                     </div>
                   )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
 
         {containersWithStatus.length === 0 && (
           <Card>

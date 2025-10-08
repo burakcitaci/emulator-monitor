@@ -18,18 +18,58 @@
                 "MaxDeliveryCount": 10
               }
             ]
+          },
+          {
+            "Name": "application-events",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "DuplicateDetectionHistoryTimeWindow": "PT30S",
+              "RequiresDuplicateDetection": true
+            },
+            "Subscriptions": [
+              {
+                "Name": "analytics-processor",
+                "DeadLetteringOnMessageExpiration": true,
+                "MaxDeliveryCount": 5
+              },
+              {
+                "Name": "logging-service",
+                "DeadLetteringOnMessageExpiration": false,
+                "MaxDeliveryCount": 3
+              }
+            ]
+          }
+        ],
+        "Queues": [
+          {
+            "Name": "orders-queue",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "MaxDeliveryCount": 10,
+              "DeadLetteringOnMessageExpiration": true
+            }
+          },
+          {
+            "Name": "notifications-queue",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "MaxDeliveryCount": 5,
+              "DeadLetteringOnMessageExpiration": true
+            }
+          },
+          {
+            "Name": "errm-policy-triggered",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "MaxDeliveryCount": 3,
+              "DeadLetteringOnMessageExpiration": true
+            }
           }
         ]
       }
     ],
     "Logging": {
       "Type": "File"
-    }
-  },
-  "ServiceBus": {
-    "Persistence": {
-      "Provider": "SqlServer",
-      "ConnectionString": "Server=sqledge,1433;Database=ServiceBusEmulator;User Id=sa;Password=P@ssw0rd;TrustServerCertificate=True"
     }
   }
 }

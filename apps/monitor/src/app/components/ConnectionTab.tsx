@@ -23,8 +23,22 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
   onTest,
   onReset,
 }) => {
+  // Default connection info to prevent undefined errors
+  const safeConnectionInfo = connectionInfo || {
+    isConnected: false,
+    isLocal: true,
+    endpoint: '',
+    connectionString: '',
+  };
+
+  // Default form to prevent undefined errors
+  const safeForm = form || {
+    connectionString: '',
+    queues: '',
+  };
+
   const handleInputChange = (field: keyof ConnectionForm, value: string) => {
-    onFormChange({ ...form, [field]: value });
+    onFormChange({ ...safeForm, [field]: value });
   };
 
   return (
@@ -37,21 +51,23 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Status:</span>
             <Badge
-              variant={connectionInfo.isConnected ? 'default' : 'destructive'}
+              variant={
+                safeConnectionInfo.isConnected ? 'default' : 'destructive'
+              }
             >
-              {connectionInfo.isConnected ? 'Connected' : 'Disconnected'}
+              {safeConnectionInfo.isConnected ? 'Connected' : 'Disconnected'}
             </Badge>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Type:</span>
             <span className="font-medium">
-              {connectionInfo.isLocal ? 'Local Emulator' : 'Azure Cloud'}
+              {safeConnectionInfo.isLocal ? 'Local Emulator' : 'Azure Cloud'}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Endpoint:</span>
             <span className="font-medium text-sm break-all">
-              {connectionInfo.endpoint}
+              {safeConnectionInfo.endpoint}
             </span>
           </div>
         </CardContent>
@@ -62,7 +78,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
         <Input
           id="connection-string"
           type="text"
-          value={form.connectionString}
+          value={safeForm.connectionString}
           onChange={(e) =>
             handleInputChange('connectionString', e.target.value)
           }
@@ -79,7 +95,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
         <Input
           id="queues"
           type="text"
-          value={form.queues}
+          value={safeForm.queues}
           onChange={(e) => handleInputChange('queues', e.target.value)}
           placeholder="test-queue,orders-queue,notifications-queue"
         />

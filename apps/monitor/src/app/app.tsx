@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ContainerSidebar,
   TabNavigation,
@@ -18,6 +18,9 @@ import { Separator } from './components/ui/separator';
 import { MonitorProvider, useMonitor } from './hooks';
 import { Providers } from './providers';
 import { ThemeToggle } from './components/common/ThemeToggle';
+import { AlertCircle } from 'lucide-react';
+import { ConnectionForm } from './types';
+import { DeadLetterMessage } from './hooks/useServiceBus';
 
 const MonitorContent: React.FC = () => {
   const {
@@ -25,17 +28,21 @@ const MonitorContent: React.FC = () => {
     setActiveTab,
     sendForm,
     setSendForm,
-    dlqQueue,
-    setDlqQueue,
     messages,
     dlqMessages,
     connectionInfo,
+    setSelectedMessage,
     sendMessage,
-    loadDlqMessages,
     replayMessage,
     isLoading,
     error,
   } = useMonitor();
+
+  // Connection form state
+  const [connectionForm, setConnectionForm] = useState<ConnectionForm>({
+    connectionString: '',
+    queues: 'test-queue,orders-queue',
+  });
 
   const handleTabChange = (tab: typeof activeTab) => {
     setActiveTab(tab);
@@ -45,22 +52,15 @@ const MonitorContent: React.FC = () => {
     setSendForm(form);
   };
 
-  const handleMessageSelect = (message: typeof selectedMessage) => {
+  const handleMessageSelect = (message: DeadLetterMessage | null) => {
     setSelectedMessage(message);
-  };
-
-  const handleQueueChange = (queue: string) => {
-    setDlqQueue(queue);
-    if (queue) {
-      loadDlqMessages(queue);
-    }
   };
 
   const handleReplay = (messageId: string) => {
     replayMessage(messageId);
   };
 
-  const handleView = (message: typeof selectedMessage) => {
+  const handleView = (message: DeadLetterMessage | null) => {
     setSelectedMessage(message);
   };
 
@@ -68,16 +68,18 @@ const MonitorContent: React.FC = () => {
     sendMessage();
   };
 
-  // Get unique queues for DLQ tab
-  const uniqueQueues = React.useMemo(() => {
-    const queues = new Set<string>();
-    dlqMessages.messages.forEach((msg) => {
-      if (msg.deadLetterSource) {
-        queues.add(msg.deadLetterSource);
-      }
-    });
-    return Array.from(queues);
-  }, [dlqMessages]);
+  // Connection tab handlers
+  const handleUpdate = () => {
+    alert('Connection updated!');
+  };
+
+  const handleTest = () => {
+    alert('Testing connection...');
+  };
+
+  const handleReset = () => {
+    alert('Reset to local emulator');
+  };
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -98,19 +100,21 @@ const MonitorContent: React.FC = () => {
         );
       case 'dlq':
         return (
-          <DeadLetterQueueTab
-            dlqMessages={dlqMessages}
-            dlqQueue={dlqQueue}
-            uniqueQueues={uniqueQueues}
-            onQueueChange={handleQueueChange}
-            onReplay={handleReplay}
-            onView={handleView}
-          />
+          <DeadLetterQueueTab onReplay={handleReplay} onView={handleView} />
         );
       case 'configuration':
         return <ConfigurationTab />;
       case 'connection':
-        return <ConnectionTab />;
+        return (
+          <ConnectionTab
+            connectionInfo={connectionInfo}
+            form={connectionForm}
+            onFormChange={setConnectionForm}
+            onUpdate={handleUpdate}
+            onTest={handleTest}
+            onReset={handleReset}
+          />
+        );
       default:
         return <div>Tab not found</div>;
     }
@@ -142,16 +146,27 @@ const MonitorContent: React.FC = () => {
               onTabChange={handleTabChange}
             />
 
-            <div className="flex-1 p-6">
+            <div className="flex-1 p-8">
               {isLoading && (
-                <div className="flex items-center justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="flex items-center justify-center p-12">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                    <p className="text-muted-foreground">Loading...</p>
+                  </div>
                 </div>
               )}
 
               {error && (
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
-                  <p className="text-destructive">{error}</p>
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 mb-6 max-w-2xl mx-auto">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-destructive" />
+                    <div>
+                      <h3 className="font-medium text-destructive">Error</h3>
+                      <p className="text-sm text-destructive/80 mt-1">
+                        {error}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 

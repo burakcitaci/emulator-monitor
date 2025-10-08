@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Send, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Send, CheckCircle, AlertCircle, Info, Loader2 } from 'lucide-react';
 import { SendForm } from '../../types';
-import { useServiceBusConfig } from '../../hooks';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
@@ -12,8 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useServiceBus } from '../../hooks/useServiceBus';
-import serviceBusConfigJson from '../../config/servicebus-config.json';
+import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
+import { useMonitor } from '../../hooks/useMonitor';
 import toast from 'react-hot-toast';
 import { FormSkeleton } from '../ui/skeleton';
 
@@ -23,18 +22,18 @@ interface SendMessageTabProps {
   onSend: () => void;
 }
 
-// Connection string for the Service Bus Emulator
-const CONNECTION_STRING =
-  'Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true';
-
 export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   form,
   onFormChange,
   onSend,
 }) => {
-  const { getQueueNames, getTopicNames } = useServiceBusConfig();
-  const { sendMessage, initialize, isInitialized, loading, error } =
-    useServiceBus();
+  const {
+    config,
+    getQueueNames,
+    getTopicNames,
+    loading: configLoading,
+  } = useServiceBusConfig();
+  const { isLoading, isSendingMessage, error } = useMonitor();
 
   const queues = getQueueNames();
   const topics = getTopicNames();
@@ -46,29 +45,8 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     properties?: string;
   }>({});
 
-  // Initialize Service Bus on component mount - moved before early return
-  useEffect(() => {
-    const initializeServiceBus = async () => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await initialize(serviceBusConfigJson as any, CONNECTION_STRING);
-        console.log('Service Bus initialized successfully');
-      } catch (err) {
-        console.error('Failed to initialize Service Bus:', err);
-      }
-    };
-
-    if (!isInitialized) {
-      initializeServiceBus();
-    }
-  }, [isInitialized, initialize]);
-
-  // Show loading state while initializing or if no data available
-  if (!isInitialized && loading) {
-    return <FormSkeleton />;
-  }
-
-  const validateForm = () => {
+  // Memoize validation functions to prevent infinite re-renders
+  const validateForm = useCallback(() => {
     const errors: typeof validationErrors = {};
 
     if (!form.queueName.trim()) {
@@ -95,55 +73,63 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
-  };
+  }, [form.queueName, form.body, form.properties]);
 
-  const validateField = (
-    field: keyof typeof validationErrors,
-    value: string
-  ) => {
-    const errors = { ...validationErrors };
+  const validateField = useCallback(
+    (field: keyof typeof validationErrors, value: string) => {
+      const errors = { ...validationErrors };
 
-    switch (field) {
-      case 'queueName':
-        if (!value.trim()) {
-          errors.queueName = 'Queue/Topic name is required';
-        } else {
-          delete errors.queueName;
-        }
-        break;
-      case 'body':
-        if (!value.trim()) {
-          errors.body = 'Message body is required';
-        } else {
-          try {
-            JSON.parse(value);
-            delete errors.body;
-          } catch {
-            errors.body = 'Message body must be valid JSON';
+      switch (field) {
+        case 'queueName':
+          if (!value.trim()) {
+            errors.queueName = 'Queue/Topic name is required';
+          } else {
+            delete errors.queueName;
           }
-        }
-        break;
-      case 'properties':
-        if (value.trim()) {
-          try {
-            JSON.parse(value);
+          break;
+        case 'body':
+          if (!value.trim()) {
+            errors.body = 'Message body is required';
+          } else {
+            try {
+              JSON.parse(value);
+              delete errors.body;
+            } catch {
+              errors.body = 'Message body must be valid JSON';
+            }
+          }
+          break;
+        case 'properties':
+          if (value.trim()) {
+            try {
+              JSON.parse(value);
+              delete errors.properties;
+            } catch {
+              errors.properties = 'Properties must be valid JSON';
+            }
+          } else {
             delete errors.properties;
-          } catch {
-            errors.properties = 'Properties must be valid JSON';
           }
-        } else {
-          delete errors.properties;
-        }
-        break;
-    }
+          break;
+      }
 
-    setValidationErrors(errors);
-  };
+      setValidationErrors(errors);
+    },
+    [validationErrors]
+  );
 
-  const handleInputChange = (field: keyof SendForm, value: string) => {
-    onFormChange({ ...form, [field]: value });
-    validateField(field, value);
-  };
+  const handleInputChange = useCallback(
+    (field: keyof SendForm, value: string) => {
+      onFormChange({ ...form, [field]: value });
+      validateField(field, value);
+    },
+    [form, onFormChange, validateField]
+  );
+
+  // Show loading state only during initial loading, not when backend is unavailable
+  if (configLoading) {
+    return <FormSkeleton />;
+  }
 
   const handleSendTestMessage = async () => {
     if (!validateForm()) {
@@ -152,33 +138,8 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     }
 
     try {
-      // Parse form data
-      const messageBody = form.body ? JSON.parse(form.body) : {};
-      const messageProperties = form.properties
-        ? JSON.parse(form.properties)
-        : undefined;
-
-      await sendMessage({
-        namespace: 'solution-monitor-ns', // Azure Service Bus Emulator requires this exact namespace name
-        topic: form.queueName, // Use the queue/topic from the form
-        message: {
-          body: messageBody,
-          contentType: 'application/json',
-          messageId: `msg-${Date.now()}`,
-          timeToLive: 500, // 5 seconds - will expire quickly
-          subject: form.queueName,
-          applicationProperties: messageProperties,
-        },
-      });
-
-      toast.success(`Message sent successfully to ${form.queueName}!`, {
-        duration: 3000,
-        icon: '🚀',
-      });
-
-      // Reset form after successful send
-      onFormChange({ queueName: '', body: '', properties: '' });
-      setValidationErrors({});
+      // Call the parent's send handler (which uses useMonitor's sendMessage)
+      await onSend();
     } catch (err) {
       console.error('Failed to send message:', err);
       toast.error(
@@ -192,46 +153,55 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     }
   };
 
-  const renderConnectionStatus = () => (
-    <div className="rounded-lg border p-4 mb-4">
-      <div className="flex items-center space-x-2">
-        {isInitialized ? (
-          <>
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <span className="font-medium text-green-700">
-              Service Bus Connected
-            </span>
-          </>
-        ) : loading ? (
-          <>
-            <AlertCircle className="w-5 h-5 text-yellow-500 animate-pulse" />
-            <span className="font-medium text-yellow-700">
-              Initializing Service Bus...
-            </span>
-          </>
-        ) : (
-          <>
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="font-medium text-red-700">
-              Service Bus Not Connected
-            </span>
-          </>
+  const renderConnectionStatus = () => {
+    const isBackendUnavailable = !config && !configLoading;
+
+    return (
+      <div className="rounded-lg border p-4 mb-4">
+        <div className="flex items-center space-x-2">
+          {isBackendUnavailable ? (
+            <>
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              <span className="font-medium text-red-700">
+                Backend Service Unavailable
+              </span>
+            </>
+          ) : isLoading ? (
+            <>
+              <AlertCircle className="w-5 h-5 text-yellow-500 animate-pulse" />
+              <span className="font-medium text-yellow-700">
+                Initializing Service Bus...
+              </span>
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              <span className="font-medium text-green-700">
+                Service Bus Connected
+              </span>
+            </>
+          )}
+        </div>
+        {isBackendUnavailable && (
+          <p className="text-sm text-red-600 mt-2">
+            Unable to connect to backend service. Please ensure the backend is
+            running and accessible.
+          </p>
+        )}
+        {error && !isBackendUnavailable && (
+          <p className="text-sm text-red-600 mt-2">Error: {error}</p>
         )}
       </div>
-      {error && (
-        <p className="text-sm text-red-600 mt-2">Error: {error.message}</p>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderQueueTopicSelect = () => (
     <div className="space-y-2">
       <Label htmlFor="queueName" className="flex items-center gap-2">
         Queue/Topic Name
-        <Info
-          className="h-4 w-4 text-muted-foreground"
-          title="Select a queue or topic to send messages to"
-        />
+        <span title="Select a queue or topic to send messages to">
+          <Info className="h-4 w-4 text-muted-foreground" />
+        </span>
       </Label>
       <Select
         value={form.queueName}
@@ -249,7 +219,10 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           </div>
           {queues.map((queue) => (
             <SelectItem key={queue} value={queue}>
-              📦 {queue}
+              <span role="img" aria-label="Queue">
+                📦
+              </span>{' '}
+              {queue}
             </SelectItem>
           ))}
           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
@@ -257,7 +230,10 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           </div>
           {topics.map((topic) => (
             <SelectItem key={topic} value={topic}>
-              📡 {topic}
+              <span role="img" aria-label="Topic">
+                📡
+              </span>{' '}
+              {topic}
             </SelectItem>
           ))}
         </SelectContent>
@@ -272,10 +248,9 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     <div className="space-y-2">
       <Label htmlFor="messageBody" className="flex items-center gap-2">
         Message Body (JSON)
-        <Info
-          className="h-4 w-4 text-muted-foreground"
-          title="Enter valid JSON for the message body"
-        />
+        <span title="Enter valid JSON for the message body">
+          <Info className="h-4 w-4 text-muted-foreground" />
+        </span>
       </Label>
       <Textarea
         id="messageBody"
@@ -302,10 +277,9 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     <div className="space-y-2">
       <Label htmlFor="properties" className="flex items-center gap-2">
         Properties (JSON, Optional)
-        <Info
-          className="h-4 w-4 text-muted-foreground"
-          title="Optional application properties as JSON"
-        />
+        <span title="Optional application properties as JSON">
+          <Info className="h-4 w-4 text-muted-foreground" />
+        </span>
       </Label>
       <Textarea
         id="properties"
@@ -331,21 +305,42 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   );
 
   const renderSendButton = () => {
-    const isFormValid = validateForm();
-    const canSend = isInitialized && !loading && isFormValid;
+    const isBackendUnavailable = !config && !configLoading;
+
+    // Check if form is valid based on validationErrors state (no state updates during render)
+    const isFormValid =
+      Object.keys(validationErrors).length === 0 &&
+      form.queueName.trim() !== '' &&
+      form.body.trim() !== '';
+    const canSend = !isSendingMessage && isFormValid && !isBackendUnavailable;
 
     return (
       <div className="space-y-3">
         <Button
           onClick={handleSendTestMessage}
-          disabled={!canSend}
+          disabled={!canSend || isSendingMessage}
           className="w-full"
           size="lg"
         >
-          <Send className="w-5 h-5 mr-2" />
-          {loading ? 'Sending...' : 'Send Test Message'}
+          {isSendingMessage ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-5 h-5 mr-2" />
+              Send Test Message
+            </>
+          )}
         </Button>
-        {!isFormValid && (
+        {isBackendUnavailable && (
+          <p className="text-sm text-muted-foreground text-center">
+            Backend service is unavailable. Please start the backend service to
+            send messages.
+          </p>
+        )}
+        {!isBackendUnavailable && Object.keys(validationErrors).length > 0 && (
           <p className="text-sm text-muted-foreground text-center">
             Please fix the validation errors above before sending
           </p>
@@ -355,12 +350,33 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="space-y-2">
+        <h2 className="text-2xl font-semibold">Send Test Message</h2>
+        <p className="text-muted-foreground">
+          Send a test message to your Service Bus emulator for testing purposes.
+        </p>
+      </div>
+
+      {/* Connection Status */}
       {renderConnectionStatus()}
-      {renderQueueTopicSelect()}
-      {renderMessageBodyInput()}
-      {renderPropertiesInput()}
-      {renderSendButton()}
+
+      {/* Main Form */}
+      <div className="bg-card border rounded-lg p-8 shadow-sm">
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="space-y-6">
+              {renderQueueTopicSelect()}
+              {renderMessageBodyInput()}
+            </div>
+            <div className="space-y-6">
+              {renderPropertiesInput()}
+              {renderSendButton()}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
