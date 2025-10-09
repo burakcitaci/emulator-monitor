@@ -1,7 +1,22 @@
-import { IsString, IsOptional, IsNumber, Min, Max, IsBoolean } from 'class-validator';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  ContainerOperationDto as BaseContainerOperationDto,
+  ContainerCreateDto as BaseContainerCreateDto,
+  ContainerLogsDto as BaseContainerLogsDto,
+  ContainerStatsDto as BaseContainerStatsDto,
+} from '@emulator-monitor/entities';
 
-export class ContainerOperationDto {
+// Extend the base DTOs with validation decorators
+export class ContainerOperationDto implements BaseContainerOperationDto {
   @IsString()
   @IsOptional()
   containerId?: string;
@@ -11,9 +26,9 @@ export class ContainerOperationDto {
   containerName?: string;
 }
 
-export class ContainerCreateDto {
+export class ContainerCreateDto implements BaseContainerCreateDto {
   @IsString()
-  Image: string;
+  Image?: string;
 
   @IsOptional()
   @IsString()
@@ -120,9 +135,9 @@ export class ContainerCreateDto {
   NetworkingConfig?: any;
 }
 
-export class ContainerLogsDto {
+export class ContainerLogsDto implements BaseContainerLogsDto {
   @IsString()
-  containerId: string;
+  containerId?: string;
 
   @IsOptional()
   @IsNumber()
@@ -137,9 +152,9 @@ export class ContainerLogsDto {
   timestamps?: boolean = true;
 }
 
-export class ContainerStatsDto {
+export class ContainerStatsDto implements BaseContainerStatsDto {
   @IsString()
-  containerId: string;
+  containerId?: string;
 
   @IsOptional()
   @IsBoolean()

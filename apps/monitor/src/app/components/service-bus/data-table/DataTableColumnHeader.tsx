@@ -20,11 +20,16 @@ export function DataTableColumnHeader<TData, TValue>({
   column,
   title,
   className,
-}: DataTableColumnHeaderProps<TData, TValue>) {
+}: Readonly<DataTableColumnHeaderProps<TData, TValue>>) {
   if (!column.getCanSort()) {
     return <div className={cn(className)}>{title}</div>;
   }
 
+  const getSortIcon = (sortState: string) => {
+    if (sortState === 'desc') return <ArrowDown className="ml-2 h-4 w-4" />;
+    if (sortState === 'asc') return <ArrowUp className="ml-2 h-4 w-4" />;
+    return <ChevronsUpDown className="ml-2 h-4 w-4" />;
+  };
   return (
     <div className={cn('flex items-center space-x-2', className)}>
       <DropdownMenu>
@@ -35,13 +40,7 @@ export function DataTableColumnHeader<TData, TValue>({
             className="-ml-3 h-8 data-[state=open]:bg-accent"
           >
             <span>{title}</span>
-            {column.getIsSorted() === 'desc' ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
-            ) : column.getIsSorted() === 'asc' ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
-            ) : (
-              <ChevronsUpDown className="ml-2 h-4 w-4" />
-            )}
+            {getSortIcon(column.getIsSorted().toString())}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">

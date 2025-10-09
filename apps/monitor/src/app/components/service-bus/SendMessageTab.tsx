@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Send, CheckCircle, AlertCircle, Info, Loader2 } from 'lucide-react';
-import { SendForm } from '../../types';
+import { SendForm } from '@emulator-monitor/entities';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
@@ -75,47 +75,65 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     return Object.keys(errors).length === 0;
   }, [form.queueName, form.body, form.properties]);
 
+  // Helper functions for field validation - wrapped in useCallback
+  const validateQueueName = useCallback(
+    (value: string, errors: typeof validationErrors) => {
+      if (!value.trim()) {
+        errors.queueName = 'Queue/Topic name is required';
+      } else {
+        delete errors.queueName;
+      }
+    },
+    []
+  );
+
+  const validateBody = useCallback(
+    (value: string, errors: typeof validationErrors) => {
+      if (!value.trim()) {
+        errors.body = 'Message body is required';
+      } else {
+        try {
+          JSON.parse(value);
+          delete errors.body;
+        } catch {
+          errors.body = 'Message body must be valid JSON';
+        }
+      }
+    },
+    []
+  );
+
+  const validateProperties = useCallback(
+    (value: string, errors: typeof validationErrors) => {
+      if (value.trim()) {
+        try {
+          JSON.parse(value);
+          delete errors.properties;
+        } catch {
+          errors.properties = 'Properties must be valid JSON';
+        }
+      } else {
+        delete errors.properties;
+      }
+    },
+    []
+  );
+
   const validateField = useCallback(
     (field: keyof typeof validationErrors, value: string) => {
       const errors = { ...validationErrors };
 
-      switch (field) {
-        case 'queueName':
-          if (!value.trim()) {
-            errors.queueName = 'Queue/Topic name is required';
-          } else {
-            delete errors.queueName;
-          }
-          break;
-        case 'body':
-          if (!value.trim()) {
-            errors.body = 'Message body is required';
-          } else {
-            try {
-              JSON.parse(value);
-              delete errors.body;
-            } catch {
-              errors.body = 'Message body must be valid JSON';
-            }
-          }
-          break;
-        case 'properties':
-          if (value.trim()) {
-            try {
-              JSON.parse(value);
-              delete errors.properties;
-            } catch {
-              errors.properties = 'Properties must be valid JSON';
-            }
-          } else {
-            delete errors.properties;
-          }
-          break;
+      if (field === 'queueName') {
+        validateQueueName(value, errors);
+      } else if (field === 'body') {
+        validateBody(value, errors);
+      } else if (field === 'properties') {
+        validateProperties(value, errors);
       }
 
       setValidationErrors(errors);
     },
-    [validationErrors]
+    [validationErrors, validateBody, validateProperties, validateQueueName]
   );
 
   const handleInputChange = useCallback(
@@ -139,7 +157,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
 
     try {
       // Call the parent's send handler (which uses useMonitor's sendMessage)
-      await onSend();
+      onSend();
     } catch (err) {
       console.error('Failed to send message:', err);
       toast.error(
@@ -156,32 +174,39 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   const renderConnectionStatus = () => {
     const isBackendUnavailable = !config && !configLoading;
 
+    let statusContent;
+    if (isBackendUnavailable) {
+      statusContent = (
+        <>
+          <AlertCircle className="w-5 h-5 text-red-500" />
+          <span className="font-medium text-red-700">
+            Backend Service Unavailable
+          </span>
+        </>
+      );
+    } else if (isLoading) {
+      statusContent = (
+        <>
+          <AlertCircle className="w-5 h-5 text-yellow-500 animate-pulse" />
+          <span className="font-medium text-yellow-700">
+            Initializing Service Bus...
+          </span>
+        </>
+      );
+    } else {
+      statusContent = (
+        <>
+          <CheckCircle className="w-5 h-5 text-green-500" />
+          <span className="font-medium text-green-700">
+            Service Bus Connected
+          </span>
+        </>
+      );
+    }
+
     return (
       <div className="rounded-lg border p-4 mb-4">
-        <div className="flex items-center space-x-2">
-          {isBackendUnavailable ? (
-            <>
-              <AlertCircle className="w-5 h-5 text-red-500" />
-              <span className="font-medium text-red-700">
-                Backend Service Unavailable
-              </span>
-            </>
-          ) : isLoading ? (
-            <>
-              <AlertCircle className="w-5 h-5 text-yellow-500 animate-pulse" />
-              <span className="font-medium text-yellow-700">
-                Initializing Service Bus...
-              </span>
-            </>
-          ) : (
-            <>
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              <span className="font-medium text-green-700">
-                Service Bus Connected
-              </span>
-            </>
-          )}
-        </div>
+        <div className="flex items-center space-x-2">{statusContent}</div>
         {isBackendUnavailable && (
           <p className="text-sm text-red-600 mt-2">
             Unable to connect to backend service. Please ensure the backend is
@@ -199,9 +224,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     <div className="space-y-2">
       <Label htmlFor="queueName" className="flex items-center gap-2">
         Queue/Topic Name
-        <span title="Select a queue or topic to send messages to">
-          <Info className="h-4 w-4 text-muted-foreground" />
-        </span>
+        <Info className="h-4 w-4 text-muted-foreground" />
       </Label>
       <Select
         value={form.queueName}
@@ -219,10 +242,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           </div>
           {queues.map((queue) => (
             <SelectItem key={queue} value={queue}>
-              <span role="img" aria-label="Queue">
-                📦
-              </span>{' '}
-              {queue}
+              <span aria-hidden="true">📦</span> {queue}
             </SelectItem>
           ))}
           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
@@ -230,10 +250,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           </div>
           {topics.map((topic) => (
             <SelectItem key={topic} value={topic}>
-              <span role="img" aria-label="Topic">
-                📡
-              </span>{' '}
-              {topic}
+              <span aria-hidden="true">📡</span> {topic}
             </SelectItem>
           ))}
         </SelectContent>
@@ -248,9 +265,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     <div className="space-y-2">
       <Label htmlFor="messageBody" className="flex items-center gap-2">
         Message Body (JSON)
-        <span title="Enter valid JSON for the message body">
-          <Info className="h-4 w-4 text-muted-foreground" />
-        </span>
+        <Info className="h-4 w-4 text-muted-foreground" />
       </Label>
       <Textarea
         id="messageBody"
@@ -277,9 +292,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     <div className="space-y-2">
       <Label htmlFor="properties" className="flex items-center gap-2">
         Properties (JSON, Optional)
-        <span title="Optional application properties as JSON">
-          <Info className="h-4 w-4 text-muted-foreground" />
-        </span>
+        <Info className="h-4 w-4 text-muted-foreground" />
       </Label>
       <Textarea
         id="properties"

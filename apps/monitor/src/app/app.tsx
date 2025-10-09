@@ -19,8 +19,9 @@ import { MonitorProvider, useMonitor } from './hooks';
 import { Providers } from './providers';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { AlertCircle } from 'lucide-react';
-import { ConnectionForm } from './types';
+
 import { DeadLetterMessage } from './hooks/useServiceBus';
+import { ConnectionForm } from '@emulator-monitor/entities';
 
 const MonitorContent: React.FC = () => {
   const {

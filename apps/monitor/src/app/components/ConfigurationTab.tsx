@@ -58,7 +58,8 @@ export const ConfigurationTab: React.FC = () => {
   }
 
   const parseDuration = (duration: string): string => {
-    const match = duration.match(/PT?(\d+)([DHMS])/);
+    const regex = /PT?(\d+)([DHMS])/;
+    const match = regex.exec(duration);
     if (!match) return duration;
 
     const value = match[1];

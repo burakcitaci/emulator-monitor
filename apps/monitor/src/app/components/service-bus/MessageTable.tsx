@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
-import { Message } from '../../types';
 import { getStatusColor, getDirectionColor } from '../../utils/messageUtils';
+import { Message } from '@emulator-monitor/entities';
 
 interface MessageTableProps {
   messages: Message[];
@@ -208,12 +208,19 @@ export const MessageTable: React.FC<MessageTableProps> = ({
       <div className="block md:hidden">
         <div className="divide-y divide-gray-200">
           {messages.map((message, index) => (
-            <div
+            <button
               key={message.id}
-              className={`p-4 hover:bg-indigo-50 transition-colors cursor-pointer ${
+              type="button"
+              className={`w-full text-left p-4 hover:bg-indigo-50 transition-colors cursor-pointer ${
                 index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
               }`}
               onClick={() => onMessageSelect(message)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onMessageSelect(message);
+                }
+              }}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
@@ -270,7 +277,7 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Injectable } from '@nestjs/common';
 import Docker from 'dockerode';
 import { AppLogger } from '../common/logger.service';

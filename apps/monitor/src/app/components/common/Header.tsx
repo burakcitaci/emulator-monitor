@@ -1,7 +1,6 @@
 import React from 'react';
-import { Wifi, WifiOff } from 'lucide-react';
-import { ConnectionInfo } from '../../types';
 import { DeadLetterMessage } from '../../hooks/useServiceBus';
+import { ConnectionInfo } from '@emulator-monitor/entities';
 
 interface HeaderProps {
   connectionInfo: ConnectionInfo;

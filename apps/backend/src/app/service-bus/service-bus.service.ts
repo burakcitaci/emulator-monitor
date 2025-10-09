@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import {
   ServiceBusClient,
@@ -12,15 +13,17 @@ import {
   GetNamespacesResponse,
   SendMessageResponse,
   SendBatchResponse,
+  ServiceBusConfig,
   DeadLetterMessageResponse,
-} from './types';
-import { ConfigService, ServiceBusConfig } from '../common/config.service';
+} from '@emulator-monitor/entities';
+
+import { ConfigService } from '../common/config.service.js';
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
-  private clients: Map<string, ServiceBusClient> = new Map();
-  private senders: Map<string, ServiceBusSender> = new Map();
-  private receivers: Map<string, ServiceBusReceiver> = new Map(); // 👈 New Map for receivers
+  private readonly clients: Map<string, ServiceBusClient> = new Map();
+  private readonly senders: Map<string, ServiceBusSender> = new Map();
+  private readonly receivers: Map<string, ServiceBusReceiver> = new Map(); // 👈 New Map for receivers
   private config: ServiceBusConfig | null = null;
 
   constructor(private readonly configService: ConfigService) {}
@@ -86,10 +89,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     return {
       success: true,
       message: 'Service Bus initialized successfully',
-      namespaces: config.UserConfig.Namespaces.map((ns: any) => ({
+      namespaces: config.UserConfig.Namespaces.map((ns) => ({
         name: ns.Name,
-        topics: ns.Topics?.map((t: any) => t.Name) || [],
-        queues: ns.Queues?.map((q: any) => q.Name) || [],
+        topics: (ns.Topics ?? []).map((t) => t.Name),
+        queues: (ns.Queues ?? []).map((q) => q.Name),
       })),
     };
   }
@@ -115,23 +118,22 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
 
     return {
       success: true,
-      namespaces: this.config.UserConfig.Namespaces.map((ns: any) => ({
+      namespaces: this.config.UserConfig.Namespaces.map((ns) => ({
         name: ns.Name,
-        topics: ns.Topics.map((topic: any) => ({
+        topics: (ns.Topics ?? []).map((topic) => ({
           name: topic.Name,
           properties: topic.Properties,
-          subscriptions: topic.Subscriptions.map((sub: any) => ({
+          subscriptions: (topic.Subscriptions ?? []).map((sub) => ({
             name: sub.Name,
             deadLetteringOnMessageExpiration:
               sub.DeadLetteringOnMessageExpiration,
             maxDeliveryCount: sub.MaxDeliveryCount,
           })),
         })),
-        queues:
-          ns.Queues?.map((queue: any) => ({
-            name: queue.Name,
-            properties: queue.Properties,
-          })) || [],
+        queues: (ns.Queues ?? []).map((queue) => ({
+          name: queue.Name,
+          properties: queue.Properties,
+        })),
       })),
     };
   }
@@ -226,31 +228,6 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     } catch (error: any) {
       throw new Error(`Failed to send message batch: ${error.message}`);
     }
-  }
-
-  private createDeadLetterReceiver(
-    namespace: string,
-    topic: string,
-    subscription: string
-  ): ServiceBusReceiver {
-    const client = this.clients.get(namespace);
-    if (!client) {
-      throw new Error(`Client for namespace ${namespace} not found.`);
-    }
-
-    // Dead Letter Queue path format: <topic_name>/Subscriptions/<subscription_name>/$DeadLetterQueue
-    const entityPath = `${topic}/Subscriptions/${subscription}/$DeadLetterQueue`;
-    const receiverKey = `${namespace}:${entityPath}`;
-
-    let receiver = this.receivers.get(receiverKey);
-
-    if (!receiver) {
-      console.log(`Creating new DLQ receiver for: ${receiverKey}`);
-      // Use PeekLock for DLQ so messages can be completed/abandoned/dead-lettered again
-      receiver = client.createReceiver(entityPath, { receiveMode: 'peekLock' });
-      this.receivers.set(receiverKey, receiver);
-    }
-    return receiver;
   }
 
   /**
@@ -354,7 +331,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
    * Generate a unique message ID
    */
   private generateMessageId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**

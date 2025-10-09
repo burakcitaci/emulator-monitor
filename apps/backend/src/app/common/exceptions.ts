@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 export class DockerConnectionException extends HttpException {

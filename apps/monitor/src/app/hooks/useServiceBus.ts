@@ -1,28 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useState } from 'react';
-
-interface ServiceBusConfig {
-  UserConfig: {
-    Namespaces: Array<{
-      Name: string;
-      Topics: Array<{
-        Name: string;
-        Properties: {
-          DefaultMessageTimeToLive: string;
-          DuplicateDetectionHistoryTimeWindow: string;
-          RequiresDuplicateDetection: boolean;
-        };
-        Subscriptions: Array<{
-          Name: string;
-          DeadLetteringOnMessageExpiration: boolean;
-          MaxDeliveryCount: number;
-        }>;
-      }>;
-    }>;
-    Logging: {
-      Type: string;
-    };
-  };
-}
 
 interface Namespace {
   name: string;

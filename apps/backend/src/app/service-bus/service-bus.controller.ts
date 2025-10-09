@@ -7,8 +7,9 @@ import {
   HttpStatus,
   Query,
 } from '@nestjs/common';
-import { ServiceBusService } from './service-bus.service';
-import * as types from './types';
+import { ServiceBusService } from './service-bus.service.js';
+import * as types from '@emulator-monitor/entities';
+import { DeadLetterMessageResponse } from '@emulator-monitor/entities';
 
 @Controller('servicebus')
 export class ServiceBusController {
@@ -103,7 +104,7 @@ export class ServiceBusController {
     @Query('subscription') subscription: string,
     @Query('maxMessages') maxMessages: string,
     @Query('maxWaitTimeInSeconds') maxWaitTimeInSeconds: string
-  ): Promise<types.DeadLetterMessageResponse> {
+  ): Promise<DeadLetterMessageResponse> {
     try {
       if (!namespace || !topic || !subscription) {
         throw new HttpException(

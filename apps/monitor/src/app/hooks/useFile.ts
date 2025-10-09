@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { DockerCompose } from '../types/dockerCompose';
+import { DockerCompose } from '@emulator-monitor/entities';
 import yaml from 'yaml';
 interface FileData {
   // Define the structure of your file response here

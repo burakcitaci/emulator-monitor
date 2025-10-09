@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
-import { ServiceBusConfig, QueueTopicItem } from '../types/servicebus';
+import { ServiceBusConfig, QueueTopicItem } from '@emulator-monitor/entities';
 
 export const useServiceBusConfig = () => {
   const [config, setConfig] = useState<ServiceBusConfig | null>(null);

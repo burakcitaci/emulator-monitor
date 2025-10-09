@@ -4,34 +4,48 @@ import { join } from 'path';
 
 export interface ServiceBusConfig {
   UserConfig: {
-    Namespaces: Array<{
-      Name: string;
-      Topics: Array<{
-        Name: string;
-        Properties: {
-          DefaultMessageTimeToLive: string;
-          DuplicateDetectionHistoryTimeWindow: string;
-          RequiresDuplicateDetection: boolean;
-        };
-        Subscriptions: Array<{
-          Name: string;
-          DeadLetteringOnMessageExpiration: boolean;
-          MaxDeliveryCount: number;
-        }>;
-      }>;
-      Queues: Array<{
-        Name: string;
-        Properties: {
-          DefaultMessageTimeToLive: string;
-          MaxDeliveryCount: number;
-          DeadLetteringOnMessageExpiration: boolean;
-        };
-      }>;
-    }>;
-    Logging: {
-      Type: string;
-    };
+    Namespaces: ServiceBusNamespace[];
+    Logging: LoggingConfig;
   };
+}
+
+export interface ServiceBusNamespace {
+  Name: string;
+  Topics?: ServiceBusTopic[];
+  Queues?: ServiceBusQueue[];
+}
+
+export interface ServiceBusTopic {
+  Name: string;
+  Properties: TopicProperties;
+  Subscriptions: ServiceBusSubscription[];
+}
+
+export interface ServiceBusQueue {
+  Name: string;
+  Properties: QueueProperties;
+}
+
+export interface TopicProperties {
+  readonly DefaultMessageTimeToLive: string;
+  readonly DuplicateDetectionHistoryTimeWindow: string;
+  readonly RequiresDuplicateDetection: boolean;
+}
+
+export interface ServiceBusSubscription {
+  Name: string;
+  DeadLetteringOnMessageExpiration: boolean;
+  MaxDeliveryCount: number;
+}
+
+export interface QueueProperties {
+  readonly DefaultMessageTimeToLive: string;
+  readonly MaxDeliveryCount: number;
+  readonly DeadLetteringOnMessageExpiration: boolean;
+}
+
+export interface LoggingConfig {
+  readonly Type: 'console' | 'file' | 'applicationInsights';
 }
 
 @Injectable()
@@ -49,7 +63,15 @@ export class ConfigService {
   }
 
   get dockerProtocol(): string {
-    return process.platform === 'win32' ? 'socket' : 'socket';
+    switch (process.platform) {
+      case 'win32':
+        return 'npipe'; // Windows uses named pipes
+      case 'linux':
+      case 'darwin':
+        return 'unix'; // Linux/macOS use Unix sockets
+      default:
+        return 'socket'; // fallback for other OS types
+    }
   }
 
   get dockerTimeout(): number {
@@ -170,7 +192,7 @@ export class ConfigService {
       const config = JSON.parse(configData);
 
       // Validate the configuration structure
-      if (!config.UserConfig || !config.UserConfig.Namespaces) {
+      if (!config.UserConfig?.Namespaces) {
         throw new Error(
           'Invalid configuration structure: missing UserConfig.Namespaces'
         );
@@ -226,7 +248,7 @@ export class ConfigService {
           },
         ],
         Logging: {
-          Type: 'information',
+          Type: 'console',
         },
       },
     };

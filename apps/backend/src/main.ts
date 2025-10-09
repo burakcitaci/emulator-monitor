@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Service Bus Emulator Monitor Backend
  * A comprehensive API for Docker container management and Service Bus operations
@@ -5,8 +6,8 @@
 
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app/app.module';
-import { ConfigService } from './app/common/config.service';
+import { AppModule } from './app/app.module.js';
+import { ConfigService } from './app/common/config.service.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -29,7 +30,7 @@ async function bootstrap() {
         corsOrigin = configService.corsOrigin;
         port = configService.port;
       }
-    } catch (error) {
+    } catch {
       logger.warn('ConfigService not available, using default configuration');
     }
 

@@ -5,7 +5,7 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
-import { SendForm, ConnectionInfo } from '../types';
+import { SendForm, ConnectionInfo } from '@emulator-monitor/entities';
 import {
   useServiceBus,
   DeadLetterMessage,
@@ -255,21 +255,38 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
     ]
   );
 
-  const contextValue: MonitorContextType = {
-    ...state,
-    setActiveTab,
-    setSendForm,
-    setDlqQueue,
-    setMessages,
-    setDlqMessages,
-    setConnectionInfo,
-    setSelectedMessage,
-    setLoading,
-    setError,
-    sendMessage,
-    loadDlqMessages,
-    replayMessage,
-  };
+  const contextValue: MonitorContextType = React.useMemo(
+    () => ({
+      ...state,
+      setActiveTab,
+      setSendForm,
+      setDlqQueue,
+      setMessages,
+      setDlqMessages,
+      setConnectionInfo,
+      setSelectedMessage,
+      setLoading,
+      setError,
+      sendMessage,
+      loadDlqMessages,
+      replayMessage,
+    }),
+    [
+      state,
+      setActiveTab,
+      setSendForm,
+      setDlqQueue,
+      setMessages,
+      setDlqMessages,
+      setConnectionInfo,
+      setSelectedMessage,
+      setLoading,
+      setError,
+      sendMessage,
+      loadDlqMessages,
+      replayMessage,
+    ]
+  );
 
   return (
     <MonitorContext.Provider value={contextValue}>

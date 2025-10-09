@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { ConnectionInfo, SendForm, ConnectionForm } from './types';
+import {
+  ConnectionInfo,
+  SendForm,
+  ConnectionForm,
+} from '@emulator-monitor/entities';
 import {
   TabNavigation,
   MessagesTab,
@@ -14,12 +18,9 @@ type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
 export default function ServiceBusMonitor() {
   const [activeTab, setActiveTab] = useState<TabId>('messages');
-  const [filterQueue, setFilterQueue] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [deadLetterMessages, setDeadLetterMessages] = useState<
     DeadLetterMessage[]
   >([]);
-  // const { allDestinations, getQueueNames } = useServiceBusConfig();
 
   const [sendForm, setSendForm] = useState<SendForm>({
     queueName: '',
@@ -64,11 +65,6 @@ export default function ServiceBusMonitor() {
     );
   };
 
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setFilterQueue('');
-  };
-
   return (
     <div className="min-h-screen ">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 mt-6">
@@ -79,11 +75,6 @@ export default function ServiceBusMonitor() {
             {activeTab === 'messages' && (
               <MessagesTab
                 messages={deadLetterMessages}
-                searchTerm={searchTerm}
-                filterQueue={filterQueue}
-                onSearchChange={setSearchTerm}
-                onFilterChange={setFilterQueue}
-                onClearFilters={handleClearFilters}
                 onMessageSelect={(message) =>
                   console.log('Selected message:', message)
                 }

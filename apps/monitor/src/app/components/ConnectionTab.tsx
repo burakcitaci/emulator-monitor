@@ -1,5 +1,5 @@
 import React from 'react';
-import { ConnectionInfo, ConnectionForm } from '../types';
+import { ConnectionInfo, ConnectionForm } from '@emulator-monitor/shared-entities';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';

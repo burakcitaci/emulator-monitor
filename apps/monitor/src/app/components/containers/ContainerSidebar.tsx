@@ -17,7 +17,6 @@ import {
 import { useFile } from '../../hooks/useFile';
 import { useDocker } from '../../hooks/useDocker';
 import Docker from 'dockerode';
-import { DockerService } from '../../types/dockerCompose';
 import {
   PauseIcon,
   PlayIcon,
@@ -30,6 +29,7 @@ import { Label } from '../ui/label';
 import { useDockerCompose } from '../../hooks/useDockerCompose';
 import { ContainerSkeleton } from '../ui/skeleton';
 import { Button } from '../ui/button';
+import { DockerService } from '@emulator-monitor/entities';
 
 interface ContainerWithStatus {
   serviceName: string;
@@ -87,7 +87,7 @@ export const ContainerSidebar = () => {
         projectSet.add(projectLabel);
       }
     });
-    return Array.from(projectSet).sort();
+    return Array.from(projectSet).sort((a, b) => a.localeCompare(b));
   }, [containers]);
 
   const getContainerStatus = (
@@ -397,8 +397,6 @@ export const ContainerSidebar = () => {
         <Accordion type="multiple" className="space-y-2">
           {containersWithStatus.map((container) => {
             const statusDisplay = getStatusDisplay(container.status);
-            const StatusIcon = statusDisplay.icon;
-
             return (
               <AccordionItem
                 key={container.serviceName}
@@ -491,9 +489,9 @@ export const ContainerSidebar = () => {
                             <div className="flex flex-wrap gap-1 mt-1">
                               {container.serviceConfig.ports
                                 .slice(0, 3)
-                                .map((port, i) => (
+                                .map((port) => (
                                   <Badge
-                                    key={i}
+                                    key={port}
                                     variant="outline"
                                     className="text-xs"
                                   >

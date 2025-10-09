@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class AppLogger extends Logger {
-  private context: string;
+  protected override context: string | undefined;
 
   setContext(context: string) {
     this.context = context;
@@ -24,11 +25,16 @@ export class AppLogger extends Logger {
     data?: any
   ) {
     const logContext = context || this.context || 'App';
-    const errorInfo = error
-      ? ` | Error: ${error.message}${
-          error.stack ? ` | Stack: ${error.stack}` : ''
-        }`
-      : '';
+    let errorInfo = '';
+
+    if (error) {
+      errorInfo = ` | Error: ${error.message}`;
+
+      if (error.stack) {
+        errorInfo += ` | Stack: ${error.stack}`;
+      }
+    }
+
     const dataInfo = data ? ` | Data: ${JSON.stringify(data)}` : '';
     const fullMessage = `${message}${errorInfo}${dataInfo}`;
 
