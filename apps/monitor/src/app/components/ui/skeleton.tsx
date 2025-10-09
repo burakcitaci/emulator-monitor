@@ -87,8 +87,8 @@ const TableSkeleton: React.FC<SkeletonProps & { rows?: number }> = ({
       <Skeleton className="h-4 w-16" />
     </div>
     {/* Rows */}
-    {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="flex space-x-4 py-2">
+    {Array.from({ length: rows }).map((a, i) => (
+      <div key={`skeleton-row-${i}`} className="flex space-x-4 py-2">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-4 w-20" />

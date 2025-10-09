@@ -17,7 +17,7 @@ import {
   DeadLetterMessageResponse,
 } from '@emulator-monitor/entities';
 
-import { ConfigService } from '../common/config.service.js';
+import { ConfigService } from '../common/config.service';
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy, OnModuleInit {

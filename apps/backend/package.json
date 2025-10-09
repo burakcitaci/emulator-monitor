@@ -1,8 +1,9 @@
 {
   "name": "@emulator-monitor/backend",
   "version": "0.0.1",
+  "type": "module",
   "private": true,
   "dependencies": {
-    "@emulator-monitor/entities": "workspace:*"
+    "@emulator-monitor/entities": "0.0.1"
   }
 }
