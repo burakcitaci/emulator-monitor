@@ -1,4 +1,5 @@
 import { cn } from '../../lib/utils';
+import { nanoid } from 'nanoid';
 
 function Skeleton({
   className,
@@ -88,7 +89,7 @@ const TableSkeleton: React.FC<SkeletonProps & { rows?: number }> = ({
     </div>
     {/* Rows */}
     {Array.from({ length: rows }).map((a, i) => (
-      <div key={`skeleton-row-${i}`} className="flex space-x-4 py-2">
+      <div key={nanoid()} className="flex space-x-4 py-2">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-4 w-20" />

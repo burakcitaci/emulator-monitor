@@ -7,7 +7,7 @@ import {
   HttpStatus,
   Query,
 } from '@nestjs/common';
-import { ServiceBusService } from './service-bus.service.js';
+import { ServiceBusService } from './service-bus.service';
 import * as types from '@emulator-monitor/entities';
 import { DeadLetterMessageResponse } from '@emulator-monitor/entities';
 
