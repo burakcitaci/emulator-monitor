@@ -39,9 +39,11 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Body" />
     ),
     cell: ({ row }) => {
+      const body = row.getValue('body') as unknown;
+      const bodyText = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
       return (
         <div className="max-w-md truncate font-mono text-xs">
-          {row.original.body}
+          {bodyText}
         </div>
       );
     },

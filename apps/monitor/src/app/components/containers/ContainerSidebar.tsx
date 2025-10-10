@@ -110,8 +110,7 @@ export const ContainerSidebar = () => {
           icon: PlayIcon,
           label: 'Running',
           color: 'text-green-600 dark:text-green-400',
-          bgColor:
-            'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800',
+          borderColor: 'border-green-500',
           dotColor: 'bg-green-500',
         };
       case 'exited':
@@ -119,8 +118,7 @@ export const ContainerSidebar = () => {
           icon: Square,
           label: 'Stopped',
           color: 'text-red-600 dark:text-red-400',
-          bgColor:
-            'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800',
+          borderColor: 'border-red-500',
           dotColor: 'bg-red-500',
         };
       case 'paused':
@@ -128,8 +126,7 @@ export const ContainerSidebar = () => {
           icon: PauseIcon,
           label: 'Paused',
           color: 'text-yellow-600 dark:text-yellow-400',
-          bgColor:
-            'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800',
+          borderColor: 'border-yellow-500',
           dotColor: 'bg-yellow-500',
         };
       case 'restarting':
@@ -137,8 +134,7 @@ export const ContainerSidebar = () => {
           icon: AlertCircle,
           label: 'Restarting',
           color: 'text-blue-600 dark:text-blue-400',
-          bgColor:
-            'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800',
+          borderColor: 'border-blue-500',
           dotColor: 'bg-blue-500',
         };
       case 'not-found':
@@ -146,8 +142,7 @@ export const ContainerSidebar = () => {
           icon: AlertCircle,
           label: 'Not Found',
           color: 'text-gray-600 dark:text-gray-400',
-          bgColor:
-            'bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800',
+          borderColor: 'border-gray-500',
           dotColor: 'bg-gray-500',
         };
       default:
@@ -155,8 +150,7 @@ export const ContainerSidebar = () => {
           icon: AlertCircle,
           label: status,
           color: 'text-gray-600 dark:text-gray-400',
-          bgColor:
-            'bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800',
+          borderColor: 'border-gray-500',
           dotColor: 'bg-gray-500',
         };
     }
@@ -401,7 +395,7 @@ export const ContainerSidebar = () => {
               <AccordionItem
                 key={container.serviceName}
                 value={container.serviceName}
-                className={`transition-all duration-300 border rounded-md ${statusDisplay.bgColor}`}
+                className={`transition-all duration-300 border rounded-md bg-muted/20 hover:bg-muted/30 dark:bg-muted/50 dark:hover:bg-muted/50 border-l-2 ${statusDisplay.borderColor}`}
               >
                 {/* Custom header */}
                 <div className="flex items-center justify-between w-full p-3">
@@ -424,7 +418,7 @@ export const ContainerSidebar = () => {
                   <div className="flex items-center flex-shrink-0 gap-2">
                     <Badge
                       variant="outline"
-                      className={`flex items-center gap-1 px-2 py-0.5 ${statusDisplay.bgColor}`}
+                      className={`flex items-center gap-1 px-2 py-0.5 bg-muted/20 dark:bg-muted/50`}
                     >
                       <statusDisplay.icon
                         className={`w-3 h-3 ${statusDisplay.color}`}

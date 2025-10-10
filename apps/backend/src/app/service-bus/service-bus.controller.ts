@@ -144,6 +144,62 @@ export class ServiceBusController {
       );
     }
   }
+
+  /**
+   * Peek active messages from a queue or a topic subscription
+   * Use either "queue" OR ("topic" + "subscription").
+   */
+  @Get('messages')
+  async getMessages(
+    @Query('namespace') namespace: string,
+    @Query('queue') queue?: string,
+    @Query('topic') topic?: string,
+    @Query('subscription') subscription?: string,
+    @Query('maxMessages') maxMessages?: string
+  ): Promise<DeadLetterMessageResponse> {
+    try {
+      if (!namespace) {
+        throw new HttpException(
+          'Query parameter namespace is required',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      if (!queue && !(topic && subscription)) {
+        throw new HttpException(
+          'Provide either queue or topic and subscription',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Check if service is initialized
+      const config = this.serviceBusService.getConfig();
+      if (!config) {
+        throw new HttpException(
+          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
+      const maxMsg = maxMessages ? parseInt(maxMessages, 10) : 10;
+
+      return await this.serviceBusService.receiveActiveMessages(
+        namespace,
+        queue ?? topic!,
+        subscription,
+        maxMsg
+      );
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        (error as Error).message || 'Failed to retrieve messages',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
   /**
    * Send multiple messages in a batch
    */

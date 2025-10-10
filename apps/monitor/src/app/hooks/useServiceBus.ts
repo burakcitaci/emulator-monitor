@@ -53,6 +53,14 @@ interface DeadLetterMessageOptions {
   maxWaitTimeInSeconds?: number;
 }
 
+interface MessageFetchOptions {
+  namespace: string;
+  queue?: string;
+  topic?: string;
+  subscription?: string;
+  maxMessages?: number;
+}
+
 export interface DeadLetterMessage {
   body: any;
   messageId?: string;
@@ -93,6 +101,7 @@ interface UseServiceBusReturn {
   getDeadLetterMessages: (
     options: DeadLetterMessageOptions
   ) => Promise<DeadLetterMessageResponse>;
+  getMessages: (options: MessageFetchOptions) => Promise<DeadLetterMessageResponse>;
 }
 
 const API_BASE_URL = 'http://localhost:3000/api/v1';
@@ -264,6 +273,38 @@ export const useServiceBus = (): UseServiceBusReturn => {
     []
   );
 
+  const getMessages = useCallback(async (options: MessageFetchOptions) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        namespace: options.namespace,
+        ...(options.queue && { queue: options.queue }),
+        ...(options.topic && { topic: options.topic }),
+        ...(options.subscription && { subscription: options.subscription }),
+        ...(options.maxMessages && { maxMessages: options.maxMessages.toString() }),
+      });
+      const response = await fetch(`${API_BASE_URL}/servicebus/messages?${params}`);
+      if (!response.ok) {
+        if (response.status === 503) {
+          throw new Error(
+            'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
+          );
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to retrieve messages');
+      }
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     namespaces,
     loading,
@@ -273,5 +314,6 @@ export const useServiceBus = (): UseServiceBusReturn => {
     sendMessage,
     sendMessageBatch,
     getDeadLetterMessages,
+    getMessages,
   };
 };

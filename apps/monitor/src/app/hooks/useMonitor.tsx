@@ -11,6 +11,7 @@ import {
   DeadLetterMessage,
   DeadLetterMessageResponse,
 } from './useServiceBus';
+import { useServiceBusConfig } from './useServiceBusConfig';
 import toast from 'react-hot-toast';
 
 interface MonitorState {
@@ -96,8 +97,9 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
   children,
 }) => {
   const [state, setState] = useState<MonitorState>(initialState);
-  const { sendMessage: serviceBusSendMessage, getDeadLetterMessages } =
+  const { sendMessage: serviceBusSendMessage, getDeadLetterMessages, getMessages } =
     useServiceBus();
+  const { getQueueNames, getSubscriptionsByTopic, queuesAndTopics, config } = useServiceBusConfig();
 
   const setActiveTab = useCallback((tab: MonitorState['activeTab']) => {
     setState((prev) => ({ ...prev, activeTab: tab }));
@@ -158,8 +160,14 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         ? JSON.parse(state.sendForm.properties)
         : undefined;
 
-      await serviceBusSendMessage({
-        namespace: 'sbemulatorns',
+      // Determine namespace from config based on destination
+      const destination = state.sendForm.queueName;
+      const nsFromQueue = queuesAndTopics.find((i) => i.type === 'queue' && i.name === destination)?.namespace;
+      const nsFromTopic = queuesAndTopics.find((i) => i.type === 'topic' && i.name === destination)?.namespace;
+      const resolvedNamespace = nsFromQueue || nsFromTopic || config?.UserConfig.Namespaces[0]?.Name || 'sbemulatorns';
+
+      const sendResult = await serviceBusSendMessage({
+        namespace: resolvedNamespace,
         topic: state.sendForm.queueName,
         message: {
           body: messageBody,
@@ -179,6 +187,35 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         }
       );
 
+      // After sending, attempt to peek active messages for this entity
+      try {
+        const destination = state.sendForm.queueName;
+        const queues = getQueueNames();
+        if (queues.includes(destination)) {
+          const fetched = await getMessages({
+            namespace: resolvedNamespace,
+            queue: destination,
+            maxMessages: 20,
+          });
+          setMessages(fetched.messages || []);
+        } else {
+          const subs = getSubscriptionsByTopic(destination);
+          if (subs && subs.length > 0) {
+            const preferred = subs.includes('default') ? 'default' : subs[0];
+            const fetched = await getMessages({
+              namespace: resolvedNamespace,
+              topic: destination,
+              subscription: preferred,
+              maxMessages: 20,
+            });
+            setMessages(fetched.messages || []);
+          }
+        }
+      } catch (e) {
+        // Non-fatal
+        console.warn('Failed to refresh active messages after send', e);
+      }
+
       // Reset form after successful send
       setSendForm({ queueName: '', body: '', properties: '' });
     } catch (err) {
@@ -197,12 +234,16 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
       setError(null);
 
       try {
+        const topicName = queueName.includes('/') ? queueName.split('/')[0] : queueName;
+        const subName = queueName.includes('/') ? queueName.split('/')[1] : 'default';
+        const nsFromQueue = queuesAndTopics.find((i) => i.type === 'queue' && i.name === topicName)?.namespace;
+        const nsFromTopic = queuesAndTopics.find((i) => i.type === 'topic' && i.name === topicName)?.namespace;
+        const dlqNamespace = nsFromQueue || nsFromTopic || config?.UserConfig.Namespaces[0]?.Name || 'sbemulatorns';
+
         const dlqMessages = await getDeadLetterMessages({
-          namespace: 'solution-monitor-ns',
-          topic: queueName.includes('/') ? queueName.split('/')[0] : queueName,
-          subscription: queueName.includes('/')
-            ? queueName.split('/')[1]
-            : 'default',
+          namespace: dlqNamespace,
+          topic: topicName,
+          subscription: subName,
           maxMessages: 20,
           maxWaitTimeInSeconds: 10,
         });

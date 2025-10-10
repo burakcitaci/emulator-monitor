@@ -1,13 +1,12 @@
 /// <reference types='vitest' />
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 
 export default defineConfig({
   root: __dirname,
   cacheDir: '../../node_modules/.vite/apps/monitor',
-  plugins: [react(), tailwindcss(), nxViteTsPaths()],
+  plugins: [react(), nxViteTsPaths()],
   test: {
     watch: false,
     globals: true,

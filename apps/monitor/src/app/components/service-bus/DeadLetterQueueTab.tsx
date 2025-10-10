@@ -1,21 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { DLQDataTable } from './DLQDataTable';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
-import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import {
   DeadLetterMessage,
   DeadLetterMessageResponse,
   useServiceBus,
 } from '../../hooks/useServiceBus';
-import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
+import { Button } from '../ui/button';
+import EntitySelector, { EntitySelection } from './EntitySelector';
 
 interface DeadLetterQueueTabProps {
   onReplay: (messageId: string) => void;
@@ -27,79 +20,48 @@ export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
   onView,
 }) => {
   const { getDeadLetterMessages } = useServiceBus();
-  const { queuesAndTopics } = useServiceBusConfig();
+  const [selection, setSelection] = useState<EntitySelection | null>(null);
+
   const [messages, setMessages] = useState<DeadLetterMessageResponse>();
-  const [selectedEntity, setSelectedEntity] = useState<string>('');
-  const [selectedNamespace, setSelectedNamespace] = useState<string>('');
-  // Get entities that can have DLQ (queues and subscriptions)
-  const getDLQEntities = () => {
-    return queuesAndTopics.filter(
-      (item) => item.type === 'queue' || item.type === 'subscription'
-    );
-  };
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const handleEntityChange = (entityName: string) => {
-    setSelectedEntity(entityName);
-    const entity = queuesAndTopics.find((item) => item.name === entityName);
-    if (entity) {
-      setSelectedNamespace(entity.namespace);
+  const handleLoad = useCallback(async () => {
+    if (!selection || selection.kind !== 'topic' || !selection.subscription)
+      return;
+    setIsFetching(true);
+    setFetchError(null);
+    try {
+      const res = await getDeadLetterMessages({
+        namespace: selection.namespace,
+        topic: selection.name,
+        subscription: selection.subscription,
+        maxMessages: 50,
+        maxWaitTimeInSeconds: 10,
+      });
+      setMessages(res);
+    } catch (e) {
+      setFetchError(
+        e instanceof Error ? e.message : 'Failed to load DLQ messages'
+      );
+      setMessages({
+        success: false,
+        messageCount: 0,
+        messages: [],
+        entityPath: '',
+      });
+    } finally {
+      setIsFetching(false);
     }
-  };
+  }, [selection, getDeadLetterMessages]);
 
+  // Auto-load when selection is sufficient
   useEffect(() => {
-    if (!selectedEntity || !selectedNamespace) return;
+    if (selection && selection.kind === 'topic' && selection.subscription) {
+      void handleLoad();
+    }
+  }, [selection, handleLoad]);
 
-    const fetchDLQMessages = async () => {
-      try {
-        const entity = queuesAndTopics.find(
-          (item) => item.name === selectedEntity
-        );
-        if (!entity) return;
-
-        let dlqOptions;
-
-        if (entity.type === 'queue') {
-          // For queues, we use the queue name as topic and empty subscription
-          dlqOptions = {
-            namespace: selectedNamespace,
-            topic: entity.name,
-            subscription: '', // Empty for queues
-            maxMessages: 20,
-            maxWaitTimeInSeconds: 10,
-          };
-        } else if (entity.type === 'subscription') {
-          // For subscriptions, we need the parent topic
-          dlqOptions = {
-            namespace: selectedNamespace,
-            topic: entity.parentTopic || '',
-            subscription: entity.name,
-            maxMessages: 20,
-            maxWaitTimeInSeconds: 10,
-          };
-        }
-
-        if (dlqOptions) {
-          const dlqMessages = await getDeadLetterMessages(dlqOptions);
-          setMessages(dlqMessages);
-        }
-      } catch (err) {
-        console.error('Failed to fetch DLQ messages:', err);
-        setMessages({
-          success: false,
-          messageCount: 0,
-          messages: [],
-          entityPath: '',
-        });
-      }
-    };
-
-    fetchDLQMessages();
-  }, [
-    selectedEntity,
-    selectedNamespace,
-    getDeadLetterMessages,
-    queuesAndTopics,
-  ]);
   return (
     <div className="space-y-6">
       {/* Header Section */}
@@ -112,38 +74,38 @@ export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center justify-between p-6 bg-card border rounded-lg">
-          <div className="space-y-2">
-            <Label className="text-base font-medium">
-              Select Queue/Subscription
-            </Label>
-            <Select value={selectedEntity} onValueChange={handleEntityChange}>
-              <SelectTrigger className="w-[300px]">
-                <SelectValue placeholder="Select queue or subscription..." />
-              </SelectTrigger>
-              <SelectContent>
-                {getDLQEntities().map((entity) => (
-                  <SelectItem key={entity.name} value={entity.name}>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs bg-muted px-2 py-1 rounded">
-                        {entity.type}
-                      </span>
-                      <span>{entity.name}</span>
-                      {entity.type === 'subscription' && entity.parentTopic && (
-                        <span className="text-xs text-muted-foreground">
-                          ({entity.parentTopic})
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex items-center justify-between p-6 bg-card border rounded-sm">
+          <div className="space-y-3">
+            <EntitySelector
+              value={selection}
+              onChange={setSelection}
+              includeQueues={true}
+              includeTopics={true}
+              requireSubscriptionForTopic={true}
+              autoSelectPreferredSubscription={true}
+              label="Select Queue or Topic/Subscription"
+            />
+            <div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  !selection ||
+                  selection.kind === 'queue' ||
+                  (selection.kind === 'topic' && !selection.subscription) ||
+                  isFetching
+                }
+                onClick={handleLoad}
+                className="rounded-sm"
+              >
+                Load DLQ
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center space-x-3 bg-destructive/10 px-4 py-3 rounded-lg border border-destructive/20">
+          <div className="flex items-center space-x-3 bg-destructive/10 px-4 py-3 rounded-sm border border-destructive/20">
             <Trash2 className="w-5 h-5 text-destructive" />
             <span className="text-sm font-medium">
-              <Badge variant="destructive" className="mr-2">
+              <Badge variant="destructive" className="mr-2 rounded-sm">
                 {messages?.messages?.length || 0}
               </Badge>
               messages in DLQ
@@ -151,6 +113,11 @@ export const DeadLetterQueueTab: React.FC<DeadLetterQueueTabProps> = ({
           </div>
         </div>
       </div>
+      {fetchError && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
+          <p className="text-sm text-destructive">{fetchError}</p>
+        </div>
+      )}
 
       {/* Data Table - Full width */}
       <div className="w-full">

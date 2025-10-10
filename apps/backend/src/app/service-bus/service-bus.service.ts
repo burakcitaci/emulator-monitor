@@ -327,6 +327,75 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       }
     }
   }
+
+  /**
+   * Peek active messages from a queue or topic/subscription (non-destructive)
+   */
+  public async receiveActiveMessages(
+    namespace: string,
+    entity: string,
+    subscription?: string,
+    maxMessages = 10
+  ): Promise<DeadLetterMessageResponse> {
+    const client = this.clients.get(namespace);
+    if (!client) {
+      throw new Error(`Client for namespace "${namespace}" not found.`);
+    }
+
+    const entityPath = subscription
+      ? `${entity}/Subscriptions/${subscription}`
+      : entity;
+
+    const receiverKey = `${namespace}:${entityPath}:peek`;
+    const existingReceiver = this.receivers.get(receiverKey);
+    if (existingReceiver) {
+      try {
+        await existingReceiver.close();
+        this.receivers.delete(receiverKey);
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    let receiver: ServiceBusReceiver | null = null;
+    try {
+      receiver = client.createReceiver(entityPath, { receiveMode: 'peekLock' });
+
+      // Use non-destructive peekMessages
+      const messages = await receiver.peekMessages(maxMessages);
+
+      const serializedMessages = messages.map((msg) => ({
+        body: msg.body,
+        messageId: msg.messageId,
+        correlationId: msg.correlationId,
+        subject: msg.subject,
+        contentType: msg.contentType,
+        deliveryCount: msg.deliveryCount,
+        enqueuedTimeUtc: msg.enqueuedTimeUtc,
+        enqueuedSequenceNumber: msg.enqueuedSequenceNumber,
+        sequenceNumber: msg.sequenceNumber,
+        applicationProperties: msg.applicationProperties,
+        state: msg.state,
+      }));
+
+      return {
+        success: true,
+        messageCount: messages.length,
+        messages: serializedMessages,
+        entityPath,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to peek messages: ${error.message}`);
+    } finally {
+      if (receiver) {
+        try {
+          await receiver.close();
+        } catch (error) {
+          // ignore
+        }
+      }
+    }
+  }
   /**
    * Generate a unique message ID
    */
