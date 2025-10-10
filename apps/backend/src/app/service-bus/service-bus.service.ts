@@ -18,6 +18,8 @@ import {
 } from '@emulator-monitor/entities';
 
 import { ConfigService } from '../common/config.service';
+import { MessageService } from '../messages/messages.service';
+import { mapToDocument } from '../messages/messages.mapper';
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
@@ -26,7 +28,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   private readonly receivers: Map<string, ServiceBusReceiver> = new Map(); // 👈 New Map for receivers
   private config: ServiceBusConfig | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly messageService: MessageService
+  ) {}
 
   /**
    * Initialize Service Bus with configuration
@@ -169,6 +174,8 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         applicationProperties: dto.message.applicationProperties || {},
       };
 
+      const mappedMessage = mapToDocument(message);
+      await this.messageService.saveReceivedMessage(mappedMessage); // Save the message to MongoDB
       await sender.sendMessages(message);
 
       return {

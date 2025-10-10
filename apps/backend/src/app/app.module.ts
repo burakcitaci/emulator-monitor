@@ -5,9 +5,18 @@ import { FileModule } from './file/file.module';
 import { DockerModule } from './docker/docker.module';
 import { ServiceBusModule } from './service-bus/service-bus.module';
 import { CommonModule } from './common/common.module';
+import { MongooseModule } from '@nestjs/mongoose';
+import { MessageModule } from './messages/messages.module';
 
 @Module({
-  imports: [CommonModule, FileModule, DockerModule, ServiceBusModule],
+  imports: [
+    CommonModule,
+    FileModule,
+    DockerModule,
+    ServiceBusModule,
+    MongooseModule.forRoot('mongodb://testuser:testpass@localhost:27018/'),
+    MessageModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
