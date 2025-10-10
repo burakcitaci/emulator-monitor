@@ -4,6 +4,7 @@
       "ref": "e4b906abd3b35082ce4c92d448cb1417438dcdcc",
       "subject": "refactoring"
     },
-    "targetVersion": "latest"
+    "targetVersion": "latest",
+    "confirmedPackageUpdates": true
   }
 }
