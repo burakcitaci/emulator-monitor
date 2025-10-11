@@ -12,15 +12,13 @@ import {
   ConnectionTab,
   ConfigurationTab,
 } from './components';
-import { DeadLetterMessage } from './hooks/useServiceBus';
+import { DeadLetterMessage, Message } from './hooks/useServiceBus';
 
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
 export default function ServiceBusMonitor() {
   const [activeTab, setActiveTab] = useState<TabId>('messages');
-  const [deadLetterMessages, setDeadLetterMessages] = useState<
-    DeadLetterMessage[]
-  >([]);
+  const [deadLetterMessages, setDeadLetterMessages] = useState<Message[]>([]);
 
   const [sendForm, setSendForm] = useState<SendForm>({
     queueName: '',
@@ -46,14 +44,14 @@ export default function ServiceBusMonitor() {
   };
 
   const handleSendMessage = () => {
-    const newMessage: DeadLetterMessage = {
+    const newMessage: Message = {
       messageId: `msg-${Date.now()}`,
       body: sendForm.body,
       subject: sendForm.queueName,
       applicationProperties: sendForm.properties
         ? JSON.parse(sendForm.properties)
         : {},
-      enqueuedTimeUtc: new Date(),
+      scheduledEnqueueTimeUtc: new Date(),
     };
     setDeadLetterMessages((prev) => [...prev, newMessage]);
     setSendForm({ ...sendForm, body: '', properties: '' });

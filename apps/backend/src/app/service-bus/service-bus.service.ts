@@ -360,7 +360,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         await existingReceiver.close();
         this.receivers.delete(receiverKey);
       } catch (error) {
-        // ignore
+        throw new Error(`Error closing existing receiver: ${error}`);
       }
     }
 

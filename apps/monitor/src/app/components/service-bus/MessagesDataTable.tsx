@@ -5,16 +5,16 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
-import { DeadLetterMessage } from '../../hooks/useServiceBus';
+import { DeadLetterMessage, Message } from '../../hooks/useServiceBus';
 
 interface MessagesDataTableProps {
-  messages: DeadLetterMessage[];
-  onMessageSelect: (message: DeadLetterMessage) => void;
+  messages: Message[];
+  onMessageSelect: (message: Message) => void;
 }
 
 const createColumns = (
-  onMessageSelect: (message: DeadLetterMessage) => void
-): ColumnDef<DeadLetterMessage>[] => [
+  onMessageSelect: (message: Message) => void
+): ColumnDef<Message>[] => [
   {
     accessorKey: 'messageId',
     header: ({ column }) => (
@@ -40,11 +40,10 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       const body = row.getValue('body') as unknown;
-      const bodyText = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
+      const bodyText =
+        typeof body === 'string' ? body : JSON.stringify(body, null, 2);
       return (
-        <div className="max-w-md truncate font-mono text-xs">
-          {bodyText}
-        </div>
+        <div className="max-w-md truncate font-mono text-xs">{bodyText}</div>
       );
     },
   },
@@ -54,7 +53,7 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const timestamp = row.original.enqueuedTimeUtc;
+      const timestamp = row.original.scheduledEnqueueTimeUtc;
       return (
         <div className="text-sm text-muted-foreground">
           {timestamp ? new Date(timestamp).toLocaleString() : 'N/A'}
@@ -69,7 +68,7 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       // Derive from deadLetterReason since isDeadLetter isn't in the interface
-      const isDeadLetter = !!row.original.deadLetterReason;
+      const isDeadLetter = !!row.original.contentType;
       return isDeadLetter ? (
         <Badge variant="destructive">DLQ</Badge>
       ) : (
@@ -77,17 +76,8 @@ const createColumns = (
       );
     },
     filterFn: (row, id, value) => {
-      const isDeadLetter = !!row.original.deadLetterReason;
+      const isDeadLetter = !!row.original.contentType;
       return value.includes(isDeadLetter);
-    },
-  },
-  {
-    accessorKey: 'deliveryCount',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Delivery Count" />
-    ),
-    cell: ({ row }) => {
-      return <div className="text-sm">{row.original.deliveryCount ?? 0}</div>;
     },
   },
   {
@@ -102,6 +92,19 @@ const createColumns = (
           <Eye className="h-4 w-4" />
         </Button>
       );
+    },
+  },
+  {
+    id: 'status',
+    cell: ({ row }) => {
+      return row.original ? 'Locked' : 'Available';
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    filterFn: (row, id, value) => {
+      const isLocked = !!row.original.state;
+      return value;
     },
   },
 ];

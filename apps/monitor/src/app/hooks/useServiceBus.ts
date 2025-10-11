@@ -80,6 +80,13 @@ export interface DeadLetterMessageResponse {
   entityPath: string;
 }
 
+export interface MessageResponse {
+  success: boolean;
+  messageCount: number;
+  messages: Message[];
+  entityPath: string;
+}
+
 interface UseServiceBusReturn {
   namespaces: Namespace[];
   loading: boolean;
@@ -101,7 +108,7 @@ interface UseServiceBusReturn {
   getDeadLetterMessages: (
     options: DeadLetterMessageOptions
   ) => Promise<DeadLetterMessageResponse>;
-  getMessages: (options: MessageFetchOptions) => Promise<DeadLetterMessageResponse>;
+  getMessages: (options: MessageFetchOptions) => Promise<MessageResponse>;
 }
 
 const API_BASE_URL = 'http://localhost:3000/api/v1';
@@ -277,25 +284,64 @@ export const useServiceBus = (): UseServiceBusReturn => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        namespace: options.namespace,
-        ...(options.queue && { queue: options.queue }),
-        ...(options.topic && { topic: options.topic }),
-        ...(options.subscription && { subscription: options.subscription }),
-        ...(options.maxMessages && { maxMessages: options.maxMessages.toString() }),
-      });
-      const response = await fetch(`${API_BASE_URL}/servicebus/messages?${params}`);
-      if (!response.ok) {
-        if (response.status === 503) {
-          throw new Error(
-            'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
-          );
-        }
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to retrieve messages');
+      // Build query parameters for filtering
+      const params = new URLSearchParams();
+
+      if (options.queue) {
+        params.append('queue', options.queue);
       }
-      const data = await response.json();
-      return data;
+      if (options.topic) {
+        params.append('topic', options.topic);
+      }
+      if (options.subscription) {
+        params.append('subscription', options.subscription);
+      }
+      if (options.maxMessages) {
+        params.append('maxMessages', options.maxMessages.toString());
+      }
+
+      // Fetch filtered messages from the messages controller (database)
+      const url = `${API_BASE_URL}/messages`;
+      const response = await fetch(url);
+      const result = await response.json();
+      console.log('Fetch messages response:', result);
+
+      if (!response.ok) {
+        // If service unavailable, it might mean Service Bus is not initialized yet
+        throw new Error(result.message || 'Failed to fetch messages');
+      }
+
+      const messages: any[] = result;
+      console.log('Get messages response:', messages);
+
+      // Convert Message to DeadLetterMessage format
+      const deadLetterMessages: Message[] = messages.map((msg) => ({
+        body: msg.body,
+        messageId: msg.messageId?.toString(),
+        correlationId: msg.correlationId?.toString(),
+        subject: msg.subject,
+        contentType: msg.contentType,
+        deliveryCount:
+          (msg.applicationProperties?.deliveryCount as number) || 0,
+        enqueuedTimeUtc: msg.createdAt,
+        deadLetterReason: msg.applicationProperties?.deadLetterReason as string,
+        deadLetterErrorDescription: msg.applicationProperties
+          ?.deadLetterErrorDescription as string,
+        applicationProperties: msg.applicationProperties || {},
+      }));
+
+      const entityPath =
+        options.queue ||
+        (options.topic && options.subscription
+          ? `${options.topic}/${options.subscription}`
+          : options.topic || 'unknown');
+
+      return {
+        success: true,
+        messageCount: deadLetterMessages.length,
+        messages: deadLetterMessages,
+        entityPath,
+      };
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
@@ -317,3 +363,43 @@ export const useServiceBus = (): UseServiceBusReturn => {
     getMessages,
   };
 };
+
+export class Message {
+  body: unknown;
+
+  messageId?: string | number;
+
+  contentType?: string;
+
+  correlationId?: string | number;
+
+  partitionKey?: string;
+
+  sessionId?: string;
+
+  replyToSessionId?: string;
+
+  timeToLive?: number;
+
+  subject?: string;
+
+  to?: string;
+
+  replyTo?: string;
+
+  scheduledEnqueueTimeUtc?: Date;
+
+  applicationProperties?: Map<string, string | number | boolean | Date | null>;
+
+  state?:
+    | 'sent'
+    | 'in-queue'
+    | 'processing'
+    | 'completed'
+    | 'dead-lettered'
+    | 'timeout';
+  rawAmqpMessage?: Record<string, unknown>;
+
+  createdAt?: Date;
+  updatedAt?: Date;
+}

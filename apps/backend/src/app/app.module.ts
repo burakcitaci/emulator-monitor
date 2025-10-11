@@ -14,7 +14,7 @@ import { MessageModule } from './messages/messages.module';
     FileModule,
     DockerModule,
     ServiceBusModule,
-    MongooseModule.forRoot('mongodb://testuser:testpass@localhost:27018/'),
+    MongooseModule.forRoot('mongodb://testuser:testpass@localhost:27017/'),
     MessageModule,
   ],
   controllers: [AppController],

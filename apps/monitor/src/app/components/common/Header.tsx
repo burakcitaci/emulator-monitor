@@ -1,10 +1,10 @@
 import React from 'react';
-import { DeadLetterMessage } from '../../hooks/useServiceBus';
+import { DeadLetterMessage, Message } from '../../hooks/useServiceBus';
 import { ConnectionInfo } from '@emulator-monitor/entities';
 
 interface HeaderProps {
   connectionInfo: ConnectionInfo;
-  messages: DeadLetterMessage[];
+  messages: Message[];
   dlqMessages: DeadLetterMessage[];
 }
 

@@ -20,7 +20,6 @@ import { Providers } from './providers';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { AlertCircle } from 'lucide-react';
 
-import { DeadLetterMessage } from './hooks/useServiceBus';
 import { ConnectionForm } from '@emulator-monitor/entities';
 
 const MonitorContent: React.FC = () => {
@@ -39,48 +38,10 @@ const MonitorContent: React.FC = () => {
     error,
   } = useMonitor();
 
-  // Connection form state
   const [connectionForm, setConnectionForm] = useState<ConnectionForm>({
     connectionString: '',
     queues: 'test-queue,orders-queue',
   });
-
-  const handleTabChange = (tab: typeof activeTab) => {
-    setActiveTab(tab);
-  };
-
-  const handleSendFormChange = (form: typeof sendForm) => {
-    setSendForm(form);
-  };
-
-  const handleMessageSelect = (message: DeadLetterMessage | null) => {
-    setSelectedMessage(message);
-  };
-
-  const handleReplay = (messageId: string) => {
-    replayMessage(messageId);
-  };
-
-  const handleView = (message: DeadLetterMessage | null) => {
-    setSelectedMessage(message);
-  };
-
-  const handleSend = () => {
-    sendMessage();
-  };
-
-  // Connection tab handlers
-  const handleUpdate = () => {
-    alert('Connection updated!');
-  };
-
-  const handleTest = () => {
-    alert('Testing connection...');
-  };
-
-  const handleReset = () => {
-    alert('Reset to local emulator');
-  };
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -88,20 +49,33 @@ const MonitorContent: React.FC = () => {
         return (
           <MessagesTab
             messages={messages}
-            onMessageSelect={handleMessageSelect}
+            onMessageSelect={setSelectedMessage}
           />
         );
       case 'send':
         return (
           <SendMessageTab
             form={sendForm}
-            onFormChange={handleSendFormChange}
-            onSend={handleSend}
+            onFormChange={setSendForm}
+            onSend={sendMessage}
           />
         );
       case 'dlq':
         return (
-          <DeadLetterQueueTab onReplay={handleReplay} onView={handleView} />
+          <DeadLetterQueueTab
+            onReplay={replayMessage}
+            onView={(message) => {
+              // Convert DeadLetterMessage to Message format for selectedMessage
+              const convertedMessage = {
+                ...message,
+                messageId: message.messageId?.toString(),
+                applicationProperties: message.applicationProperties
+                  ? new Map(Object.entries(message.applicationProperties))
+                  : undefined,
+              };
+              setSelectedMessage(convertedMessage);
+            }}
+          />
         );
       case 'configuration':
         return <ConfigurationTab />;
@@ -111,9 +85,9 @@ const MonitorContent: React.FC = () => {
             connectionInfo={connectionInfo}
             form={connectionForm}
             onFormChange={setConnectionForm}
-            onUpdate={handleUpdate}
-            onTest={handleTest}
-            onReset={handleReset}
+            onUpdate={() => alert('Connection updated!')}
+            onTest={() => alert('Testing connection...')}
+            onReset={() => alert('Reset to local emulator')}
           />
         );
       default:
@@ -122,61 +96,45 @@ const MonitorContent: React.FC = () => {
   };
 
   return (
-    <div>
-      <SidebarProvider>
-        <ContainerSidebar />
-        <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b">
-            <div className="flex items-center gap-2 px-3">
-              <SidebarTrigger />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-              <Header
-                connectionInfo={connectionInfo}
-                messages={messages}
-                dlqMessages={dlqMessages.messages}
-              />
-            </div>
-            <div className="ml-auto px-3">
-              <ThemeToggle />
-            </div>
-          </header>
-
-          <div className="flex flex-1 flex-col">
-            <TabNavigation
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-            />
-
-            <div className="flex-1 p-8">
-              {isLoading && (
-                <div className="flex items-center justify-center p-12">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                    <p className="text-muted-foreground">Loading...</p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 mb-6 max-w-2xl mx-auto">
-                  <div className="flex items-center gap-3">
-                    <AlertCircle className="w-5 h-5 text-destructive" />
-                    <div>
-                      <h3 className="font-medium text-destructive">Error</h3>
-                      <p className="text-sm text-destructive/80 mt-1">
-                        {error}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {renderActiveTab()}
-            </div>
+    <SidebarProvider>
+      <ContainerSidebar />
+      <SidebarInset>
+        <header className="flex h-16 items-center gap-2 border-b px-3">
+          <SidebarTrigger />
+          <Separator orientation="vertical" className="h-4" />
+          <Header
+            connectionInfo={connectionInfo}
+            messages={messages}
+            dlqMessages={dlqMessages.messages}
+          />
+          <div className="ml-auto">
+            <ThemeToggle />
           </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </div>
+        </header>
+
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+        <main className="p-8">
+          {isLoading && (
+            <div className="flex items-center justify-center p-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+              <p className="ml-3 text-muted-foreground">Loading...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-destructive" />
+                <span className="text-destructive">{error}</span>
+              </div>
+            </div>
+          )}
+
+          {renderActiveTab()}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 };
 

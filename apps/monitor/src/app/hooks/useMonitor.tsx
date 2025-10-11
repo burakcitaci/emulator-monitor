@@ -1,15 +1,10 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  ReactNode,
-} from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { SendForm, ConnectionInfo } from '@emulator-monitor/entities';
 import {
   useServiceBus,
   DeadLetterMessage,
   DeadLetterMessageResponse,
+  Message,
 } from './useServiceBus';
 import { useServiceBusConfig } from './useServiceBusConfig';
 import toast from 'react-hot-toast';
@@ -23,12 +18,12 @@ interface MonitorState {
   dlqQueue: string;
 
   // Data states
-  messages: DeadLetterMessage[];
+  messages: Message[];
   dlqMessages: DeadLetterMessageResponse;
   connectionInfo: ConnectionInfo;
 
   // UI states
-  selectedMessage: DeadLetterMessage | null;
+  selectedMessage: Message | null;
   isLoading: boolean;
   isSendingMessage: boolean;
   error: string | null;
@@ -43,12 +38,12 @@ interface MonitorActions {
   setDlqQueue: (queue: string) => void;
 
   // Data actions
-  setMessages: (messages: DeadLetterMessage[]) => void;
+  setMessages: (messages: Message[]) => void;
   setDlqMessages: (messages: DeadLetterMessageResponse) => void;
   setConnectionInfo: (info: ConnectionInfo) => void;
 
   // UI actions
-  setSelectedMessage: (message: DeadLetterMessage | null) => void;
+  setSelectedMessage: (message: Message | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 
@@ -97,50 +92,53 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
   children,
 }) => {
   const [state, setState] = useState<MonitorState>(initialState);
-  const { sendMessage: serviceBusSendMessage, getDeadLetterMessages, getMessages } =
-    useServiceBus();
-  const { getQueueNames, getSubscriptionsByTopic, queuesAndTopics, config } = useServiceBusConfig();
 
-  const setActiveTab = useCallback((tab: MonitorState['activeTab']) => {
+  const {
+    sendMessage: serviceBusSendMessage,
+    getDeadLetterMessages,
+    getMessages,
+  } = useServiceBus();
+
+  const { getQueueNames, getSubscriptionsByTopic, queuesAndTopics, config } =
+    useServiceBusConfig();
+
+  const setActiveTab = (tab: MonitorState['activeTab']) => {
     setState((prev) => ({ ...prev, activeTab: tab }));
-  }, []);
+  };
 
-  const setSendForm = useCallback((form: SendForm) => {
+  const setSendForm = (form: SendForm) => {
     setState((prev) => ({ ...prev, sendForm: form }));
-  }, []);
+  };
 
-  const setDlqQueue = useCallback((queue: string) => {
+  const setDlqQueue = (queue: string) => {
     setState((prev) => ({ ...prev, dlqQueue: queue }));
-  }, []);
+  };
 
-  const setMessages = useCallback((messages: DeadLetterMessage[]) => {
+  const setMessages = (messages: Message[]) => {
     setState((prev) => ({ ...prev, messages }));
-  }, []);
+  };
 
-  const setDlqMessages = useCallback((messages: DeadLetterMessageResponse) => {
+  const setDlqMessages = (messages: DeadLetterMessageResponse) => {
     setState((prev) => ({ ...prev, dlqMessages: messages }));
-  }, []);
+  };
 
-  const setConnectionInfo = useCallback((info: ConnectionInfo) => {
+  const setConnectionInfo = (info: ConnectionInfo) => {
     setState((prev) => ({ ...prev, connectionInfo: info }));
-  }, []);
+  };
 
-  const setSelectedMessage = useCallback(
-    (message: DeadLetterMessage | null) => {
-      setState((prev) => ({ ...prev, selectedMessage: message }));
-    },
-    []
-  );
+  const setSelectedMessage = (message: Message | null) => {
+    setState((prev) => ({ ...prev, selectedMessage: message }));
+  };
 
-  const setLoading = useCallback((loading: boolean) => {
+  const setLoading = (loading: boolean) => {
     setState((prev) => ({ ...prev, isLoading: loading }));
-  }, []);
+  };
 
-  const setError = useCallback((error: string | null) => {
+  const setError = (error: string | null) => {
     setState((prev) => ({ ...prev, error }));
-  }, []);
+  };
 
-  const sendMessage = useCallback(async () => {
+  const sendMessage = async () => {
     if (!state.sendForm.queueName || !state.sendForm.body) {
       const errorMessage = 'Queue name and message body are required';
       setError(errorMessage);
@@ -152,7 +150,6 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
     setError(null);
 
     try {
-      // Parse form data
       const messageBody = state.sendForm.body
         ? JSON.parse(state.sendForm.body)
         : {};
@@ -160,13 +157,21 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         ? JSON.parse(state.sendForm.properties)
         : undefined;
 
-      // Determine namespace from config based on destination
+      // Resolve namespace
       const destination = state.sendForm.queueName;
-      const nsFromQueue = queuesAndTopics.find((i) => i.type === 'queue' && i.name === destination)?.namespace;
-      const nsFromTopic = queuesAndTopics.find((i) => i.type === 'topic' && i.name === destination)?.namespace;
-      const resolvedNamespace = nsFromQueue || nsFromTopic || config?.UserConfig.Namespaces[0]?.Name || 'sbemulatorns';
+      const nsFromQueue = queuesAndTopics.find(
+        (i) => i.type === 'queue' && i.name === destination
+      )?.namespace;
+      const nsFromTopic = queuesAndTopics.find(
+        (i) => i.type === 'topic' && i.name === destination
+      )?.namespace;
+      const resolvedNamespace =
+        nsFromQueue ||
+        nsFromTopic ||
+        config?.UserConfig.Namespaces[0]?.Name ||
+        'sbemulatorns';
 
-      const sendResult = await serviceBusSendMessage({
+      await serviceBusSendMessage({
         namespace: resolvedNamespace,
         topic: state.sendForm.queueName,
         message: {
@@ -187,9 +192,8 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         }
       );
 
-      // After sending, attempt to peek active messages for this entity
+      // Refresh messages after send
       try {
-        const destination = state.sendForm.queueName;
         const queues = getQueueNames();
         if (queues.includes(destination)) {
           const fetched = await getMessages({
@@ -200,7 +204,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
           setMessages(fetched.messages || []);
         } else {
           const subs = getSubscriptionsByTopic(destination);
-          if (subs && subs.length > 0) {
+          if (subs?.length > 0) {
             const preferred = subs.includes('default') ? 'default' : subs[0];
             const fetched = await getMessages({
               namespace: resolvedNamespace,
@@ -212,11 +216,9 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
           }
         }
       } catch (e) {
-        // Non-fatal
-        console.warn('Failed to refresh active messages after send', e);
+        console.warn('Failed to refresh messages after send', e);
       }
 
-      // Reset form after successful send
       setSendForm({ queueName: '', body: '', properties: '' });
     } catch (err) {
       const errorMessage =
@@ -226,108 +228,86 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
     } finally {
       setState((prev) => ({ ...prev, isSendingMessage: false }));
     }
-  }, [state.sendForm, serviceBusSendMessage, setError, setSendForm]);
+  };
 
-  const loadDlqMessages = useCallback(
-    async (queueName: string) => {
-      setLoading(true);
-      setError(null);
+  const loadDlqMessages = async (queueName: string) => {
+    setLoading(true);
+    setError(null);
 
-      try {
-        const topicName = queueName.includes('/') ? queueName.split('/')[0] : queueName;
-        const subName = queueName.includes('/') ? queueName.split('/')[1] : 'default';
-        const nsFromQueue = queuesAndTopics.find((i) => i.type === 'queue' && i.name === topicName)?.namespace;
-        const nsFromTopic = queuesAndTopics.find((i) => i.type === 'topic' && i.name === topicName)?.namespace;
-        const dlqNamespace = nsFromQueue || nsFromTopic || config?.UserConfig.Namespaces[0]?.Name || 'sbemulatorns';
+    try {
+      const topicName = queueName.includes('/')
+        ? queueName.split('/')[0]
+        : queueName;
+      const subName = queueName.includes('/')
+        ? queueName.split('/')[1]
+        : 'default';
 
-        const dlqMessages = await getDeadLetterMessages({
-          namespace: dlqNamespace,
-          topic: topicName,
-          subscription: subName,
-          maxMessages: 20,
-          maxWaitTimeInSeconds: 10,
-        });
+      const nsFromQueue = queuesAndTopics.find(
+        (i) => i.type === 'queue' && i.name === topicName
+      )?.namespace;
+      const nsFromTopic = queuesAndTopics.find(
+        (i) => i.type === 'topic' && i.name === topicName
+      )?.namespace;
+      const dlqNamespace =
+        nsFromQueue ||
+        nsFromTopic ||
+        config?.UserConfig.Namespaces[0]?.Name ||
+        'sbemulatorns';
 
-        setDlqMessages(dlqMessages);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to load DLQ messages'
-        );
-      } finally {
-        setLoading(false);
+      const dlqMessages = await getDeadLetterMessages({
+        namespace: dlqNamespace,
+        topic: topicName,
+        subscription: subName,
+        maxMessages: 20,
+        maxWaitTimeInSeconds: 10,
+      });
+
+      setDlqMessages(dlqMessages);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to load DLQ messages'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const replayMessage = async (messageId: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const messageToReplay = state.dlqMessages.messages.find(
+        (msg: DeadLetterMessage) => msg.messageId === messageId
+      );
+      if (!messageToReplay) {
+        throw new Error('Message not found');
       }
-    },
-    [getDeadLetterMessages, setLoading, setError, setDlqMessages]
-  );
 
-  const replayMessage = useCallback(
-    async (messageId: string) => {
-      setLoading(true);
-      setError(null);
+      console.log('Replaying message:', messageId);
+      await loadDlqMessages(state.dlqQueue);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to replay message');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      try {
-        // Find the message to replay
-        const messageToReplay = state.dlqMessages.messages.find(
-          (msg: DeadLetterMessage) => msg.messageId === messageId
-        );
-        if (!messageToReplay) {
-          throw new Error('Message not found');
-        }
-
-        // Replay the message (this would need to be implemented in the service)
-        console.log('Replaying message:', messageId);
-
-        // Reload DLQ messages after replay
-        await loadDlqMessages(state.dlqQueue);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to replay message'
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    [
-      state.dlqMessages.messages,
-      state.dlqQueue,
-      loadDlqMessages,
-      setLoading,
-      setError,
-    ]
-  );
-
-  const contextValue: MonitorContextType = React.useMemo(
-    () => ({
-      ...state,
-      setActiveTab,
-      setSendForm,
-      setDlqQueue,
-      setMessages,
-      setDlqMessages,
-      setConnectionInfo,
-      setSelectedMessage,
-      setLoading,
-      setError,
-      sendMessage,
-      loadDlqMessages,
-      replayMessage,
-    }),
-    [
-      state,
-      setActiveTab,
-      setSendForm,
-      setDlqQueue,
-      setMessages,
-      setDlqMessages,
-      setConnectionInfo,
-      setSelectedMessage,
-      setLoading,
-      setError,
-      sendMessage,
-      loadDlqMessages,
-      replayMessage,
-    ]
-  );
+  const contextValue: MonitorContextType = {
+    ...state,
+    setActiveTab,
+    setSendForm,
+    setDlqQueue,
+    setMessages,
+    setDlqMessages,
+    setConnectionInfo,
+    setSelectedMessage,
+    setLoading,
+    setError,
+    sendMessage,
+    loadDlqMessages,
+    replayMessage,
+  };
 
   return (
     <MonitorContext.Provider value={contextValue}>
