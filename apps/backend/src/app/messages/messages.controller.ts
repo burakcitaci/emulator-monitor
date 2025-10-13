@@ -61,4 +61,20 @@ export class MessagesController {
   async remove(@Param('id') id: string): Promise<void> {
     return this.messagesService.remove(id);
   }
+
+  @Post('migrate')
+  async migrate(): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.messagesService.migrateOldMessages();
+      return {
+        success: true,
+        message: 'Migration completed successfully',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Migration failed',
+      };
+    }
+  }
 }

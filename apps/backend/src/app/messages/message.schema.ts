@@ -4,19 +4,45 @@ import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
 
 export type MessageDocument = HydratedDocument<Message>;
 
+/**
+ * Azure Service Bus Message Status
+ * Tracks the processing status of a message
+ */
+export enum MessageStatus {
+  ACTIVE = 'active', // Message is available for processing
+  DEFERRED = 'deferred', // Message processing postponed
+  SCHEDULED = 'scheduled', // Message scheduled for future delivery
+  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
+  COMPLETED = 'completed', // Message successfully processed
+  ABANDONED = 'abandoned', // Message processing failed, returned to queue
+  RECEIVED = 'received', // Message received but not yet completed
+}
+
+/**
+ * Azure Service Bus Message State
+ * The actual state of the message in Service Bus
+ */
+export enum MessageState {
+  ACTIVE = 'active',
+  DEFERRED = 'deferred',
+  SCHEDULED = 'scheduled',
+  DEAD_LETTERED = 'dead-lettered',
+}
+
 @Schema({ timestamps: true })
 export class Message {
   @Prop({
-    required: true,
+    required: false,
     enum: [
-      'sent', // Just sent to Service Bus
-      'in-queue', // Confirmed in queue via peek
-      'processing', // Disappeared from peek (likely being processed)
-      'completed', // Not in queue or DLQ (successful)
-      'dead-lettered', // Found in DLQ
-      'timeout', // Too old, assume lost
+      'active', // Message is available for processing
+      'deferred', // Message processing postponed
+      'scheduled', // Message scheduled for future delivery
+      'dead-lettered', // Message moved to Dead Letter Queue
+      'completed', // Message successfully processed
+      'abandoned', // Message processing failed, returned to queue
+      'received', // Message received but not yet completed
     ],
-    default: 'sent',
+    default: 'active',
   })
   status?: string;
 
@@ -63,8 +89,24 @@ export class Message {
   @Prop({ type: Map, of: MongooseSchema.Types.Mixed })
   applicationProperties?: Map<string, string | number | boolean | Date | null>;
 
-  @Prop({ type: String, enum: ['active', 'deferred', 'scheduled'] })
-  state?: 'active' | 'deferred' | 'scheduled';
+  @Prop({
+    type: String,
+    enum: ['active', 'deferred', 'scheduled', 'dead-lettered'],
+    index: true, // Index for faster queries on state
+  })
+  state?: 'active' | 'deferred' | 'scheduled' | 'dead-lettered';
+
+  @Prop({ type: Number })
+  sequenceNumber?: number;
+
+  @Prop({ type: String })
+  queue?: string;
+
+  @Prop({ type: Date })
+  enqueuedTimeUtc?: Date;
+
+  @Prop({ type: Date })
+  lastUpdated?: Date;
 
   @Prop({ type: MongooseSchema.Types.Mixed })
   rawAmqpMessage?: Record<string, unknown>;

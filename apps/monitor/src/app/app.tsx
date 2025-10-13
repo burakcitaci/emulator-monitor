@@ -72,6 +72,8 @@ const MonitorContent: React.FC = () => {
                 applicationProperties: message.applicationProperties
                   ? new Map(Object.entries(message.applicationProperties))
                   : undefined,
+                status: 'dead-lettered' as const, // Explicitly set status for DLQ messages
+                state: 'dead-lettered' as const, // Explicitly set state for DLQ messages
               };
               setSelectedMessage(convertedMessage);
             }}

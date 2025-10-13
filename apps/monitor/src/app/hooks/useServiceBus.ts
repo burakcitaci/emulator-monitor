@@ -72,6 +72,9 @@ export interface DeadLetterMessage {
   deadLetterReason?: string;
   deadLetterErrorDescription?: string;
   applicationProperties?: Record<string, any>;
+  status?: string;
+  state?: string;
+  sequenceNumber?: number;
 }
 export interface DeadLetterMessageResponse {
   success: boolean;
@@ -312,24 +315,6 @@ export const useServiceBus = (): UseServiceBusReturn => {
       }
 
       const messages: any[] = result;
-      console.log('Get messages response:', messages);
-
-      // Convert Message to DeadLetterMessage format
-      const deadLetterMessages: Message[] = messages.map((msg) => ({
-        body: msg.body,
-        messageId: msg.messageId?.toString(),
-        correlationId: msg.correlationId?.toString(),
-        subject: msg.subject,
-        contentType: msg.contentType,
-        deliveryCount:
-          (msg.applicationProperties?.deliveryCount as number) || 0,
-        enqueuedTimeUtc: msg.createdAt,
-        deadLetterReason: msg.applicationProperties?.deadLetterReason as string,
-        deadLetterErrorDescription: msg.applicationProperties
-          ?.deadLetterErrorDescription as string,
-        applicationProperties: msg.applicationProperties || {},
-      }));
-
       const entityPath =
         options.queue ||
         (options.topic && options.subscription
@@ -338,8 +323,8 @@ export const useServiceBus = (): UseServiceBusReturn => {
 
       return {
         success: true,
-        messageCount: deadLetterMessages.length,
-        messages: deadLetterMessages,
+        messageCount: messages.length,
+        messages: messages,
         entityPath,
       };
     } catch (err) {
@@ -364,7 +349,33 @@ export const useServiceBus = (): UseServiceBusReturn => {
   };
 };
 
-export class Message {
+/**
+ * Azure Service Bus Message Status
+ * Tracks the processing status of a message
+ */
+export enum MessageStatus {
+  ACTIVE = 'active', // Message is available for processing
+  DEFERRED = 'deferred', // Message processing postponed
+  SCHEDULED = 'scheduled', // Message scheduled for future delivery
+  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
+  COMPLETED = 'completed', // Message successfully processed
+  ABANDONED = 'abandoned', // Message processing failed, returned to queue
+  RECEIVED = 'received', // Message received but not yet completed
+}
+
+/**
+ * Azure Service Bus Message State
+ * The actual state of the message in Service Bus
+ */
+export enum MessageState {
+  ACTIVE = 'active',
+  DEFERRED = 'deferred',
+  SCHEDULED = 'scheduled',
+  DEAD_LETTERED = 'dead-lettered',
+}
+
+export interface Message {
+  _id?: string;
   body: unknown;
 
   messageId?: string | number;
@@ -391,13 +402,43 @@ export class Message {
 
   applicationProperties?: Map<string, string | number | boolean | Date | null>;
 
-  state?:
-    | 'sent'
-    | 'in-queue'
-    | 'processing'
-    | 'completed'
+  /**
+   * Processing status of the message
+   */
+  status?:
+    | 'active'
+    | 'deferred'
+    | 'scheduled'
     | 'dead-lettered'
-    | 'timeout';
+    | 'completed'
+    | 'abandoned'
+    | 'received';
+
+  /**
+   * Azure Service Bus state
+   */
+  state?: 'active' | 'deferred' | 'scheduled' | 'dead-lettered';
+
+  /**
+   * Queue or topic/subscription path
+   */
+  queue?: string;
+
+  /**
+   * Sequence number for deferred messages
+   */
+  sequenceNumber?: number;
+
+  /**
+   * When the message was enqueued in Service Bus
+   */
+  enqueuedTimeUtc?: Date;
+
+  /**
+   * Last updated timestamp
+   */
+  lastUpdated?: Date;
+
   rawAmqpMessage?: Record<string, unknown>;
 
   createdAt?: Date;

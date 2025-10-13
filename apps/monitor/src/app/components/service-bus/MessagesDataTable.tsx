@@ -5,7 +5,40 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
-import { DeadLetterMessage, Message } from '../../hooks/useServiceBus';
+import { Message, MessageStatus } from '../../hooks/useServiceBus';
+
+// Helper function to get badge variant based on status
+const getStatusBadgeVariant = (
+  status?: string
+): 'default' | 'secondary' | 'destructive' | 'outline' => {
+  switch (status) {
+    case MessageStatus.ACTIVE:
+      return 'default'; // Blue - message is in queue
+    case MessageStatus.COMPLETED:
+      return 'secondary'; // Green - successfully processed
+    case MessageStatus.DEAD_LETTERED:
+      return 'destructive'; // Red - failed, in DLQ
+    case MessageStatus.RECEIVED:
+      return 'outline'; // Gray - being processed
+    case MessageStatus.DEFERRED:
+      return 'outline'; // Gray - processing postponed
+    case MessageStatus.SCHEDULED:
+      return 'secondary'; // Green - scheduled for future
+    case MessageStatus.ABANDONED:
+      return 'destructive'; // Red - processing failed
+    default:
+      return 'default';
+  }
+};
+
+// Helper function to format status display text
+const formatStatus = (status?: string): string => {
+  if (!status) return 'Active';
+  return status
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 
 interface MessagesDataTableProps {
   messages: Message[];
@@ -21,16 +54,41 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Message ID" />
     ),
     cell: ({ row }) => {
-      return <div className="font-medium">{row.original.messageId}</div>;
+      return (
+        <div className="font-medium font-mono text-xs">
+          {row.original.messageId || '-'}
+        </div>
+      );
     },
   },
   {
-    accessorKey: 'subject',
+    id: 'queue',
+    accessorKey: 'queue',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Subject" />
+      <DataTableColumnHeader column={column} title="Queue/Topic" />
     ),
     cell: ({ row }) => {
-      return <div className="font-medium">{row.original.subject}</div>;
+      const queue = row.original.queue;
+      if (!queue) return <span className="text-muted-foreground">-</span>;
+      return <div className="text-sm font-mono max-w-xs truncate">{queue}</div>;
+    },
+  },
+  {
+    id: 'status',
+    accessorKey: 'status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => {
+      const status = row.original.status || MessageStatus.ACTIVE;
+      return (
+        <Badge variant={getStatusBadgeVariant(status)}>
+          {formatStatus(status)}
+        </Badge>
+      );
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.original.status);
     },
   },
   {
@@ -53,31 +111,12 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const timestamp = row.original.scheduledEnqueueTimeUtc;
+      const timestamp = row.original.createdAt || row.original.enqueuedTimeUtc;
       return (
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground whitespace-nowrap">
           {timestamp ? new Date(timestamp).toLocaleString() : 'N/A'}
         </div>
       );
-    },
-  },
-  {
-    id: 'deadLetter',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Dead Letter" />
-    ),
-    cell: ({ row }) => {
-      // Derive from deadLetterReason since isDeadLetter isn't in the interface
-      const isDeadLetter = !!row.original.contentType;
-      return isDeadLetter ? (
-        <Badge variant="destructive">DLQ</Badge>
-      ) : (
-        <Badge variant="outline">Active</Badge>
-      );
-    },
-    filterFn: (row, id, value) => {
-      const isDeadLetter = !!row.original.contentType;
-      return value.includes(isDeadLetter);
     },
   },
   {
@@ -92,19 +131,6 @@ const createColumns = (
           <Eye className="h-4 w-4" />
         </Button>
       );
-    },
-  },
-  {
-    id: 'status',
-    cell: ({ row }) => {
-      return row.original ? 'Locked' : 'Available';
-    },
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
-    ),
-    filterFn: (row, id, value) => {
-      const isLocked = !!row.original.state;
-      return value;
     },
   },
 ];
