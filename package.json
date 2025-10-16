@@ -20,6 +20,7 @@
     "dockerode": "^4.0.9",
     "long": "^5.3.2",
     "lucide-react": "^0.525.0",
+    "mongodb": "^6.20.0",
     "mongoose": "^8.19.1",
     "nanoid": "^5.1.6",
     "react": "19.0.0",

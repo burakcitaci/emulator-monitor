@@ -281,6 +281,12 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
         <MessagesDataTable
           messages={displayed}
           onMessageSelect={onMessageSelect}
+          onMessageReplay={(messageId: string) =>
+            console.log('Replay message', messageId)
+          }
+          onMessageDelete={(messageId: string) =>
+            console.log('Delete message', messageId)
+          }
         />
       </div>
     </div>

@@ -10,10 +10,14 @@ import {
 } from '@nestjs/common';
 import { MessageService } from './messages.service';
 import { Message } from './message.schema';
+import { ConfigService } from '../common/config.service';
 
 @Controller('messages')
 export class MessagesController {
-  constructor(private readonly messagesService: MessageService) {}
+  constructor(
+    private readonly messagesService: MessageService,
+    private readonly configService: ConfigService
+  ) {}
 
   @Get()
   async findAll(
@@ -74,6 +78,29 @@ export class MessagesController {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Migration failed',
+      };
+    }
+  }
+
+  @Post('cleanup')
+  async cleanup(): Promise<{ success: boolean; message: string }> {
+    try {
+      const config = this.configService.getServiceBusConfiguration();
+      const queues = config.UserConfig.Namespaces.flatMap(
+        (ns) => ns.Queues || []
+      );
+      const topics = config.UserConfig.Namespaces.flatMap(
+        (ns) => ns.Topics || []
+      );
+      await this.messagesService.cleanupExpiredMessages(queues, topics);
+      return {
+        success: true,
+        message: 'Cleanup completed successfully',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Cleanup failed',
       };
     }
   }

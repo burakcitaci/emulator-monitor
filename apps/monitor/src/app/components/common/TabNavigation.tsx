@@ -23,12 +23,6 @@ const tabs = [
     color: 'text-green-600',
   },
   {
-    id: 'dlq' as const,
-    name: 'Dead Letter Queue',
-    icon: Trash2,
-    color: 'text-red-600',
-  },
-  {
     id: 'configuration' as const,
     name: 'Configuration',
     icon: Settings,

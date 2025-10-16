@@ -215,7 +215,7 @@ export type MessageDirection = 'incoming' | 'outgoing';
 
 export interface Message {
   id: string;
-  queueName: string;
+  subject: string;
   body: string;
   properties: Record<string, unknown>;
   timestamp: string;

@@ -55,6 +55,9 @@ export class MessageService {
         this.monitorDeadLetterTopics(topics),
       ]);
 
+      // Clean up expired messages based on TTL configuration
+      await this.cleanupExpiredMessages(queues, topics);
+
       console.log('[MonitorMessages] Monitoring cycle completed successfully');
     } catch (error) {
       console.error('[MonitorMessages] Fatal error during monitoring:', error);
@@ -654,6 +657,126 @@ export class MessageService {
     } catch (error) {
       console.error('[MigrateMessages] Migration failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Clean up expired messages based on TTL configuration for each queue/topic
+   */
+  async cleanupExpiredMessages(
+    queues: ServiceBusQueue[],
+    topics: ServiceBusTopic[]
+  ): Promise<void> {
+    console.log('[CleanupExpired] Starting cleanup of expired messages...');
+
+    try {
+      const now = new Date();
+      let totalDeleted = 0;
+
+      // Clean up expired messages for each queue
+      for (const queue of queues) {
+        const ttl = this.parseISO8601Duration(
+          queue.Properties.DefaultMessageTimeToLive
+        );
+        if (!ttl) {
+          console.log(
+            `[CleanupExpired] No valid TTL for queue ${queue.Name}, skipping`
+          );
+          continue;
+        }
+
+        const expireBefore = new Date(now.getTime() - ttl);
+        console.log(
+          `[CleanupExpired] Cleaning messages in ${
+            queue.Name
+          } older than ${expireBefore.toISOString()} (TTL: ${
+            queue.Properties.DefaultMessageTimeToLive
+          })`
+        );
+
+        const deletedCount = await this.messageModel.deleteMany({
+          queue: queue.Name,
+          status: { $ne: MessageStatus.DEAD_LETTERED }, // Don't delete DLQ messages
+          createdAt: { $lt: expireBefore },
+        });
+
+        if (deletedCount.deletedCount > 0) {
+          console.log(
+            `[CleanupExpired] Deleted ${deletedCount.deletedCount} expired messages from ${queue.Name}`
+          );
+          totalDeleted += deletedCount.deletedCount;
+        }
+      }
+
+      // Clean up expired messages for each topic subscription
+      for (const topic of topics) {
+        for (const subscription of topic.Subscriptions || []) {
+          const topicSubscriptionPath = `${topic.Name}/${subscription.Name}`;
+          const ttl = this.parseISO8601Duration(
+            topic.Properties.DefaultMessageTimeToLive
+          );
+          if (!ttl) {
+            console.log(
+              `[CleanupExpired] No valid TTL for topic ${topic.Name}, skipping`
+            );
+            continue;
+          }
+
+          const expireBefore = new Date(now.getTime() - ttl);
+          console.log(
+            `[CleanupExpired] Cleaning messages in ${topicSubscriptionPath} older than ${expireBefore.toISOString()} (TTL: ${
+              topic.Properties.DefaultMessageTimeToLive
+            })`
+          );
+
+          const deletedCount = await this.messageModel.deleteMany({
+            queue: topicSubscriptionPath,
+            status: { $ne: MessageStatus.DEAD_LETTERED }, // Don't delete DLQ messages
+            createdAt: { $lt: expireBefore },
+          });
+
+          if (deletedCount.deletedCount > 0) {
+            console.log(
+              `[CleanupExpired] Deleted ${deletedCount.deletedCount} expired messages from ${topicSubscriptionPath}`
+            );
+            totalDeleted += deletedCount.deletedCount;
+          }
+        }
+      }
+
+      if (totalDeleted > 0) {
+        console.log(
+          `[CleanupExpired] Total cleaned up ${totalDeleted} expired messages`
+        );
+      } else {
+        console.log('[CleanupExpired] No expired messages found');
+      }
+    } catch (error) {
+      console.error('[CleanupExpired] Error during cleanup:', error);
+      // Don't throw - cleanup errors shouldn't stop monitoring
+    }
+  }
+
+  /**
+   * Parse ISO 8601 duration format (e.g., "PT1H", "PT30M", "P1D") to milliseconds
+   */
+  private parseISO8601Duration(duration: string): number | null {
+    try {
+      // Handle the format: PT1H, PT30M, P1D, etc.
+      const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+      if (!match) return null;
+
+      const hours = parseInt(match[1] || '0', 10);
+      const minutes = parseInt(match[2] || '0', 10);
+      const seconds = parseInt(match[3] || '0', 10);
+
+      return (hours * 3600 + minutes * 60 + seconds) * 1000; // Convert to milliseconds
+    } catch (error) {
+      console.error(
+        `[CleanupExpired] Failed to parse duration "${duration}":`,
+        error
+      );
+      return null;
     }
   }
 }

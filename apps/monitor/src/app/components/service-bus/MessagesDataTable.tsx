@@ -1,5 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Eye } from 'lucide-react';
+import { Delete, Eye, Play, ReplyAll, Send, Trash } from 'lucide-react';
 import React from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -43,10 +43,14 @@ const formatStatus = (status?: string): string => {
 interface MessagesDataTableProps {
   messages: Message[];
   onMessageSelect: (message: Message) => void;
+  onMessageReplay: (messageId: string) => void;
+  onMessageDelete: (messageId: string) => void;
 }
 
 const createColumns = (
-  onMessageSelect: (message: Message) => void
+  onMessageSelect: (message: Message) => void,
+  onMessageReplay: (messageId: string) => void,
+  onMessageDelete: (messageId: string) => void
 ): ColumnDef<Message>[] => [
   {
     accessorKey: 'messageId',
@@ -122,14 +126,37 @@ const createColumns = (
   {
     id: 'actions',
     cell: ({ row }) => {
+      const status = row.original.status || MessageStatus.ACTIVE;
       return (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onMessageSelect(row.original)}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onMessageSelect(row.original)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          {status === MessageStatus.DEAD_LETTERED && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                onMessageReplay(row.original.messageId?.toString() || '')
+              }
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              onMessageDelete(row.original.messageId?.toString() || '')
+            }
+          >
+            <Trash className="h-4 w-4" />
+          </Button>
+        </div>
       );
     },
   },
@@ -138,10 +165,12 @@ const createColumns = (
 export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
   messages,
   onMessageSelect,
+  onMessageReplay,
+  onMessageDelete,
 }) => {
   const columns = React.useMemo(
-    () => createColumns(onMessageSelect),
-    [onMessageSelect]
+    () => createColumns(onMessageSelect, onMessageReplay, onMessageDelete),
+    [onMessageSelect, onMessageReplay, onMessageDelete]
   );
 
   return (
