@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ServiceBusConfig, QueueTopicItem } from '@emulator-monitor/entities';
+import { ServiceBusConfig, QueueTopicItem } from '@e2e-monitor/entities';
 
 export const useServiceBusConfig = () => {
   const [config, setConfig] = useState<ServiceBusConfig | null>(null);

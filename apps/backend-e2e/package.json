@@ -1,5 +1,5 @@
 {
-  "name": "@emulator-monitor/backend-e2e",
+  "name": "@e2e-monitor/backend-e2e",
   "version": "0.0.1",
   "private": true
 }

@@ -15,7 +15,7 @@ import {
   SendBatchResponse,
   ServiceBusConfig,
   DeadLetterMessageResponse,
-} from '@emulator-monitor/entities';
+} from '@e2e-monitor/entities';
 
 import { ConfigService } from '../common/config.service';
 import { MessageService } from '../messages/messages.service';

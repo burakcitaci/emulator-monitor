@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
-import { Message, MessageStatus } from '../../hooks/useServiceBus';
+import { Message, MessageState } from '@e2e-monitor/entities';
 
 // Helper function to get badge variant based on status
 const getStatusBadgeVariant = (
@@ -18,15 +18,15 @@ const getStatusBadgeVariant = (
   | 'dead-lettered'
   | 'secondary' => {
   switch (status) {
-    case MessageStatus.ACTIVE:
+    case MessageState.ACTIVE:
       return 'active';
 
-    case MessageStatus.DEAD_LETTERED:
+    case MessageState.DEAD_LETTERED:
       return 'dead-lettered'; // Red - failed, in DLQ
 
-    case MessageStatus.DEFERRED:
+    case MessageState.DEFERRED:
       return 'deferred'; // Gray - processing postponed
-    case MessageStatus.SCHEDULED:
+    case MessageState.SCHEDULED:
       return 'scheduled'; // Green - scheduled for future
 
     default:
@@ -75,7 +75,7 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Queue/Topic" />
     ),
     cell: ({ row }) => {
-      const queue = row.original.queue;
+      const queue = row.original.subject;
       if (!queue) return <span className="text-muted-foreground">-</span>;
       return <div className="text-sm font-mono max-w-xs truncate">{queue}</div>;
     },
@@ -87,7 +87,7 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const status = row.original.state || MessageStatus.ACTIVE;
+      const status = row.original.state || MessageState.ACTIVE;
       return (
         <Badge variant={getStatusBadgeVariant(status)}>
           {formatStatus(status)}
@@ -95,7 +95,7 @@ const createColumns = (
       );
     },
     filterFn: (row, id, value) => {
-      return value.includes(row.original.status);
+      return value.includes(row.original.state);
     },
   },
   {
@@ -126,10 +126,10 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const timestamp = row.original.createdAt || row.original.enqueuedTimeUtc;
+      const timestamp = row.original.timestamp;
       return (
         <div className="text-sm text-muted-foreground whitespace-nowrap">
-          {timestamp ? new Date(timestamp).toLocaleString() : 'N/A'}
+          {timestamp ? timestamp.toLocaleString() : 'N/A'}
         </div>
       );
     },
@@ -137,7 +137,7 @@ const createColumns = (
   {
     id: 'actions',
     cell: ({ row }) => {
-      const status = row.original.status || MessageStatus.ACTIVE;
+      const state = row.original.state || MessageState.ACTIVE;
       return (
         <div>
           <Button
@@ -147,7 +147,7 @@ const createColumns = (
           >
             <Eye className="h-4 w-4" />
           </Button>
-          {status === MessageStatus.DEAD_LETTERED && (
+          {state === MessageState.DEAD_LETTERED && (
             <Button
               variant="ghost"
               size="sm"

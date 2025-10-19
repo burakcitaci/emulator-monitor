@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
 import { getStatusColor, getDirectionColor } from '../../utils/messageUtils';
-import { Message } from '@emulator-monitor/entities';
+import { Message } from '@e2e-monitor/entities';
 import {
   Table,
   TableBody,
@@ -69,22 +69,14 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                 <TableCell>
                   <div className="text-sm font-medium">{message.subject}</div>
                 </TableCell>
-                <TableCell>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDirectionColor(
-                      message.direction
-                    )}`}
-                  >
-                    {message.direction}
-                  </span>
-                </TableCell>
+
                 <TableCell>
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                      message.status
+                      message.state
                     )}`}
                   >
-                    {message.status}
+                    {message.state}
                   </span>
                 </TableCell>
                 <TableCell className="font-mono">
@@ -128,18 +120,11 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                     <div className="flex items-center space-x-2">
                       <span className="font-medium">{message.subject}</span>
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getDirectionColor(
-                          message.direction
-                        )}`}
-                      >
-                        {message.direction}
-                      </span>
-                      <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                          message.status
+                          message.state
                         )}`}
                       >
-                        {message.status}
+                        {message.state}
                       </span>
                     </div>
 

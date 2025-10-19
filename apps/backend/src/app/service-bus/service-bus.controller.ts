@@ -8,8 +8,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { ServiceBusService } from './service-bus.service';
-import * as types from '@emulator-monitor/entities';
-import { DeadLetterMessageResponse } from '@emulator-monitor/entities';
+import * as types from '@e2e-monitor/entities';
+import { DeadLetterMessageResponse } from '@e2e-monitor/entities';
 
 @Controller('servicebus')
 export class ServiceBusController {

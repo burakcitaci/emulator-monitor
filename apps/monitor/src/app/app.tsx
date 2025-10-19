@@ -19,7 +19,7 @@ import { Providers } from './providers';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { AlertCircle } from 'lucide-react';
 
-import { ConnectionForm } from '@emulator-monitor/entities';
+import { ConnectionForm } from '@e2e-monitor/entities';
 
 const MonitorContent: React.FC = () => {
   const {

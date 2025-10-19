@@ -28,7 +28,7 @@ import { Label } from '../ui/label';
 import { useDockerCompose } from '../../hooks/useDockerCompose';
 import { ContainerSkeleton } from '../ui/skeleton';
 import { Button } from '../ui/button';
-import { DockerCompose } from '@emulator-monitor/entities';
+import { DockerCompose } from '@e2e-monitor/entities';
 import { getContainerStatus, getStatusDisplay } from './helpers';
 
 export const ContainerSidebar = () => {

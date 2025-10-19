@@ -11,8 +11,7 @@ describe('App', () => {
   it('should have a greeting as the title', () => {
     const { getAllByText } = render(<App />);
     expect(
-      getAllByText(new RegExp('Welcome @emulator-monitor/monitor', 'gi'))
-        .length > 0
+      getAllByText(new RegExp('Welcome @e2e-monitor/monitor', 'gi')).length > 0
     ).toBeTruthy();
   });
 });

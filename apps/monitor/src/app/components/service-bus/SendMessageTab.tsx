@@ -1,6 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { Send, CheckCircle, AlertCircle, Info, Loader2 } from 'lucide-react';
-import { SendForm } from '@emulator-monitor/entities';
+import {
+  Send,
+  CheckCircle,
+  AlertCircle,
+  Info,
+  Loader2,
+  Sparkles,
+} from 'lucide-react';
+import { SendForm } from '@e2e-monitor/entities';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
@@ -43,6 +50,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     queueName?: string;
     body?: string;
     properties?: string;
+    subject?: string;
   }>({});
 
   // Memoize validation functions to prevent infinite re-renders
@@ -53,11 +61,23 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
       errors.queueName = 'Queue/Topic name is required';
     }
 
+    if (!form.subject.trim()) {
+      errors.subject = 'Subject is required';
+    }
+
     if (!form.body.trim()) {
       errors.body = 'Message body is required';
     } else {
       try {
-        JSON.parse(form.body);
+        const parsed = JSON.parse(form.body);
+        // Check if the parsed JSON is an empty object
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          Object.keys(parsed).length === 0
+        ) {
+          errors.body = 'Message body cannot be empty JSON object {}';
+        }
       } catch {
         errors.body = 'Message body must be valid JSON';
       }
@@ -73,75 +93,118 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [form.queueName, form.body, form.properties]);
+  }, [form.queueName, form.subject, form.body, form.properties]);
 
-  // Helper functions for field validation - wrapped in useCallback
-  const validateQueueName = useCallback(
-    (value: string, errors: typeof validationErrors) => {
-      if (!value.trim()) {
-        errors.queueName = 'Queue/Topic name is required';
-      } else {
-        delete errors.queueName;
+  // Validation is now inlined in handleInputChange to avoid dependency issues
+
+  const handleInputChange = useCallback(
+    (field: keyof SendForm, value: string) => {
+      const updatedForm = { ...form, [field]: value };
+
+      // If queueName is being changed, also update the subject to match
+      if (field === 'queueName' && value.trim()) {
+        updatedForm.subject = value;
       }
-    },
-    []
-  );
 
-  const validateBody = useCallback(
-    (value: string, errors: typeof validationErrors) => {
-      if (!value.trim()) {
-        errors.body = 'Message body is required';
-      } else {
-        try {
-          JSON.parse(value);
-          delete errors.body;
-        } catch {
-          errors.body = 'Message body must be valid JSON';
-        }
-      }
-    },
-    []
-  );
+      onFormChange(updatedForm);
 
-  const validateProperties = useCallback(
-    (value: string, errors: typeof validationErrors) => {
-      if (value.trim()) {
-        try {
-          JSON.parse(value);
-          delete errors.properties;
-        } catch {
-          errors.properties = 'Properties must be valid JSON';
-        }
-      } else {
-        delete errors.properties;
-      }
-    },
-    []
-  );
-
-  const validateField = useCallback(
-    (field: keyof typeof validationErrors, value: string) => {
+      // Inline validation to avoid dependency issues
       const errors = { ...validationErrors };
 
-      if (field === 'queueName') {
-        validateQueueName(value, errors);
+      if (field === 'queueName' || field === 'subject') {
+        if (!value.trim()) {
+          if (field === 'queueName') {
+            errors.queueName = 'Queue/Topic name is required';
+          } else {
+            errors.subject = 'Subject is required';
+          }
+        } else {
+          if (field === 'queueName') {
+            delete errors.queueName;
+          } else {
+            delete errors.subject;
+          }
+        }
       } else if (field === 'body') {
-        validateBody(value, errors);
+        if (!value.trim()) {
+          errors.body = 'Message body is required';
+        } else {
+          try {
+            const parsed = JSON.parse(value);
+            // Check if the parsed JSON is an empty object
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              Object.keys(parsed).length === 0
+            ) {
+              errors.body = 'Message body cannot be empty JSON object {}';
+            } else {
+              delete errors.body;
+            }
+          } catch {
+            errors.body = 'Message body must be valid JSON';
+          }
+        }
       } else if (field === 'properties') {
-        validateProperties(value, errors);
+        if (value.trim()) {
+          try {
+            JSON.parse(value);
+            delete errors.properties;
+          } catch {
+            errors.properties = 'Properties must be valid JSON';
+          }
+        } else {
+          delete errors.properties;
+        }
       }
 
       setValidationErrors(errors);
     },
-    [validationErrors, validateBody, validateProperties, validateQueueName]
+    [form, onFormChange, validationErrors]
   );
 
-  const handleInputChange = useCallback(
-    (field: keyof SendForm, value: string) => {
-      onFormChange({ ...form, [field]: value });
-      validateField(field, value);
+  const generateDummyData = useCallback(
+    (queueName?: string) => {
+      const dummyData = {
+        subject: form.subject || queueName || form.queueName || 'test-queue',
+        policyId: `P${Math.floor(Math.random() * 1000)
+          .toString()
+          .padStart(3, '0')}`,
+        violation: ['speed', 'parking', 'red_light', 'no_entry', 'wrong_way'][
+          Math.floor(Math.random() * 5)
+        ],
+        location: {
+          street: ['Main St', 'Oak Ave', 'Elm St', 'Park Rd', 'First Ave'][
+            Math.floor(Math.random() * 5)
+          ],
+          city: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][
+            Math.floor(Math.random() * 5)
+          ],
+          state: ['NY', 'CA', 'IL', 'TX', 'AZ'][Math.floor(Math.random() * 5)],
+        },
+        timestamp: new Date().toISOString(),
+        severity: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
+        officerId: `OFF${Math.floor(Math.random() * 100)
+          .toString()
+          .padStart(3, '0')}`,
+        vehicleInfo: {
+          licensePlate: `ABC${Math.floor(Math.random() * 900) + 100}`,
+          make: ['Toyota', 'Honda', 'Ford', 'Chevrolet', 'BMW'][
+            Math.floor(Math.random() * 5)
+          ],
+          model: ['Camry', 'Civic', 'F-150', 'Silverado', 'X3'][
+            Math.floor(Math.random() * 5)
+          ],
+          color: ['White', 'Black', 'Silver', 'Blue', 'Red'][
+            Math.floor(Math.random() * 5)
+          ],
+        },
+      };
+
+      const formattedData = JSON.stringify(dummyData, null, 2);
+      handleInputChange('body', formattedData);
     },
-    [form, onFormChange, validateField]
+    [handleInputChange, form.subject, form.queueName]
   );
 
   // Show loading state only during initial loading, not when backend is unavailable
@@ -261,12 +324,46 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     </div>
   );
 
-  const renderMessageBodyInput = () => (
+  const renderSubjectInput = () => (
     <div className="space-y-2">
-      <Label htmlFor="messageBody" className="flex items-center gap-2">
-        Message Body (JSON)
+      <Label htmlFor="subject" className="flex items-center gap-2">
+        Subject
         <Info className="h-4 w-4 text-muted-foreground" />
       </Label>
+      <input
+        id="subject"
+        type="text"
+        value={form.subject}
+        onChange={(e) => handleInputChange('subject', e.target.value)}
+        className={`w-full px-3 py-2 border rounded-md text-sm ${
+          validationErrors.subject ? 'border-destructive' : 'border-input'
+        }`}
+        placeholder="Enter message subject..."
+      />
+      {validationErrors.subject && (
+        <p className="text-sm text-destructive">{validationErrors.subject}</p>
+      )}
+    </div>
+  );
+
+  const renderMessageBodyInput = () => (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label htmlFor="messageBody" className="flex items-center gap-2">
+          Message Body (JSON)
+          <Info className="h-4 w-4 text-muted-foreground" />
+        </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => generateDummyData(form.queueName)}
+          className="h-7 px-2 text-xs"
+        >
+          <Sparkles className="h-3 w-3 mr-1" />
+          Fill
+        </Button>
+      </div>
       <Textarea
         id="messageBody"
         value={form.body}
@@ -324,6 +421,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     const isFormValid =
       Object.keys(validationErrors).length === 0 &&
       form.queueName.trim() !== '' &&
+      form.subject.trim() !== '' &&
       form.body.trim() !== '';
     const canSend = !isSendingMessage && isFormValid && !isBackendUnavailable;
 
@@ -381,6 +479,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-6">
               {renderQueueTopicSelect()}
+              {renderSubjectInput()}
               {renderMessageBodyInput()}
             </div>
             <div className="space-y-6">

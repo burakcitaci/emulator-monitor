@@ -3,7 +3,8 @@ import {
   ConnectionInfo,
   SendForm,
   ConnectionForm,
-} from '@emulator-monitor/entities';
+  MessageState,
+} from '@e2e-monitor/entities';
 import {
   TabNavigation,
   MessagesTab,
@@ -11,8 +12,8 @@ import {
   ConnectionTab,
   ConfigurationTab,
 } from './components';
-import { DeadLetterMessage, Message } from './hooks/useServiceBus';
-
+import { DeadLetterMessage } from './hooks/useServiceBus';
+import { Message } from '@e2e-monitor/entities';
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
 export default function ServiceBusMonitor() {
@@ -23,6 +24,7 @@ export default function ServiceBusMonitor() {
     queueName: '',
     body: '',
     properties: '',
+    subject: '',
   });
 
   const [connectionForm, setConnectionForm] = useState<ConnectionForm>({
@@ -44,13 +46,13 @@ export default function ServiceBusMonitor() {
 
   const handleSendMessage = () => {
     const newMessage: Message = {
+      id: `msg-${Date.now()}`,
       messageId: `msg-${Date.now()}`,
       body: sendForm.body,
       subject: sendForm.queueName,
-      applicationProperties: sendForm.properties
-        ? JSON.parse(sendForm.properties)
-        : {},
-      scheduledEnqueueTimeUtc: new Date(),
+      timestamp: new Date(),
+      state: MessageState.ACTIVE,
+      properties: {},
     };
     setDeadLetterMessages((prev) => [...prev, newMessage]);
     setSendForm({ ...sendForm, body: '', properties: '' });

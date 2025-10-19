@@ -13,7 +13,7 @@ import {
   ContainerCreateDto as BaseContainerCreateDto,
   ContainerLogsDto as BaseContainerLogsDto,
   ContainerStatsDto as BaseContainerStatsDto,
-} from '@emulator-monitor/entities';
+} from '@e2e-monitor/entities';
 
 // Extend the base DTOs with validation decorators
 export class ContainerOperationDto implements BaseContainerOperationDto {

@@ -1,8 +1,8 @@
 {
-  "name": "@emulator-monitor/backend",
+  "name": "@e2e-monitor/backend",
   "version": "0.0.1",
   "private": true,
   "dependencies": {
-    "@emulator-monitor/entities": "0.0.1"
+    "@e2e-monitor/entities": "0.0.1"
   }
 }

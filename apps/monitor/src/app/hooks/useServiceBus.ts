@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { Message } from '@e2e-monitor/entities';
 import { useCallback, useState } from 'react';
 
 interface Namespace {
@@ -154,6 +155,7 @@ export const useServiceBus = (): UseServiceBusReturn => {
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
     setLoading(true);
     try {
+      console.log('Sending message:', options);
       const data = await request(`/servicebus/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -286,99 +288,3 @@ export const useServiceBus = (): UseServiceBusReturn => {
     getMessages,
   };
 };
-
-/**
- * Azure Service Bus Message Status
- * Tracks the processing status of a message
- */
-export enum MessageStatus {
-  ACTIVE = 'active', // Message is available for processing
-  DEFERRED = 'deferred', // Message processing postponed
-  SCHEDULED = 'scheduled', // Message scheduled for future delivery
-  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
-  COMPLETED = 'completed', // Message successfully processed
-  ABANDONED = 'abandoned', // Message processing failed, returned to queue
-  RECEIVED = 'received', // Message received but not yet completed
-}
-
-/**
- * Azure Service Bus Message State
- * The actual state of the message in Service Bus
- */
-export enum MessageState {
-  ACTIVE = 'active',
-  DEFERRED = 'deferred',
-  SCHEDULED = 'scheduled',
-  DEAD_LETTERED = 'dead-lettered',
-}
-
-export interface Message {
-  _id?: string;
-  body: unknown;
-
-  messageId?: string | number;
-
-  contentType?: string;
-
-  correlationId?: string | number;
-
-  partitionKey?: string;
-
-  sessionId?: string;
-
-  replyToSessionId?: string;
-
-  timeToLive?: number;
-
-  subject?: string;
-
-  to?: string;
-
-  replyTo?: string;
-
-  scheduledEnqueueTimeUtc?: Date;
-
-  applicationProperties?: Map<string, string | number | boolean | Date | null>;
-
-  /**
-   * Processing status of the message
-   */
-  status?:
-    | 'active'
-    | 'deferred'
-    | 'scheduled'
-    | 'dead-lettered'
-    | 'completed'
-    | 'abandoned'
-    | 'received';
-
-  /**
-   * Azure Service Bus state
-   */
-  state?: 'active' | 'deferred' | 'scheduled' | 'dead-lettered';
-
-  /**
-   * Queue or topic/subscription path
-   */
-  queue?: string;
-
-  /**
-   * Sequence number for deferred messages
-   */
-  sequenceNumber?: number;
-
-  /**
-   * When the message was enqueued in Service Bus
-   */
-  enqueuedTimeUtc?: Date;
-
-  /**
-   * Last updated timestamp
-   */
-  lastUpdated?: Date;
-
-  rawAmqpMessage?: Record<string, unknown>;
-
-  createdAt?: Date;
-  updatedAt?: Date;
-}

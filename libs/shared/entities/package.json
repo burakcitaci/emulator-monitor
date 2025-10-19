@@ -1,5 +1,5 @@
 {
-  "name": "@emulator-monitor/entities",
+  "name": "@e2e-monitor/entities",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/index.js",
@@ -8,7 +8,7 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "@emulator-monitor/source": "./src/index.ts",
+      "@e2e-monitor/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"

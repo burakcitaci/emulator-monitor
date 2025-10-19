@@ -33,7 +33,7 @@ export default defineConfig(() => ({
   },
   test: {
     projects: [{ extends: './vitest.config.mts' }],
-    name: '@emulator-monitor/monitor',
+    name: '@e2e-monitor/monitor',
     watch: false,
     globals: true,
     environment: 'jsdom',

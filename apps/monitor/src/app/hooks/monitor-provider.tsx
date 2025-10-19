@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { SendForm, ConnectionInfo } from '@emulator-monitor/entities';
+import { SendForm, ConnectionInfo } from '@e2e-monitor/entities';
 import {
   useServiceBus,
   DeadLetterMessage,
@@ -71,6 +71,7 @@ const initialState: MonitorState = {
     queueName: '',
     body: '',
     properties: '',
+    subject: '',
   },
   dlqQueue: '',
   messages: [],
@@ -147,8 +148,12 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
   };
 
   const sendMessage = useCallback(async () => {
-    if (!state.sendForm.queueName || !state.sendForm.body) {
-      const errorMessage = 'Queue name and message body are required';
+    if (
+      !state.sendForm.queueName ||
+      !state.sendForm.body ||
+      !state.sendForm.subject
+    ) {
+      const errorMessage = 'Queue name, subject, and message body are required';
       setState((prev) => ({ ...prev, error: errorMessage }));
       toast.error(errorMessage);
       return;
@@ -211,7 +216,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
           contentType: 'application/json',
           messageId: `msg-${Date.now()}`,
           timeToLive: 500,
-          subject: state.sendForm.queueName,
+          subject: state.sendForm.subject || state.sendForm.queueName,
           applicationProperties: computedAppProps,
         },
       });
@@ -253,7 +258,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
 
       setState((prev) => ({
         ...prev,
-        sendForm: { queueName: '', body: '', properties: '' },
+        sendForm: { queueName: '', body: '', properties: '', subject: '' },
       }));
     } catch (err) {
       const errorMessage =

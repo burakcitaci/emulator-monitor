@@ -204,24 +204,26 @@ export interface QueueTopicItem {
   properties: QueueProperties | TopicProperties;
 }
 
-export type MessageStatus =
-  | 'processing'
-  | 'completed'
-  | 'sent'
-  | 'failed'
-  | 'replayed';
+export enum MessageState {
+  ACTIVE = 'active', // Message is available for processing
+  DEFERRED = 'deferred', // Message processing postponed
+  SCHEDULED = 'scheduled', // Message scheduled for future delivery
+  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
+  COMPLETED = 'completed', // Message successfully processed
+  ABANDONED = 'abandoned', // Message processing failed, returned to queue
+  RECEIVED = 'received', // Message received but not yet completed
+}
 
 export type MessageDirection = 'incoming' | 'outgoing';
 
 export interface Message {
   id: string;
+  messageId: string;
   subject: string;
   body: string;
   properties: Record<string, unknown>;
-  timestamp: string;
-  direction: MessageDirection;
-  status: MessageStatus;
-  isDeadLetter: boolean;
+  timestamp: Date;
+  state: MessageState;
 }
 
 export interface ConnectionInfo {
@@ -235,6 +237,7 @@ export interface SendForm {
   queueName: string;
   body: string;
   properties: string;
+  subject: string;
 }
 
 export interface ConnectionForm {

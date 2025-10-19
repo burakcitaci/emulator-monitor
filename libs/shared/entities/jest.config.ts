@@ -10,7 +10,7 @@ const swcJestConfig = JSON.parse(
 swcJestConfig.swcrc = false;
 
 export default {
-  displayName: '@emulator-monitor/entities',
+  displayName: '@e2e-monitor/entities',
   preset: '../../../jest.preset.js',
   testEnvironment: 'node',
   transform: {
