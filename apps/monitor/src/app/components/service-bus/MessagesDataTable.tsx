@@ -1,5 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Delete, Eye, Play, ReplyAll, Send, Trash } from 'lucide-react';
+import { Eye, Send, Trash } from 'lucide-react';
 import React from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -10,24 +10,27 @@ import { Message, MessageStatus } from '../../hooks/useServiceBus';
 // Helper function to get badge variant based on status
 const getStatusBadgeVariant = (
   status?: string
-): 'default' | 'secondary' | 'destructive' | 'outline' => {
+):
+  | 'default'
+  | 'active'
+  | 'deferred'
+  | 'scheduled'
+  | 'dead-lettered'
+  | 'secondary' => {
   switch (status) {
     case MessageStatus.ACTIVE:
-      return 'default'; // Blue - message is in queue
-    case MessageStatus.COMPLETED:
-      return 'secondary'; // Green - successfully processed
+      return 'active';
+
     case MessageStatus.DEAD_LETTERED:
-      return 'destructive'; // Red - failed, in DLQ
-    case MessageStatus.RECEIVED:
-      return 'outline'; // Gray - being processed
+      return 'dead-lettered'; // Red - failed, in DLQ
+
     case MessageStatus.DEFERRED:
-      return 'outline'; // Gray - processing postponed
+      return 'deferred'; // Gray - processing postponed
     case MessageStatus.SCHEDULED:
-      return 'secondary'; // Green - scheduled for future
-    case MessageStatus.ABANDONED:
-      return 'destructive'; // Red - processing failed
+      return 'scheduled'; // Green - scheduled for future
+
     default:
-      return 'default';
+      return 'secondary';
   }
 };
 
@@ -84,7 +87,7 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const status = row.original.status || MessageStatus.ACTIVE;
+      const status = row.original.state || MessageStatus.ACTIVE;
       return (
         <Badge variant={getStatusBadgeVariant(status)}>
           {formatStatus(status)}
@@ -101,9 +104,17 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Body" />
     ),
     cell: ({ row }) => {
-      const body = row.getValue('body') as unknown;
-      const bodyText =
-        typeof body === 'string' ? body : JSON.stringify(body, null, 2);
+      const body = row.original.body;
+
+      let bodyText = 'N/A';
+
+      if (typeof body === 'string') {
+        bodyText = body;
+      } else if (typeof body === 'object' && body !== null) {
+        const isEmpty = Object.keys(body).length === 0;
+        bodyText = isEmpty ? '{}' : JSON.stringify(body, null, 2);
+      }
+
       return (
         <div className="max-w-md truncate font-mono text-xs">{bodyText}</div>
       );

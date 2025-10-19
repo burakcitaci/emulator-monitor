@@ -24,7 +24,7 @@ interface SendMessageOptions {
   message: {
     body: any;
     contentType?: string;
-    messageId?: string;
+    messageId?: string | number;
     correlationId?: string;
     subject?: string;
     timeToLive?: number;
@@ -38,7 +38,7 @@ interface SendBatchOptions {
   messages: Array<{
     body: any;
     contentType?: string;
-    messageId?: string;
+    messageId?: string | number;
     correlationId?: string;
     subject?: string;
     applicationProperties?: Record<string, any>;
@@ -116,6 +116,12 @@ interface UseServiceBusReturn {
 
 const API_BASE_URL = 'http://localhost:3000/api/v1';
 
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, init);
+  if (!res.ok) throw new Error((await res.text()) || 'Request failed');
+  return (await res.json()) as T;
+}
+
 export const useServiceBus = (): UseServiceBusReturn => {
   const [namespaces, setNamespaces] = useState<Namespace[]>([]);
   const [loading, setLoading] = useState(false);
@@ -124,35 +130,22 @@ export const useServiceBus = (): UseServiceBusReturn => {
 
   const fetchNamespaces = useCallback(async () => {
     setLoading(true);
-    setError(null);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/servicebus/namespaces`);
-
-      if (!response.ok) {
-        // If service unavailable, it might mean Service Bus is not initialized yet
-        if (response.status === 503) {
-          setNamespaces([]);
-          setIsInitialized(false);
-          return;
-        }
-        throw new Error('Failed to fetch namespaces');
-      }
-
-      const data = await response.json();
-
+      const data = await request<{ success: boolean; namespaces: Namespace[] }>(
+        `/servicebus/namespaces`
+      );
       if (data.success) {
         setNamespaces(data.namespaces || []);
         setIsInitialized(true);
+        setError(null);
       } else {
         setNamespaces([]);
         setIsInitialized(false);
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error');
-      setError(error);
       setNamespaces([]);
       setIsInitialized(false);
+      setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -160,35 +153,22 @@ export const useServiceBus = (): UseServiceBusReturn => {
 
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
     setLoading(true);
-    setError(null);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/servicebus/send`, {
+      const data = await request(`/servicebus/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(options),
       });
-
-      console.log('Send message response:', response);
-      if (!response.ok) {
-        // If service unavailable, it might mean Service Bus is not initialized yet
-        if (response.status === 503) {
-          throw new Error(
-            'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
-          );
-        }
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send message');
-      }
-
-      const data = await response.json();
-      return data;
+      setError(null);
+      return data as {
+        success: boolean;
+        messageId?: string;
+        namespace?: string;
+        topic?: string;
+      };
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error');
-      setError(error);
-      throw error;
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -197,33 +177,22 @@ export const useServiceBus = (): UseServiceBusReturn => {
   const sendMessageBatch = useCallback(async (options: SendBatchOptions) => {
     setLoading(true);
     setError(null);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/servicebus/send-batch`, {
+      const data = await request(`/servicebus/send-batch`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(options),
       });
-
-      if (!response.ok) {
-        // If service unavailable, it might mean Service Bus is not initialized yet
-        if (response.status === 503) {
-          throw new Error(
-            'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
-          );
-        }
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send message batch');
-      }
-
-      const data = await response.json();
-      return data;
+      setError(null);
+      return data as {
+        success: boolean;
+        messageCount?: number;
+        namespace?: string;
+        topic?: string;
+      };
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error');
-      setError(error);
-      throw error;
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -247,8 +216,8 @@ export const useServiceBus = (): UseServiceBusReturn => {
           }),
         });
 
-        const response = await fetch(
-          `${API_BASE_URL}/servicebus/dead-letter-messages?${params}`,
+        return await request<DeadLetterMessageResponse>(
+          `${`/servicebus/dead-letter-messages`}?${params}`,
           {
             method: 'GET',
             headers: {
@@ -256,22 +225,6 @@ export const useServiceBus = (): UseServiceBusReturn => {
             },
           }
         );
-
-        if (!response.ok) {
-          // If service unavailable, it might mean Service Bus is not initialized yet
-          if (response.status === 503) {
-            throw new Error(
-              'Service Bus is not initialized. Please ensure Service Bus is properly configured.'
-            );
-          }
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || 'Failed to retrieve dead letter messages'
-          );
-        }
-
-        const data = await response.json();
-        return data;
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Unknown error');
         setError(error);
@@ -287,34 +240,19 @@ export const useServiceBus = (): UseServiceBusReturn => {
     setLoading(true);
     setError(null);
     try {
-      // Build query parameters for filtering
       const params = new URLSearchParams();
-
-      if (options.queue) {
-        params.append('queue', options.queue);
-      }
-      if (options.topic) {
-        params.append('topic', options.topic);
-      }
-      if (options.subscription) {
+      if (options.queue) params.append('queue', options.queue);
+      if (options.topic) params.append('topic', options.topic);
+      if (options.subscription)
         params.append('subscription', options.subscription);
-      }
-      if (options.maxMessages) {
+      if (options.maxMessages)
         params.append('maxMessages', options.maxMessages.toString());
-      }
 
-      // Fetch filtered messages from the messages controller (database)
-      const url = `${API_BASE_URL}/messages`;
-      const response = await fetch(url);
-      const result = await response.json();
-      console.log('Fetch messages response:', result);
+      const result = await request<any[]>(
+        `/messages${params.toString() ? `?${params.toString()}` : ''}`
+      );
 
-      if (!response.ok) {
-        // If service unavailable, it might mean Service Bus is not initialized yet
-        throw new Error(result.message || 'Failed to fetch messages');
-      }
-
-      const messages: any[] = result;
+      console.log('Fetched messages:', result);
       const entityPath =
         options.queue ||
         (options.topic && options.subscription
@@ -323,8 +261,8 @@ export const useServiceBus = (): UseServiceBusReturn => {
 
       return {
         success: true,
-        messageCount: messages.length,
-        messages: messages,
+        messageCount: result.length,
+        messages: result,
         entityPath,
       };
     } catch (err) {

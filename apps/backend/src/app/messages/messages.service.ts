@@ -12,6 +12,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   ServiceBusClient,
   ServiceBusReceivedMessage,
+  ServiceBusReceiver,
 } from '@azure/service-bus';
 import {
   ConfigService,
@@ -20,7 +21,7 @@ import {
   ServiceBusSubscription,
 } from '../common/config.service';
 import Long from 'long';
-
+import * as parse from 'iso8601-duration';
 @Injectable()
 export class MessageService {
   private readonly serviceBusClient: ServiceBusClient;
@@ -29,40 +30,201 @@ export class MessageService {
     private readonly messageModel: Model<MessageDocument>,
     private readonly configService: ConfigService
   ) {
+    // Use centrally configured connection string
     this.serviceBusClient = new ServiceBusClient(
-      'Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
+      this.configService.serviceBusConnectionString
     );
   }
 
+  // @Cron(CronExpression.EVERY_30_SECONDS)
+  // async monitorMessages() {
+  //   try {
+  //     console.log('[MonitorMessages] Starting monitoring cycle...');
+  //     // Reconcile MongoDB-saved messages against Service Bus. Any missing are marked completed.
+  //     await this.reconcileMongoWithServiceBus();
+
+  //     console.log('[MonitorMessages] Monitoring cycle completed successfully');
+  //   } catch (error) {
+  //     console.error('[MonitorMessages] Fatal error during monitoring:', error);
+  //   }
+  // }
+
   @Cron(CronExpression.EVERY_10_SECONDS)
   async monitorMessages() {
+    const config = this.configService.getServiceBusConfiguration();
+    const queues = config.UserConfig.Namespaces.flatMap(
+      (ns) => ns.Queues || []
+    );
+    let reciever;
+    for (const queue of queues) {
+      reciever = this.serviceBusClient.createReceiver(queue.Name);
+
+      // Peek messages from the queue
+      const messages = await reciever.peekMessages(100, {
+        fromSequenceNumber: Long.fromNumber(1),
+      });
+
+      if (messages.length > 0) {
+        for (const msg of messages) {
+          console.log(
+            `[MonitorMessages] Processing message ${msg.messageId} in ${queue.Name} with state: ${msg.state}`
+          );
+
+          await this.messageModel.updateOne(
+            { messageId: msg.messageId }, // Match by messageId only
+            {
+              $set: {
+                body: msg.body,
+                subject: queue.Name,
+                state: msg.state,
+                applicationProperties: msg.applicationProperties || undefined,
+                lastUpdated: new Date(),
+              },
+            },
+            { upsert: true }
+          );
+        }
+      }
+      const ids = await this.messageModel
+        .find({ subject: queue.Name })
+        .distinct('messageId')
+        .exec();
+      console.log(ids);
+      const serviceBusIds = messages.map((m) => m.messageId);
+
+      await this.messageModel
+        .updateMany(
+          { subject: queue.Name, messageId: { $nin: serviceBusIds } },
+          {
+            $set: {
+              state: 'completed',
+              lastUpdated: new Date(),
+            },
+          }
+        )
+        .exec();
+
+      const now = new Date();
+      const ttlSeconds = parse.toSeconds(parse.parse('PT1H')); // 3600
+      const expiryThreshold = new Date(now.getTime() - ttlSeconds * 1000);
+
+      const result = await this.messageModel
+        .deleteMany({
+          createdAt: { $lt: expiryThreshold },
+        })
+        .exec();
+      console.log(
+        `[MonitorMessages] Deleted ${result.deletedCount} expired messages from ${queue.Name}`
+      );
+    }
+    await reciever?.close();
+  }
+  /**
+   * Separate cron to cleanup expired messages (by per-message TTL and entity default TTL)
+   */
+  //@Cron(CronExpression.EVERY_MINUTE)
+  async cleanupExpiredMessagesCron() {
     try {
-      console.log('[MonitorMessages] Starting monitoring cycle...');
       const config = this.configService.getServiceBusConfiguration();
       const queues = config.UserConfig.Namespaces.flatMap(
-        (element) => element.Queues || []
+        (ns) => ns.Queues || []
       );
-
       const topics = config.UserConfig.Namespaces.flatMap(
-        (element) => element.Topics || []
+        (ns) => ns.Topics || []
       );
-
-      // Process queues, topics, and DLQs in parallel for better performance
-      await Promise.allSettled([
-        this.monitorQueues(queues),
-        this.monitorTopics(topics),
-        this.monitorDeadLetterQueues(queues),
-        this.monitorDeadLetterTopics(topics),
-      ]);
-
-      // Clean up expired messages based on TTL configuration
       await this.cleanupExpiredMessages(queues, topics);
-
-      console.log('[MonitorMessages] Monitoring cycle completed successfully');
     } catch (error) {
-      console.error('[MonitorMessages] Fatal error during monitoring:', error);
+      console.error('[CleanupExpired] Cron failed:', error);
     }
   }
+
+  /**
+   * Reconcile all messages stored in MongoDB against Service Bus peek results.
+   * If a messageId no longer appears in Service Bus for its path, mark it completed.
+   */
+  private async reconcileMongoWithServiceBus(): Promise<void> {
+    // Drive from MongoDB: get distinct stored paths and reconcile those
+    const allPaths = (await this.messageModel.distinct('queue')) as (
+      | string
+      | null
+      | undefined
+    )[];
+    const paths: string[] = allPaths
+      .filter((p): p is string => typeof p === 'string')
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    if (!paths || paths.length === 0) {
+      console.log('[Reconcile] No paths found in MongoDB to reconcile');
+      return;
+    }
+
+    console.log(`[Reconcile] Reconciling ${paths.length} path(s)`);
+
+    // Process in parallel
+    await Promise.allSettled(
+      paths.map(async (path) => {
+        let receiver: ServiceBusReceiver | undefined;
+        try {
+          // Determine if path is queue, topic/subscription, or a DLQ variant
+          const parts = path.split('/');
+          const isDlq = parts[parts.length - 1] === 'DLQ';
+          if (isDlq) {
+            if (parts.length === 2) {
+              // queue/DLQ
+              const [queueName] = parts;
+              receiver = this.serviceBusClient.createReceiver(queueName, {
+                subQueueType: 'deadLetter',
+              });
+            } else if (parts.length === 3) {
+              // topic/sub/DLQ
+              const [topicName, subscriptionName] = parts;
+              receiver = this.serviceBusClient.createReceiver(
+                topicName,
+                subscriptionName,
+                { subQueueType: 'deadLetter' }
+              );
+            } else {
+              // Fallback: skip malformed DLQ path
+              console.warn(
+                `[Reconcile] Skipping unrecognized DLQ path: ${path}`
+              );
+              return;
+            }
+          } else if (parts.length === 2) {
+            // topic/subscription
+            const [topicName, subscriptionName] = parts;
+            receiver = this.serviceBusClient.createReceiver(
+              topicName,
+              subscriptionName
+            );
+          } else {
+            // plain queue
+            receiver = this.serviceBusClient.createReceiver(path);
+          }
+
+          const currentIds = await this.collectCurrentIds(receiver);
+          await this.reconcileCompletedForPath(path, currentIds);
+        } catch (error: unknown) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          console.error(`[Reconcile] Error reconciling path ${path}:`, err);
+        } finally {
+          if (receiver) {
+            try {
+              await receiver.close();
+            } catch (closeError) {
+              console.error(
+                `[Reconcile] Error closing receiver for ${path}:`,
+                closeError
+              );
+            }
+          }
+        }
+      })
+    );
+  }
+
+  // backfillMissingQueues removed to simplify reconciliation
 
   private async monitorQueues(queues: ServiceBusQueue[]): Promise<void> {
     if (!queues || queues.length === 0) {
@@ -107,6 +269,10 @@ export class MessageService {
       await Promise.allSettled(
         messages.map((msg) => this.processMessage(msg, queue.Name))
       );
+
+      // Mark messages that are no longer present as completed
+      const currentIds = await this.collectCurrentIds(receiver);
+      await this.reconcileCompletedForPath(queue.Name, currentIds);
 
       // Clean up deferred messages after processing
       await this.cleanDeferredMessages([queue]);
@@ -224,7 +390,7 @@ export class MessageService {
     try {
       const subscriptionName = subscription.Name;
       console.log(
-        `[ProcessTopicSubscription] Processing topic: ${topicName}, subscription: ${subscriptionName}`
+        `[ProcessTopicSubscription] ${topicName}/${subscriptionName}`
       );
 
       receiver = this.serviceBusClient.createReceiver(
@@ -234,7 +400,7 @@ export class MessageService {
 
       const messages = await receiver.peekMessages(100);
       console.log(
-        `[ProcessTopicSubscription] Found ${messages.length} message(s) in ${topicName}/${subscriptionName}`
+        `[ProcessTopicSubscription] Found ${messages.length} message(s)`
       );
 
       // Process messages in parallel
@@ -242,6 +408,13 @@ export class MessageService {
         messages.map((msg) =>
           this.processMessage(msg, `${topicName}/${subscriptionName}`)
         )
+      );
+
+      // Mark messages that are no longer present as completed
+      const currentIds = await this.collectCurrentIds(receiver);
+      await this.reconcileCompletedForPath(
+        `${topicName}/${subscriptionName}`,
+        currentIds
       );
     } catch (error) {
       console.error(
@@ -266,52 +439,104 @@ export class MessageService {
   private async cleanDeferredMessages(
     queues: ServiceBusQueue[]
   ): Promise<void> {
+    console.log('[DeferredSync] Starting deferred message synchronization...');
+
     for (const queue of queues) {
       // Find deferred messages stored in MongoDB
       const deferredMsgs = await this.messageModel.find({
         queue: queue.Name,
-        state: 'deferred',
+        state: MessageState.DEFERRED,
         sequenceNumber: { $ne: null },
       });
 
-      if (deferredMsgs.length === 0) continue;
+      if (deferredMsgs.length === 0) {
+        console.log(
+          `[DeferredSync] No deferred messages found for ${queue.Name}`
+        );
+        continue;
+      }
 
-      const sequenceNumbers: Long[] = [];
+      console.log(
+        `[DeferredSync] Found ${deferredMsgs.length} deferred messages in MongoDB for ${queue.Name}`
+      );
+
+      const receiver = this.serviceBusClient.createReceiver(queue.Name);
+      const stillDeferred: string[] = [];
+
       for (const msg of deferredMsgs) {
-        if (msg.sequenceNumber) {
-          sequenceNumbers.push(Long.fromNumber(msg.sequenceNumber));
+        if (!msg.sequenceNumber) continue;
+
+        try {
+          const deferredMessage = await receiver.receiveDeferredMessages([
+            Long.fromNumber(msg.sequenceNumber),
+          ]);
+
+          if (deferredMessage && deferredMessage.length > 0) {
+            const sbMessage = deferredMessage[0];
+
+            await this.upsertMessageFromServiceBus(
+              sbMessage,
+              queue.Name,
+              MessageStatus.DEFERRED,
+              MessageState.DEFERRED
+            );
+
+            stillDeferred.push(msg.messageId + '');
+            console.log(
+              `[DeferredSync] Synced deferred message ${msg.messageId} (Seq: ${msg.sequenceNumber})`
+            );
+          } else {
+            // Not found — message might have expired or been completed
+            console.log(
+              `[DeferredSync] Deferred message ${msg.messageId} (Seq: ${msg.sequenceNumber}) not found in queue, marking expired`
+            );
+
+            await this.messageModel.updateOne(
+              { _id: msg._id },
+              {
+                $set: {
+                  status: MessageStatus.COMPLETED,
+                  state: MessageState.DEFERRED,
+                  lastUpdated: new Date(),
+                },
+              }
+            );
+          }
+        } catch (error: unknown) {
+          const err = error as { code?: string };
+          if (err && err.code === 'MessageNotFound') {
+            console.warn(
+              `[DeferredSync] Deferred message ${msg.messageId} no longer exists (MessageNotFound)`
+            );
+
+            await this.messageModel.updateOne(
+              { _id: msg._id },
+              {
+                $set: {
+                  status: MessageStatus.COMPLETED,
+                  lastUpdated: new Date(),
+                },
+              }
+            );
+          } else {
+            console.error(
+              `[DeferredSync] Error receiving deferred message ${msg.messageId}:`,
+              err
+            );
+          }
         }
       }
 
-      if (sequenceNumbers.length === 0) continue;
-
-      const receiver = this.serviceBusClient.createReceiver(queue.Name);
-
-      // ✅ Step 3: Actually receive and complete deferred messages
-      const deferredMessages = await receiver.receiveDeferredMessages(
-        sequenceNumbers
-      );
-
-      for (const msg of deferredMessages) {
-        console.log(`Completing deferred message: ${msg.messageId}`);
-        await receiver.completeMessage(msg);
-
-        // Update MongoDB record - message is now completed
-        await this.messageModel.updateOne(
-          { messageId: msg.messageId },
-          {
-            $set: {
-              status: MessageStatus.COMPLETED,
-              state: MessageState.ACTIVE, // Message no longer in deferred state
-              lastUpdated: new Date(),
-            },
-          }
-        );
-      }
-
       await receiver.close();
+
+      console.log(
+        `[DeferredSync] Completed syncing deferred messages for ${queue.Name}. Still deferred: ${stillDeferred.length}`
+      );
     }
+
+    console.log('[DeferredSync] Deferred message synchronization finished.');
   }
+
   private async upsertMessageFromServiceBus(
     msg: ServiceBusReceivedMessage,
     queueOrTopic: string,
@@ -370,6 +595,18 @@ export class MessageService {
         console.log(
           `[MonitorDLQ] Found ${messages.length} dead-lettered message(s) in ${queue.Name}`
         );
+
+        if (messages.length === 0) {
+          console.log(
+            `[MonitorDLQ] No messages in DLQ for ${queue.Name}. Deleting synced records from MongoDB...`
+          );
+          await this.messageModel.deleteMany({
+            queue: `${queue.Name}/DLQ`,
+            status: MessageStatus.DEAD_LETTERED,
+            state: MessageState.DEAD_LETTERED,
+          });
+          return;
+        }
 
         // Process dead-lettered messages
         for (const msg of messages) {
@@ -468,34 +705,39 @@ export class MessageService {
     let query = this.messageModel.find();
 
     if (filters) {
-      const conditions: Record<string, unknown> = {};
+      const andConditions: any[] = [];
 
-      // Filter by queue
-      if (filters.queue) {
-        conditions.$or = [
-          { to: filters.queue },
-          { 'applicationProperties.queue': filters.queue },
-        ];
+      // Build a target path if topic/subscription provided
+      let targetPath: string | undefined;
+      if (filters.topic && filters.subscription) {
+        targetPath = `${filters.topic}/${filters.subscription}`;
+      } else if (filters.queue) {
+        targetPath = filters.queue;
+      } else if (filters.topic) {
+        targetPath = filters.topic;
       }
 
-      // Filter by topic
-      if (filters.topic) {
-        conditions.$or = [
-          { to: filters.topic },
-          { 'applicationProperties.topic': filters.topic },
-        ];
+      if (targetPath) {
+        andConditions.push({
+          $or: [
+            { queue: targetPath },
+            { to: targetPath },
+            { 'applicationProperties.queue': targetPath },
+            { 'applicationProperties.topic': targetPath },
+          ],
+        });
       }
 
-      // Filter by subscription
-      if (filters.subscription) {
-        conditions['applicationProperties.subscription'] = filters.subscription;
+      if (!targetPath && filters.subscription) {
+        andConditions.push({
+          'applicationProperties.subscription': filters.subscription,
+        });
       }
 
-      if (Object.keys(conditions).length > 0) {
-        query = query.where(conditions);
+      if (andConditions.length > 0) {
+        query = query.where({ $and: andConditions });
       }
 
-      // Limit results
       if (filters.maxMessages) {
         query = query.limit(filters.maxMessages);
       }
@@ -511,7 +753,12 @@ export class MessageService {
   }
 
   async saveReceivedMessage(msg: Partial<Message>) {
-    this.messageModel.create(msg);
+    // Convert body safely
+    console.log('Reieved', msg.body);
+    await this.messageModel.create({
+      ...msg,
+      body: msg.body, // store object directly
+    });
   }
 
   async remove(id: string): Promise<void> {
@@ -673,6 +920,35 @@ export class MessageService {
       const now = new Date();
       let totalDeleted = 0;
 
+      // First cleanup: per-message TTL (enqueuedTimeUtc + timeToLive)
+      try {
+        const perMessageFilter: any = {
+          timeToLive: { $gt: 0 },
+          enqueuedTimeUtc: { $type: 'date' },
+          status: { $ne: MessageStatus.DEAD_LETTERED },
+          $expr: {
+            $lt: [{ $add: ['$enqueuedTimeUtc', '$timeToLive'] }, now],
+          },
+        };
+        const perMessageResult = await this.messageModel.deleteMany(
+          perMessageFilter
+        );
+        if (
+          perMessageResult.deletedCount &&
+          perMessageResult.deletedCount > 0
+        ) {
+          console.log(
+            `[CleanupExpired] Deleted ${perMessageResult.deletedCount} messages expired by per-message TTL`
+          );
+          totalDeleted += perMessageResult.deletedCount;
+        }
+      } catch (e) {
+        console.error(
+          '[CleanupExpired] Error during per-message TTL cleanup:',
+          e
+        );
+      }
+
       // Clean up expired messages for each queue
       for (const queue of queues) {
         const ttl = this.parseISO8601Duration(
@@ -694,11 +970,22 @@ export class MessageService {
           })`
         );
 
-        const deletedCount = await this.messageModel.deleteMany({
+        // Use enqueuedTimeUtc if available, otherwise createdAt; and only for docs without per-message TTL
+        const queueFilter: any = {
           queue: queue.Name,
-          status: { $ne: MessageStatus.DEAD_LETTERED }, // Don't delete DLQ messages
-          createdAt: { $lt: expireBefore },
-        });
+          status: { $ne: MessageStatus.DEAD_LETTERED },
+          $or: [
+            { timeToLive: { $exists: false } },
+            { timeToLive: { $in: [null, 0] } },
+          ],
+          $expr: {
+            $lt: [
+              { $ifNull: ['$enqueuedTimeUtc', '$createdAt'] },
+              expireBefore,
+            ],
+          },
+        };
+        const deletedCount = await this.messageModel.deleteMany(queueFilter);
 
         if (deletedCount.deletedCount > 0) {
           console.log(
@@ -729,11 +1016,22 @@ export class MessageService {
             })`
           );
 
-          const deletedCount = await this.messageModel.deleteMany({
+          // Use enqueuedTimeUtc if available, otherwise createdAt; and only for docs without per-message TTL
+          const topicFilter: any = {
             queue: topicSubscriptionPath,
-            status: { $ne: MessageStatus.DEAD_LETTERED }, // Don't delete DLQ messages
-            createdAt: { $lt: expireBefore },
-          });
+            status: { $ne: MessageStatus.DEAD_LETTERED },
+            $or: [
+              { timeToLive: { $exists: false } },
+              { timeToLive: { $in: [null, 0] } },
+            ],
+            $expr: {
+              $lt: [
+                { $ifNull: ['$enqueuedTimeUtc', '$createdAt'] },
+                expireBefore,
+              ],
+            },
+          };
+          const deletedCount = await this.messageModel.deleteMany(topicFilter);
 
           if (deletedCount.deletedCount > 0) {
             console.log(
@@ -762,15 +1060,19 @@ export class MessageService {
    */
   private parseISO8601Duration(duration: string): number | null {
     try {
-      // Handle the format: PT1H, PT30M, P1D, etc.
-      const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+      // Support ISO 8601: PnD, PTnH, PTnM, PTnS and combinations like P1DT2H30M
+      const match = duration.match(
+        /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/
+      );
       if (!match) return null;
 
-      const hours = parseInt(match[1] || '0', 10);
-      const minutes = parseInt(match[2] || '0', 10);
-      const seconds = parseInt(match[3] || '0', 10);
+      const days = parseInt(match[1] || '0', 10);
+      const hours = parseInt(match[2] || '0', 10);
+      const minutes = parseInt(match[3] || '0', 10);
+      const seconds = parseInt(match[4] || '0', 10);
 
-      return (hours * 3600 + minutes * 60 + seconds) * 1000; // Convert to milliseconds
+      const totalSeconds = days * 86400 + hours * 3600 + minutes * 60 + seconds;
+      return totalSeconds * 1000; // milliseconds
     } catch (error) {
       console.error(
         `[CleanupExpired] Failed to parse duration "${duration}":`,
@@ -778,5 +1080,70 @@ export class MessageService {
       );
       return null;
     }
+  }
+
+  /**
+   * Mark messages as completed in MongoDB if they no longer appear in Service Bus peek results
+   */
+  async reconcileCompletedForPath(
+    path: string,
+    currentIds: ReadonlyArray<string | number | undefined>
+  ): Promise<void> {
+    const allSyncedMessages = await this.messageModel.find({ queue: path });
+
+    if (allSyncedMessages.length === null || allSyncedMessages.length === 0)
+      return;
+
+    // Normalize ids to strings to avoid union complexity and ensure stable comparison
+    const currentIdStrings: string[] = (currentIds ?? []).map((id) =>
+      id === undefined ? 'undefined' : String(id)
+    );
+    const currentIdSet = new Set<string>(currentIdStrings);
+
+    for (const msg of allSyncedMessages) {
+      const msgIdStr =
+        msg.messageId === undefined ? 'undefined' : String(msg.messageId);
+      if (currentIdSet.has(msgIdStr)) continue;
+      await this.messageModel.updateOne(
+        { messageId: msg.messageId, queue: path },
+        {
+          $set: {
+            status: MessageStatus.COMPLETED,
+            lastUpdated: new Date(),
+          },
+        }
+      );
+    }
+  }
+
+  /**
+   * Collect all current messageIds in a receiver by peeking batches until exhaustion
+   */
+  private async collectCurrentIds(
+    receiver: ServiceBusReceiver
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    let fromSeq = Long.fromNumber(1);
+    const batchSize = 200;
+    const cap = 5000;
+    while (ids.length < cap) {
+      const batch = await receiver.peekMessages(batchSize, {
+        fromSequenceNumber: fromSeq,
+      });
+      if (batch.length === 0) break;
+      for (const m of batch) {
+        const bodyObj =
+          typeof m.body === 'object' && m.body !== null
+            ? (m.body as { id?: string | number })
+            : undefined;
+        const id = `${m.messageId ?? bodyObj?.id ?? 'unknown'}`;
+        ids.push(id);
+      }
+      const lastSeq = batch[batch.length - 1].sequenceNumber?.toNumber();
+      if (!lastSeq) break;
+      fromSeq = Long.fromNumber(lastSeq + 1);
+      if (batch.length < batchSize) break;
+    }
+    return ids;
   }
 }

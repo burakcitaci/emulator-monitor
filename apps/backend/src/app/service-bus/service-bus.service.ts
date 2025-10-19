@@ -19,7 +19,7 @@ import {
 
 import { ConfigService } from '../common/config.service';
 import { MessageService } from '../messages/messages.service';
-import { mapToDocument } from '../messages/messages.mapper';
+import { mapToMessage } from '../messages/messages.mapper';
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
@@ -174,7 +174,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         applicationProperties: dto.message.applicationProperties || {},
       };
 
-      const mappedMessage = mapToDocument(message);
+      const mappedMessage = mapToMessage(message);
       await this.messageService.saveReceivedMessage(mappedMessage); // Save the message to MongoDB
       await sender.sendMessages(message);
 

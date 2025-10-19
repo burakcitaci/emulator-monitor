@@ -5,13 +5,10 @@ export { Header, TabNavigation } from './common';
 export {
   MessagesTab,
   SendMessageTab,
-  DeadLetterQueueTab,
   MessageDetailModal,
   MessageTable,
   MessageFilters,
-  DLQTable,
   MessagesDataTable,
-  DLQDataTable,
 } from './service-bus';
 
 // Container components

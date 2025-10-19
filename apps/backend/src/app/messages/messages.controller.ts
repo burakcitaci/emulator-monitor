@@ -45,6 +45,7 @@ export class MessagesController {
 
   @Post()
   async create(@Body() message: Message): Promise<Message> {
+    console.log('Creating message:', message.body);
     this.messagesService.saveReceivedMessage(message);
     return message;
   }

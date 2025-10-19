@@ -4,7 +4,6 @@ import {
   TabNavigation,
   Header,
   MessagesTab,
-  DeadLetterQueueTab,
   SendMessageTab,
   ConfigurationTab,
   ConnectionTab,
@@ -33,7 +32,6 @@ const MonitorContent: React.FC = () => {
     connectionInfo,
     setSelectedMessage,
     sendMessage,
-    replayMessage,
     isLoading,
     error,
   } = useMonitor();
@@ -60,25 +58,7 @@ const MonitorContent: React.FC = () => {
             onSend={sendMessage}
           />
         );
-      case 'dlq':
-        return (
-          <DeadLetterQueueTab
-            onReplay={replayMessage}
-            onView={(message) => {
-              // Convert DeadLetterMessage to Message format for selectedMessage
-              const convertedMessage = {
-                ...message,
-                messageId: message.messageId?.toString(),
-                applicationProperties: message.applicationProperties
-                  ? new Map(Object.entries(message.applicationProperties))
-                  : undefined,
-                status: 'dead-lettered' as const, // Explicitly set status for DLQ messages
-                state: 'dead-lettered' as const, // Explicitly set state for DLQ messages
-              };
-              setSelectedMessage(convertedMessage);
-            }}
-          />
-        );
+
       case 'configuration':
         return <ConfigurationTab />;
       case 'connection':

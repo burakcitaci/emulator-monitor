@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Label } from '../ui/label';
 import {
@@ -105,7 +106,7 @@ export const EntitySelector: React.FC<EntitySelectorProps> = ({
     const preferred = topicSubscriptions.includes('default')
       ? 'default'
       : topicSubscriptions[0];
-    setSubscription((prev) => (prev ? prev : preferred));
+    setSubscription((prev) => prev || preferred);
   }, [primary, topicSubscriptions, autoSelectPreferredSubscription]);
 
   // Emit changes when selection sufficient

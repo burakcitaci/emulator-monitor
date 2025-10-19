@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState } from 'react';
 
 interface ComposeContainer {
   Name: string;
@@ -46,11 +46,10 @@ interface UseDockerComposeReturn {
   logs: string;
   loading: boolean;
   error: Error | null;
-  isRefreshing: boolean;
-  fetchContainers: (
-    options?: { filePath?: string; projectName?: string },
-    isInitial?: boolean
-  ) => Promise<void>;
+  fetchContainers: (options?: {
+    filePath?: string;
+    projectName?: string;
+  }) => Promise<void>;
   composeUp: (options?: ComposeUpOptions) => Promise<void>;
   composeDown: (options?: ComposeDownOptions) => Promise<void>;
   composeLogs: (options?: ComposeLogsOptions) => Promise<void>;
@@ -61,24 +60,11 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
   const [containers, setContainers] = useState<ComposeContainer[]>([]);
   const [logs, setLogs] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const hasInitialLoad = useRef(false);
 
   const fetchContainers = useCallback(
-    async (
-      options?: { filePath?: string; projectName?: string },
-      isInitial = false
-    ) => {
-      // Only show loading spinner on initial load
-      if (isInitial || !hasInitialLoad.current) {
-        setLoading(true);
-      } else {
-        // For subsequent refreshes, just set refreshing flag
-        setIsRefreshing(true);
-      }
-      setError(null);
-
+    async (options?: { filePath?: string; projectName?: string }) => {
+      setLoading(true);
       try {
         const params = new URLSearchParams();
         if (options?.filePath) params.append('filePath', options.filePath);
@@ -88,7 +74,6 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
         const url = `http://localhost:3000/api/v1/docker-compose/ps${
           params.toString() ? `?${params.toString()}` : ''
         }`;
-
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -99,7 +84,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
 
         if (data.success) {
           setContainers(data.containers || []);
-          hasInitialLoad.current = true;
+          setError(null);
         } else {
           throw new Error(data.error || 'Failed to fetch containers');
         }
@@ -107,7 +92,6 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
         setError(err instanceof Error ? err : new Error('Unknown error'));
       } finally {
         setLoading(false);
-        setIsRefreshing(false);
       }
     },
     []
@@ -146,6 +130,8 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
             ? { filePath: options.filePath, projectName: options.projectName }
             : undefined
         );
+
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
         throw err;
@@ -189,6 +175,8 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
             ? { filePath: options.filePath, projectName: options.projectName }
             : undefined
         );
+
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
         throw err;
@@ -214,7 +202,6 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
       const url = `http://localhost:3000/api/v1/docker-compose/logs${
         params.toString() ? `?${params.toString()}` : ''
       }`;
-
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -225,6 +212,7 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
 
       if (data.success) {
         setLogs(data.logs || '');
+        setError(null);
       } else {
         throw new Error(data.error || 'Failed to fetch logs');
       }
@@ -269,6 +257,8 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
             ? { filePath: options.filePath, projectName: options.projectName }
             : undefined
         );
+
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error'));
         throw err;
@@ -284,7 +274,6 @@ export const useDockerCompose = (): UseDockerComposeReturn => {
     logs,
     loading,
     error,
-    isRefreshing,
     fetchContainers,
     composeUp,
     composeDown,

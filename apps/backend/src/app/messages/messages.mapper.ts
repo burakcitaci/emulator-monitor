@@ -1,35 +1,37 @@
 // message.mapper.ts
-import { ServiceBusMessage, ServiceBusReceivedMessage } from '@azure/service-bus';
-import { Message } from './message.schema';
+import {
+  ServiceBusMessage,
+  ServiceBusReceivedMessage,
+} from '@azure/service-bus';
+import { Message, MessageState } from './message.schema';
 
-type AzureMsg = ServiceBusMessage | ServiceBusReceivedMessage;
-
-export function mapToDocument(msg: AzureMsg): Partial<Message> {
-  const doc: Partial<Message> = {
+export function mapToMessage(msg: ServiceBusMessage): Partial<Message> {
+  return {
+    messageId: normalizeValue(msg.messageId),
     body: msg.body,
-    messageId:
-      typeof msg.messageId === 'object' ? JSON.stringify(msg.messageId) : msg.messageId,
-    contentType: msg.contentType ?? undefined,
-    correlationId:
-      typeof msg.correlationId === 'object'
-        ? JSON.stringify(msg.correlationId)
-        : msg.correlationId,
-    partitionKey: msg.partitionKey ?? undefined,
-    sessionId: msg.sessionId ?? undefined,
-    replyToSessionId: msg.replyToSessionId ?? undefined,
-    timeToLive: msg.timeToLive ?? undefined,
-    subject: msg.subject ?? undefined,
-    to: msg.to ?? undefined,
-    replyTo: msg.replyTo ?? undefined,
-    scheduledEnqueueTimeUtc: msg.scheduledEnqueueTimeUtc ?? undefined,
-    applicationProperties: msg.applicationProperties ?? undefined,
+    contentType: msg.contentType,
+    correlationId: normalizeValue(msg.correlationId),
+    partitionKey: msg.partitionKey,
+    sessionId: msg.sessionId,
+    replyToSessionId: msg.replyToSessionId,
+    timeToLive: msg.timeToLive,
+    subject: msg.subject,
+    to: msg.to,
+    replyTo: msg.replyTo,
+    scheduledEnqueueTimeUtc: msg.scheduledEnqueueTimeUtc,
+    applicationProperties: msg.applicationProperties
+      ? new Map(Object.entries(msg.applicationProperties))
+      : undefined,
+    state: MessageState.ACTIVE,
+    lastUpdated: new Date(),
   };
+}
 
-  // Only available on ServiceBusReceivedMessage
-  if ('state' in msg) {
-    doc['state'] = msg.state;
-    doc['rawAmqpMessage'] = msg._rawAmqpMessage ? { ...msg._rawAmqpMessage } : undefined;
+function normalizeValue(
+  value: string | number | Buffer | undefined
+): string | number | undefined {
+  if (Buffer.isBuffer(value)) {
+    return value.toString('utf-8'); // or 'hex' if needed
   }
-
-  return doc;
+  return value;
 }

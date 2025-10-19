@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useCallback, useMemo, useState } from 'react';
 import { MessagesDataTable } from './MessagesDataTable';
-import { DeadLetterMessage, Message } from '../../hooks/useServiceBus';
 import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
-import { useServiceBus } from '../../hooks/useServiceBus';
+import { useServiceBus, Message } from '../../hooks/useServiceBus';
 import { Label } from '../ui/label';
 import {
   Select,
@@ -51,24 +51,17 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // Resolve namespace when primary selection changes
-  useEffect(() => {
-    if (!primary) {
-      setNamespace('');
-      return;
-    }
-    if (primary.kind === 'queue') {
-      const item = queuesAndTopics.find(
-        (i) => i.type === 'queue' && i.name === primary.name
-      );
-      setNamespace(item?.namespace ?? '');
-    } else {
-      const item = queuesAndTopics.find(
-        (i) => i.type === 'topic' && i.name === primary.name
-      );
-      setNamespace(item?.namespace ?? '');
-    }
+  const resolveNamespace = useCallback(() => {
+    if (!primary) return '';
+    const item = queuesAndTopics.find(
+      (i) => i.type === primary.kind && i.name === primary.name
+    );
+    return item?.namespace ?? '';
   }, [primary, queuesAndTopics]);
+
+  React.useEffect(() => {
+    setNamespace(resolveNamespace());
+  }, [resolveNamespace]);
 
   // Prepare subscriptions when topic is selected
   const topicSubscriptions = useMemo(() => {
@@ -76,19 +69,11 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     return getSubscriptionsByTopic(primary.name);
   }, [primary, getSubscriptionsByTopic]);
 
-  // Reset and preselect subscription on topic change
-  useEffect(() => {
-    if (primary?.kind !== 'topic') {
-      setSubscription('');
-      return;
-    }
+  React.useEffect(() => {
+    if (primary?.kind !== 'topic') return setSubscription('');
     const subs = topicSubscriptions;
-    if (!subs || subs.length === 0) {
-      setSubscription('');
-      return;
-    }
-    const preferred = subs.includes('default') ? 'default' : subs[0];
-    setSubscription(preferred);
+    if (!subs?.length) return setSubscription('');
+    setSubscription(subs.includes('default') ? 'default' : subs[0]);
   }, [primary, topicSubscriptions]);
 
   const handlePrimaryChange = useCallback((value: string) => {
@@ -108,8 +93,8 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     if (primary && !namespace) return;
     if (primary?.kind === 'topic' && !subscription) return;
 
+    console.log('Loading messages for:', { primary, namespace, subscription });
     setIsFetching(true);
-    setFetchError(null);
 
     try {
       const params: any = primary
@@ -121,10 +106,18 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
           }
         : {};
 
+      console.log('Making API call with params:', params);
       const res = await getMessages(params);
+      console.log('API response:', res);
+
       setLocalMessages(res.messages || []);
       setHasLoaded(true);
+
+      // Only clear error if API call succeeds
+      setFetchError(null);
+      console.log('Messages loaded successfully');
     } catch (e) {
+      console.error('Failed to load messages:', e);
       setFetchError(e instanceof Error ? e.message : 'Failed to load messages');
       setLocalMessages([]);
     } finally {
@@ -133,18 +126,9 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   }, [primary, namespace, subscription, getMessages]);
 
   // Initial load on mount
-  useEffect(() => {
+  React.useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
-
-  // Auto-load when selection changes
-  useEffect(() => {
-    if (!primary) return;
-    if (!namespace) return;
-    if (primary.kind === 'topic' && !subscription) return;
-
-    void loadMessages();
-  }, [primary, namespace, subscription, loadMessages]);
 
   const canLoad =
     !primary ||

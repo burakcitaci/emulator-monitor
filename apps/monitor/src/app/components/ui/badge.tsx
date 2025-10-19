@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-
 import { cn } from '../../lib/utils';
 
 const badgeVariants = cva(
@@ -14,7 +13,16 @@ const badgeVariants = cva(
           'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'text-foreground',
+        outline: 'text-foreground border',
+
+        // ✅ Azure Service Bus message state variants
+        active: 'border-transparent bg-green-500 text-white hover:bg-green-600', // processed or available
+        deferred:
+          'border-transparent bg-yellow-500 text-white hover:bg-yellow-600', // postponed
+        scheduled:
+          'border-transparent bg-blue-500 text-white hover:bg-blue-600', // scheduled for later
+        'dead-lettered':
+          'border-transparent bg-red-600 text-white hover:bg-red-700', // permanently failed
       },
     },
     defaultVariants: {

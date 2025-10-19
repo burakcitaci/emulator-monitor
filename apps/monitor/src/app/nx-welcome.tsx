@@ -8,7 +8,6 @@ import {
   TabNavigation,
   MessagesTab,
   SendMessageTab,
-  DeadLetterQueueTab,
   ConnectionTab,
   ConfigurationTab,
 } from './components';
@@ -84,13 +83,6 @@ export default function ServiceBusMonitor() {
                 form={sendForm}
                 onFormChange={setSendForm}
                 onSend={handleSendMessage}
-              />
-            )}
-
-            {activeTab === 'dlq' && (
-              <DeadLetterQueueTab
-                onReplay={handleReplayMessage}
-                onView={handleViewMessage}
               />
             )}
 

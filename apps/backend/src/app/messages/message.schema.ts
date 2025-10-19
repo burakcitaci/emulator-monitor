@@ -31,24 +31,9 @@ export enum MessageState {
 
 @Schema({ timestamps: true })
 export class Message {
-  @Prop({
-    required: false,
-    enum: [
-      'active', // Message is available for processing
-      'deferred', // Message processing postponed
-      'scheduled', // Message scheduled for future delivery
-      'dead-lettered', // Message moved to Dead Letter Queue
-      'completed', // Message successfully processed
-      'abandoned', // Message processing failed, returned to queue
-      'received', // Message received but not yet completed
-    ],
-    default: 'active',
-  })
-  status?: string;
-
   // Arbitrary message body. Use Mixed for flexibility, 'unknown' for type-safety.
   @Prop({ required: true, type: MongooseSchema.Types.Mixed })
-  body: unknown;
+  body: any;
 
   // Message identifier, index for faster lookup.
   @Prop({ type: MongooseSchema.Types.Mixed, index: true }) // ← allows string | number | anything
@@ -113,3 +98,8 @@ export class Message {
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
+
+MessageSchema.index(
+  { enqueuedTimeUtc: 1 },
+  { expireAfterSeconds: 30 } // PT1H = 1 hour
+);

@@ -66,7 +66,7 @@ export interface SendBatchDto {
   messages: Array<{
     body: any;
     contentType?: string;
-    messageId?: string;
+    messageId?: string | number;
     correlationId?: string;
     subject?: string;
     applicationProperties?: Record<string, any>;

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 import { ServiceBusConfig, QueueTopicItem } from '@emulator-monitor/entities';
 
@@ -10,22 +9,27 @@ export const useServiceBusConfig = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchConfig = async () => {
+    const fetchFromBackend = async (): Promise<ServiceBusConfig | null> => {
       try {
-        setLoading(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
         const response = await fetch(
-          'http://localhost:3000/api/v1/servicebus/namespaces'
+          'http://localhost:3000/api/v1/servicebus/namespaces',
+          {
+            signal: controller.signal,
+          }
         );
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-          throw new Error(`Failed to fetch config: ${response.statusText}`);
+          throw new Error(`Backend error: ${response.statusText}`);
         }
 
         const data = await response.json();
-        console.log('Service Bus config data:', data);
         if (data.success && data.namespaces) {
-          // Transform the backend response to match ServiceBusConfig format
-          const serviceBusConfig: ServiceBusConfig = {
+          return {
             UserConfig: {
               Namespaces: data.namespaces.map((ns: any) => ({
                 Name: ns.name,
@@ -52,32 +56,58 @@ export const useServiceBusConfig = () => {
               },
             },
           };
-
-          setConfig(serviceBusConfig);
-          setError(null);
         } else {
-          throw new Error(data.message || 'Failed to load configuration');
+          throw new Error(data.message || 'Invalid backend response');
         }
       } catch (err) {
-        console.error('Error loading Service Bus config:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load config');
-      } finally {
-        setLoading(false);
+        console.warn('Backend fetch failed, falling back to static file:', err);
+        return null;
       }
     };
 
-    fetchConfig();
+    const fetchFromStaticFile = async (): Promise<ServiceBusConfig | null> => {
+      try {
+        const response = await fetch('/servicebus-config.json');
+        if (!response.ok) {
+          throw new Error(`Static file error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (data.UserConfig?.Namespaces) {
+          return data as ServiceBusConfig;
+        } else {
+          throw new Error('Invalid static config format');
+        }
+      } catch (err) {
+        console.error('Error loading static config:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load config');
+        return null;
+      }
+    };
+
+    const loadConfig = async () => {
+      setLoading(true);
+      const backendConfig = await fetchFromBackend();
+      const finalConfig = backendConfig ?? (await fetchFromStaticFile());
+
+      if (finalConfig) {
+        setConfig(finalConfig);
+        setError(null);
+      }
+
+      setLoading(false);
+    };
+
+    loadConfig();
   }, []);
 
   useEffect(() => {
     if (!config) return;
 
-    // Extract all queues, topics, and subscriptions
     const items: QueueTopicItem[] = [];
     const destinations: string[] = [];
 
     config.UserConfig.Namespaces.forEach((namespace) => {
-      // Add Queues
       namespace.Queues?.forEach((queue) => {
         items.push({
           name: queue.Name,
@@ -88,7 +118,6 @@ export const useServiceBusConfig = () => {
         destinations.push(queue.Name);
       });
 
-      // Add Topics and their Subscriptions
       namespace.Topics?.forEach((topic) => {
         items.push({
           name: topic.Name,
@@ -121,25 +150,22 @@ export const useServiceBusConfig = () => {
     setAllDestinations(destinations);
   }, [config]);
 
-  const getQueueNames = () => {
-    return queuesAndTopics
+  const getQueueNames = () =>
+    queuesAndTopics
       .filter((item) => item.type === 'queue')
       .map((item) => item.name);
-  };
 
-  const getTopicNames = () => {
-    return queuesAndTopics
+  const getTopicNames = () =>
+    queuesAndTopics
       .filter((item) => item.type === 'topic')
       .map((item) => item.name);
-  };
 
-  const getSubscriptionsByTopic = (topicName: string) => {
-    return queuesAndTopics
+  const getSubscriptionsByTopic = (topicName: string) =>
+    queuesAndTopics
       .filter(
         (item) => item.type === 'subscription' && item.parentTopic === topicName
       )
       .map((item) => item.name);
-  };
 
   return {
     config,

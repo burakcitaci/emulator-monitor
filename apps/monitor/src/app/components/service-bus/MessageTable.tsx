@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '../ui/table';
 import { Button } from '../ui/button';
-import { Card, CardHeader, CardContent } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 
 interface MessageTableProps {
   messages: Message[];

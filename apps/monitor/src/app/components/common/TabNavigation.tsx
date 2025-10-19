@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Send, Trash2, Database, Settings } from 'lucide-react';
+import { Activity, Send, Database, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';

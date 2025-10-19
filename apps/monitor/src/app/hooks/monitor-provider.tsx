@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useState,
+  ReactNode,
+  useMemo,
+  useCallback,
+} from 'react';
 import { SendForm, ConnectionInfo } from '@emulator-monitor/entities';
 import {
   useServiceBus,
@@ -140,16 +146,15 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
     setState((prev) => ({ ...prev, error }));
   };
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!state.sendForm.queueName || !state.sendForm.body) {
       const errorMessage = 'Queue name and message body are required';
-      setError(errorMessage);
+      setState((prev) => ({ ...prev, error: errorMessage }));
       toast.error(errorMessage);
       return;
     }
 
-    setState((prev) => ({ ...prev, isSendingMessage: true }));
-    setError(null);
+    setState((prev) => ({ ...prev, isSendingMessage: true, error: null }));
 
     try {
       const messageBody = state.sendForm.body
@@ -159,7 +164,6 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         ? JSON.parse(state.sendForm.properties)
         : undefined;
 
-      // Resolve namespace
       const destination = state.sendForm.queueName;
       const nsFromQueue = queuesAndTopics.find(
         (i) => i.type === 'queue' && i.name === destination
@@ -173,6 +177,32 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         config?.UserConfig.Namespaces[0]?.Name ||
         'sbemulatorns';
 
+      // Determine destination type (queue or topic) and enrich application properties
+      const isQueue = !!queuesAndTopics.find(
+        (i) => i.type === 'queue' && i.name === destination
+      );
+      const isTopic = !!queuesAndTopics.find(
+        (i) => i.type === 'topic' && i.name === destination
+      );
+      const subs = isTopic ? getSubscriptionsByTopic(destination) : undefined;
+      const preferredSub =
+        subs && subs.length > 0
+          ? subs.includes('default')
+            ? 'default'
+            : subs[0]
+          : undefined;
+
+      const computedAppProps = {
+        ...(messageProperties || {}),
+        ...(isQueue ? { queue: destination } : {}),
+        ...(isTopic
+          ? {
+              topic: destination,
+              ...(preferredSub ? { subscription: preferredSub } : {}),
+            }
+          : {}),
+      } as Record<string, unknown>;
+
       await serviceBusSendMessage({
         namespace: resolvedNamespace,
         topic: state.sendForm.queueName,
@@ -182,7 +212,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
           messageId: `msg-${Date.now()}`,
           timeToLive: 500,
           subject: state.sendForm.queueName,
-          applicationProperties: messageProperties,
+          applicationProperties: computedAppProps,
         },
       });
 
@@ -194,7 +224,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         }
       );
 
-      // Refresh messages after send
+      // Refresh messages
       try {
         const queues = getQueueNames();
         if (queues.includes(destination)) {
@@ -203,7 +233,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
             queue: destination,
             maxMessages: 20,
           });
-          setMessages(fetched.messages || []);
+          setState((prev) => ({ ...prev, messages: fetched.messages || [] }));
         } else {
           const subs = getSubscriptionsByTopic(destination);
           if (subs?.length > 0) {
@@ -214,102 +244,134 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
               subscription: preferred,
               maxMessages: 20,
             });
-            setMessages(fetched.messages || []);
+            setState((prev) => ({ ...prev, messages: fetched.messages || [] }));
           }
         }
       } catch (e) {
         console.warn('Failed to refresh messages after send', e);
       }
 
-      setSendForm({ queueName: '', body: '', properties: '' });
+      setState((prev) => ({
+        ...prev,
+        sendForm: { queueName: '', body: '', properties: '' },
+      }));
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'Failed to send message';
-      setError(errorMessage);
+      setState((prev) => ({ ...prev, error: errorMessage }));
       toast.error(errorMessage, { duration: 5000 });
     } finally {
       setState((prev) => ({ ...prev, isSendingMessage: false }));
     }
-  };
+  }, [
+    state.sendForm,
+    queuesAndTopics,
+    config,
+    serviceBusSendMessage,
+    getMessages,
+    getQueueNames,
+    getSubscriptionsByTopic,
+  ]);
 
-  const loadDlqMessages = async (queueName: string) => {
-    setLoading(true);
-    setError(null);
+  /**
+   * Load DLQ messages
+   */
+  const loadDlqMessages = useCallback(
+    async (queueName: string) => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-    try {
-      const topicName = queueName.includes('/')
-        ? queueName.split('/')[0]
-        : queueName;
-      const subName = queueName.includes('/')
-        ? queueName.split('/')[1]
-        : 'default';
+      try {
+        const topicName = queueName.includes('/')
+          ? queueName.split('/')[0]
+          : queueName;
+        const subName = queueName.includes('/')
+          ? queueName.split('/')[1]
+          : 'default';
 
-      const nsFromQueue = queuesAndTopics.find(
-        (i) => i.type === 'queue' && i.name === topicName
-      )?.namespace;
-      const nsFromTopic = queuesAndTopics.find(
-        (i) => i.type === 'topic' && i.name === topicName
-      )?.namespace;
-      const dlqNamespace =
-        nsFromQueue ||
-        nsFromTopic ||
-        config?.UserConfig.Namespaces[0]?.Name ||
-        'sbemulatorns';
+        const nsFromQueue = queuesAndTopics.find(
+          (i) => i.type === 'queue' && i.name === topicName
+        )?.namespace;
+        const nsFromTopic = queuesAndTopics.find(
+          (i) => i.type === 'topic' && i.name === topicName
+        )?.namespace;
+        const dlqNamespace =
+          nsFromQueue ||
+          nsFromTopic ||
+          config?.UserConfig.Namespaces[0]?.Name ||
+          'sbemulatorns';
 
-      const dlqMessages = await getDeadLetterMessages({
-        namespace: dlqNamespace,
-        topic: topicName,
-        subscription: subName,
-        maxMessages: 20,
-        maxWaitTimeInSeconds: 10,
-      });
+        const dlqMessages = await getDeadLetterMessages({
+          namespace: dlqNamespace,
+          topic: topicName,
+          subscription: subName,
+          maxMessages: 20,
+          maxWaitTimeInSeconds: 10,
+        });
 
-      setDlqMessages(dlqMessages);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load DLQ messages'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const replayMessage = async (messageId: string) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const messageToReplay = state.dlqMessages.messages.find(
-        (msg: DeadLetterMessage) => msg.messageId === messageId
-      );
-      if (!messageToReplay) {
-        throw new Error('Message not found');
+        setState((prev) => ({ ...prev, dlqMessages }));
+      } catch (err) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            err instanceof Error ? err.message : 'Failed to load DLQ messages',
+        }));
+      } finally {
+        setState((prev) => ({ ...prev, isLoading: false }));
       }
+    },
+    [queuesAndTopics, config, getDeadLetterMessages]
+  );
 
-      console.log('Replaying message:', messageId);
-      await loadDlqMessages(state.dlqQueue);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to replay message');
-    } finally {
-      setLoading(false);
-    }
-  };
+  /**
+   * Replay DLQ message
+   */
+  const replayMessage = useCallback(
+    async (messageId: string) => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-  const contextValue: MonitorContextType = {
-    ...state,
-    setActiveTab,
-    setSendForm,
-    setDlqQueue,
-    setMessages,
-    setDlqMessages,
-    setConnectionInfo,
-    setSelectedMessage,
-    setLoading,
-    setError,
-    sendMessage,
-    loadDlqMessages,
-    replayMessage,
-  };
+      try {
+        const messageToReplay = state.dlqMessages.messages.find(
+          (msg: DeadLetterMessage) => msg.messageId === messageId
+        );
+        if (!messageToReplay) throw new Error('Message not found');
+
+        console.log('Replaying message:', messageId);
+        await loadDlqMessages(state.dlqQueue);
+      } catch (err) {
+        setState((prev) => ({
+          ...prev,
+          error:
+            err instanceof Error ? err.message : 'Failed to replay message',
+        }));
+      } finally {
+        setState((prev) => ({ ...prev, isLoading: false }));
+      }
+    },
+    [state.dlqMessages.messages, state.dlqQueue, loadDlqMessages]
+  );
+  const contextValue = useMemo<MonitorContextType>(
+    () => ({
+      ...state,
+      setActiveTab,
+      setSendForm,
+      setDlqQueue,
+      setMessages,
+      setDlqMessages,
+      setConnectionInfo,
+      setSelectedMessage,
+      setLoading,
+      setError,
+      sendMessage,
+      loadDlqMessages,
+      replayMessage,
+    }),
+    [
+      state, // the full state object
+      sendMessage,
+      loadDlqMessages,
+      replayMessage,
+    ]
+  );
 
   return (
     <MonitorContext.Provider value={contextValue}>
