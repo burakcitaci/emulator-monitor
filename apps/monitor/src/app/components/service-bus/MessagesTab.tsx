@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { MessagesDataTable } from './MessagesDataTable';
 import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
-import { useServiceBus, Message } from '../../hooks/useServiceBus';
+import { useServiceBus } from '../../hooks/useServiceBus';
 import { Label } from '../ui/label';
 import {
   Select,
@@ -11,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
+import { Message } from '@e2e-monitor/entities';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { RefreshCcw } from 'lucide-react';
@@ -24,6 +24,13 @@ type PrimarySelection =
   | { kind: 'queue'; name: string }
   | { kind: 'topic'; name: string }
   | null;
+
+interface GetMessagesParams {
+  namespace: string;
+  queue: string;
+  topic: string;
+  subscription: string;
+}
 
 export const MessagesTab: React.FC<MessagesTabProps> = ({
   messages,
@@ -45,7 +52,6 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   const [primary, setPrimary] = useState<PrimarySelection>(null);
   const [namespace, setNamespace] = useState<string>('');
   const [subscription, setSubscription] = useState<string>('');
-
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -54,30 +60,38 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   const resolveNamespace = useCallback(() => {
     if (!primary) return '';
     const item = queuesAndTopics.find(
-      (i) => i.type === primary.kind && i.name === primary.name
+      (i) => i.type === primary.kind && i.name === primary.name,
     );
     return item?.namespace ?? '';
   }, [primary, queuesAndTopics]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setNamespace(resolveNamespace());
   }, [resolveNamespace]);
 
-  // Prepare subscriptions when topic is selected
   const topicSubscriptions = useMemo(() => {
-    if (primary?.kind !== 'topic') return [] as string[];
+    if (primary?.kind !== 'topic') return [];
     return getSubscriptionsByTopic(primary.name);
   }, [primary, getSubscriptionsByTopic]);
 
-  React.useEffect(() => {
-    if (primary?.kind !== 'topic') return setSubscription('');
+  useEffect(() => {
+    if (primary?.kind !== 'topic') {
+      setSubscription('');
+      return;
+    }
+
     const subs = topicSubscriptions;
-    if (!subs?.length) return setSubscription('');
+    if (!subs?.length) {
+      setSubscription('');
+      return;
+    }
+
     setSubscription(subs.includes('default') ? 'default' : subs[0]);
   }, [primary, topicSubscriptions]);
 
   const handlePrimaryChange = useCallback((value: string) => {
     const [kind, name] = value.split('::');
+
     if (kind === 'queue') {
       setPrimary({ kind: 'queue', name });
     } else if (kind === 'topic') {
@@ -85,56 +99,68 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     } else {
       setPrimary(null);
     }
+
     setLocalMessages([]);
     setFetchError(null);
   }, []);
 
+  const buildMessagesParams = useCallback((): GetMessagesParams | null => {
+    if (!primary) return null;
+
+    return {
+      namespace,
+      queue: primary.kind === 'queue' ? primary.name : '',
+      topic: primary.kind === 'topic' ? primary.name : '',
+      subscription: primary.kind === 'topic' ? subscription : '',
+    };
+  }, [primary, namespace, subscription]);
+
   const loadMessages = useCallback(async () => {
+    if (!primary) return;
     if (primary && !namespace) return;
-    if (primary?.kind === 'topic' && !subscription) return;
+    if (primary.kind === 'topic' && !subscription) return;
 
     console.log('Loading messages for:', { primary, namespace, subscription });
     setIsFetching(true);
 
     try {
-      const params: any = primary
-        ? {
-            namespace,
-            queue: primary.kind === 'queue' ? primary.name : '',
-            topic: primary.kind === 'topic' ? primary.name : '',
-            subscription: primary.kind === 'topic' ? subscription : '',
-          }
-        : {};
-
+      const params = buildMessagesParams();
+      if (!params) return;
       console.log('Making API call with params:', params);
+
       const res = await getMessages(params);
       console.log('API response:', res);
 
       setLocalMessages(res.messages || []);
       setHasLoaded(true);
-
-      // Only clear error if API call succeeds
       setFetchError(null);
+
       console.log('Messages loaded successfully');
-    } catch (e) {
-      console.error('Failed to load messages:', e);
-      setFetchError(e instanceof Error ? e.message : 'Failed to load messages');
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to load messages';
+      setFetchError(errorMessage);
       setLocalMessages([]);
     } finally {
       setIsFetching(false);
     }
-  }, [primary, namespace, subscription, getMessages]);
+  }, [primary, namespace, subscription, getMessages, buildMessagesParams]);
 
-  // Initial load on mount
-  React.useEffect(() => {
+  useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
 
-  const canLoad =
-    !primary ||
-    (primary && namespace && (primary.kind === 'queue' || subscription));
+  const canLoad = useMemo(() => {
+    if (!primary) return true;
+    if (!namespace) return false;
+    if (primary.kind === 'topic' && !subscription) return false;
+    return true;
+  }, [primary, namespace, subscription]);
 
-  const displayed = hasLoaded ? localMessages : messages;
+  const displayedMessages = hasLoaded ? localMessages : messages;
+  const messageCount = displayedMessages?.length || 0;
+  const isTopicSelected = primary?.kind === 'topic';
 
   return (
     <div className="space-y-6">
@@ -151,6 +177,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       <div className="flex items-center justify-between p-6 bg-card border rounded-lg">
         <div className="space-y-3">
           <Label className="text-base font-medium">Select Queue or Topic</Label>
+
           <div className="flex items-center gap-3">
             <Select
               value={primary ? `${primary.kind}::${primary.name}` : ''}
@@ -175,6 +202,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
                     </div>
                   </SelectItem>
                 ))}
+
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
                   Topics
                 </div>
@@ -190,7 +218,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
             </Select>
 
             {/* Subscription selector only for topics */}
-            {primary?.kind === 'topic' && (
+            {isTopicSelected && (
               <>
                 <Label className="text-sm text-muted-foreground">
                   Subscription
@@ -241,13 +269,14 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
         <div className="flex items-center space-x-3 bg-accent/30 px-4 py-3 rounded-sm border border-border/50">
           <span className="text-sm font-medium">
             <Badge variant="outline" className="mr-2 rounded-sm">
-              {displayed?.length || 0}
+              {messageCount}
             </Badge>
             messages
           </span>
         </div>
       </div>
 
+      {/* Error Messages */}
       {configError && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
           <p className="text-sm text-destructive">{String(configError)}</p>
@@ -263,7 +292,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       {/* Table */}
       <div className="w-full">
         <MessagesDataTable
-          messages={displayed}
+          messages={displayedMessages}
           onMessageSelect={onMessageSelect}
           onMessageReplay={(messageId: string) =>
             console.log('Replay message', messageId)

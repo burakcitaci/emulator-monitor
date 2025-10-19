@@ -1,6 +1,6 @@
 import React from 'react';
-import { DeadLetterMessage, Message } from '../../hooks/useServiceBus';
-import { ConnectionInfo } from '@e2e-monitor/entities';
+import { DeadLetterMessage } from '../../hooks/useServiceBus';
+import { ConnectionInfo, Message } from '@e2e-monitor/entities';
 
 interface HeaderProps {
   connectionInfo: ConnectionInfo;

@@ -5,12 +5,11 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { SendForm, ConnectionInfo } from '@e2e-monitor/entities';
+import { SendForm, ConnectionInfo, Message } from '@e2e-monitor/entities';
 import {
   useServiceBus,
   DeadLetterMessage,
   DeadLetterMessageResponse,
-  Message,
 } from './useServiceBus';
 import { useServiceBusConfig } from './useServiceBusConfig';
 import toast from 'react-hot-toast';
@@ -62,7 +61,7 @@ interface MonitorActions {
 export type MonitorContextType = MonitorState & MonitorActions;
 
 export const MonitorContext = createContext<MonitorContextType | undefined>(
-  undefined
+  undefined,
 );
 
 const initialState: MonitorState = {
@@ -171,10 +170,10 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
 
       const destination = state.sendForm.queueName;
       const nsFromQueue = queuesAndTopics.find(
-        (i) => i.type === 'queue' && i.name === destination
+        (i) => i.type === 'queue' && i.name === destination,
       )?.namespace;
       const nsFromTopic = queuesAndTopics.find(
-        (i) => i.type === 'topic' && i.name === destination
+        (i) => i.type === 'topic' && i.name === destination,
       )?.namespace;
       const resolvedNamespace =
         nsFromQueue ||
@@ -184,10 +183,10 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
 
       // Determine destination type (queue or topic) and enrich application properties
       const isQueue = !!queuesAndTopics.find(
-        (i) => i.type === 'queue' && i.name === destination
+        (i) => i.type === 'queue' && i.name === destination,
       );
       const isTopic = !!queuesAndTopics.find(
-        (i) => i.type === 'topic' && i.name === destination
+        (i) => i.type === 'topic' && i.name === destination,
       );
       const subs = isTopic ? getSubscriptionsByTopic(destination) : undefined;
       const preferredSub =
@@ -226,7 +225,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         {
           duration: 3000,
           icon: '🚀',
-        }
+        },
       );
 
       // Refresh messages
@@ -294,10 +293,10 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
           : 'default';
 
         const nsFromQueue = queuesAndTopics.find(
-          (i) => i.type === 'queue' && i.name === topicName
+          (i) => i.type === 'queue' && i.name === topicName,
         )?.namespace;
         const nsFromTopic = queuesAndTopics.find(
-          (i) => i.type === 'topic' && i.name === topicName
+          (i) => i.type === 'topic' && i.name === topicName,
         )?.namespace;
         const dlqNamespace =
           nsFromQueue ||
@@ -324,7 +323,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     },
-    [queuesAndTopics, config, getDeadLetterMessages]
+    [queuesAndTopics, config, getDeadLetterMessages],
   );
 
   /**
@@ -336,7 +335,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
 
       try {
         const messageToReplay = state.dlqMessages.messages.find(
-          (msg: DeadLetterMessage) => msg.messageId === messageId
+          (msg: DeadLetterMessage) => msg.messageId === messageId,
         );
         if (!messageToReplay) throw new Error('Message not found');
 
@@ -352,7 +351,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     },
-    [state.dlqMessages.messages, state.dlqQueue, loadDlqMessages]
+    [state.dlqMessages.messages, state.dlqQueue, loadDlqMessages],
   );
   const contextValue = useMemo<MonitorContextType>(
     () => ({
@@ -375,7 +374,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
       sendMessage,
       loadDlqMessages,
       replayMessage,
-    ]
+    ],
   );
 
   return (

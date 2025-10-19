@@ -5,11 +5,21 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
-import { Message, MessageState } from '@e2e-monitor/entities';
+import { Message } from '@e2e-monitor/entities';
+
+export enum MessageState {
+  ACTIVE = 'active', // Message is available for processing
+  DEFERRED = 'deferred', // Message processing postponed
+  SCHEDULED = 'scheduled', // Message scheduled for future delivery
+  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
+  COMPLETED = 'completed', // Message successfully processed
+  ABANDONED = 'abandoned', // Message processing failed, returned to queue
+  RECEIVED = 'received', // Message received but not yet completed
+}
 
 // Helper function to get badge variant based on status
 const getStatusBadgeVariant = (
-  status?: string
+  status?: string,
 ):
   | 'default'
   | 'active'
@@ -53,7 +63,7 @@ interface MessagesDataTableProps {
 const createColumns = (
   onMessageSelect: (message: Message) => void,
   onMessageReplay: (messageId: string) => void,
-  onMessageDelete: (messageId: string) => void
+  onMessageDelete: (messageId: string) => void,
 ): ColumnDef<Message>[] => [
   {
     accessorKey: 'messageId',
@@ -181,7 +191,7 @@ export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
 }) => {
   const columns = React.useMemo(
     () => createColumns(onMessageSelect, onMessageReplay, onMessageDelete),
-    [onMessageSelect, onMessageReplay, onMessageDelete]
+    [onMessageSelect, onMessageReplay, onMessageDelete],
   );
 
   return (

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Shared types and interfaces between backend and frontend
 import { ServiceBusMessage } from '@azure/service-bus';
+import { MessageState } from './message-state';
 // Service Bus Configuration Types
 export interface ServiceBusNamespace {
   Name: string;
@@ -202,16 +203,6 @@ export interface QueueTopicItem {
   namespace: string;
   parentTopic?: string;
   properties: QueueProperties | TopicProperties;
-}
-
-export enum MessageState {
-  ACTIVE = 'active', // Message is available for processing
-  DEFERRED = 'deferred', // Message processing postponed
-  SCHEDULED = 'scheduled', // Message scheduled for future delivery
-  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
-  COMPLETED = 'completed', // Message successfully processed
-  ABANDONED = 'abandoned', // Message processing failed, returned to queue
-  RECEIVED = 'received', // Message received but not yet completed
 }
 
 export type MessageDirection = 'incoming' | 'outgoing';
