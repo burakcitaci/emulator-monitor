@@ -20,7 +20,7 @@ import { ThemeToggle } from './components/common/ThemeToggle';
 import { AlertCircle } from 'lucide-react';
 
 import { ConnectionForm } from '@e2e-monitor/entities';
-import { DockerImagesSidebar } from './components/containers';
+import { useServiceBusConfig } from './hooks/api/useServiceBusConfig';
 
 const MonitorContent: React.FC = () => {
   const {
@@ -37,6 +37,8 @@ const MonitorContent: React.FC = () => {
     isLoading,
     error,
   } = useMonitor();
+
+  const { config: serviceBusConfig } = useServiceBusConfig();
 
   const [connectionForm, setConnectionForm] = useState<ConnectionForm>({
     connectionString: '',
@@ -83,8 +85,8 @@ const MonitorContent: React.FC = () => {
   return (
     <SidebarProvider defaultOpen={true}>
       <ContainerSidebar />
-      <SidebarInset>
-        <header className="flex h-16 items-center gap-2 border-b px-2 sm:px-3">
+      <SidebarInset className="overflow-hidden">
+        <header className="flex h-16 items-center gap-2 border-b px-2 sm:px-3 shrink-0">
           <SidebarTrigger className="flex-shrink-0" />
           <Separator orientation="vertical" className="h-4 hidden sm:block" />
           <div className="flex-1 min-w-0">
@@ -92,6 +94,11 @@ const MonitorContent: React.FC = () => {
               connectionInfo={connectionInfo}
               messages={messages}
               dlqMessages={dlqMessages.messages}
+              serviceBusConfig={serviceBusConfig}
+              onServiceBusInitialized={() => {
+                // Optional: refresh data after initialization
+                console.log('Service Bus initialized successfully');
+              }}
             />
           </div>
           <div className="flex-shrink-0">
@@ -101,24 +108,26 @@ const MonitorContent: React.FC = () => {
 
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <main className="p-8">
-          {isLoading && (
-            <div className="flex items-center justify-center p-12">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-              <p className="ml-3 text-muted-foreground">Loading...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-destructive" />
-                <span className="text-destructive">{error}</span>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="p-4 sm:p-6 lg:p-8 max-w-full">
+            {isLoading && (
+              <div className="flex items-center justify-center p-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                <p className="ml-3 text-muted-foreground">Loading...</p>
               </div>
-            </div>
-          )}
+            )}
 
-          {renderActiveTab()}
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-destructive" />
+                  <span className="text-destructive">{error}</span>
+                </div>
+              </div>
+            )}
+
+            {renderActiveTab()}
+          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>

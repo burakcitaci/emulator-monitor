@@ -27,6 +27,7 @@ export enum MessageState {
   DEFERRED = 'deferred',
   SCHEDULED = 'scheduled',
   DEAD_LETTERED = 'dead-lettered',
+  COMPLETED = 'completed',
 }
 
 @Schema({ timestamps: true })
@@ -76,10 +77,10 @@ export class Message {
 
   @Prop({
     type: String,
-    enum: ['active', 'deferred', 'scheduled', 'dead-lettered'],
+    enum: ['active', 'deferred', 'scheduled', 'dead-lettered', 'completed'],
     index: true, // Index for faster queries on state
   })
-  state?: 'active' | 'deferred' | 'scheduled' | 'dead-lettered';
+  state?: 'active' | 'deferred' | 'scheduled' | 'dead-lettered' | 'completed';
 
   @Prop({ type: Number })
   sequenceNumber?: number;

@@ -6,9 +6,8 @@ import React, {
   useRef,
 } from 'react';
 import { MessagesDataTable } from './MessagesDataTable';
-import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
-import { useServiceBus } from '../../hooks/useServiceBus';
-import { Label } from '../ui/label';
+import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
+import { useServiceBus } from '../../hooks/api/useServiceBus';
 import {
   Select,
   SelectContent,
@@ -316,12 +315,27 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     canLoad,
   ]);
 
+  // Auto-refresh messages every 30 seconds
+  useEffect(() => {
+    // Only start auto-refresh if we have successfully loaded messages and can load
+    if (!hasLoaded || !canLoad) return;
+
+    const intervalId = setInterval(() => {
+      console.log('Auto-refreshing messages...');
+      void loadMessages();
+    }, 30000); // 30 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [hasLoaded, canLoad, loadMessages]);
+
   const displayedMessages = hasLoaded ? localMessages : messages;
   const messageCount = displayedMessages?.length || 0;
   const isTopicSelected = primary?.kind === 'topic';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       {/* Header */}
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold">Service Bus Messages</h2>
@@ -331,8 +345,8 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
         </p>
       </div>
       {/* Filters */}
-      <div className="flex flex-row items-center justify-between bg-card ">
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2 min-w-0">
           {/* Queue/Topic Selector */}
           <Select
             value={primary ? `${primary.kind}::${primary.name}` : 'all'}
@@ -340,7 +354,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
             disabled={configLoading}
           >
             <SelectTrigger
-              className="h-10 w-[220px] sm:w-[280px] rounded-sm"
+              className="h-10 w-full sm:w-[220px] md:w-[280px] rounded-sm"
               disabled={configLoading}
             >
               <SelectValue placeholder="Select queue or topic (optional)..." />
@@ -384,7 +398,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
             variant="outline"
             disabled={!canLoad || isFetching}
             onClick={loadMessages}
-            className="h-10 rounded-sm"
+            className="h-10 rounded-sm whitespace-nowrap"
           >
             <RefreshCcw
               className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
@@ -399,7 +413,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
               disabled={configLoading || topicSubscriptions.length === 0}
             >
               <SelectTrigger
-                className="h-10 w-[180px] rounded-sm"
+                className="h-10 w-full sm:w-[180px] rounded-sm"
                 disabled={configLoading || topicSubscriptions.length === 0}
               >
                 <SelectValue placeholder="Select subscription..." />
@@ -422,7 +436,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
         </div>
 
         {/* Message Counter */}
-        <div className="flex items-center justify-center bg-accent/30 px-4 py-2 rounded-sm border border-border/50">
+        <div className="flex items-center justify-center bg-accent/30 px-4 py-2 rounded-sm border border-border/50 shrink-0">
           <Badge variant="outline" className="mr-2 rounded-sm">
             {messageCount}
           </Badge>
@@ -444,7 +458,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       )}
 
       {/* Table */}
-      <div className="w-full">
+      <div className="w-full min-w-0">
         <MessagesDataTable
           messages={displayedMessages}
           onMessageSelect={onMessageSelect}

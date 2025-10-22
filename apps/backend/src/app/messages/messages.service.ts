@@ -5,20 +5,17 @@ import { Model } from 'mongoose';
 import {
   MessageDocument,
   Message,
-  MessageStatus,
   MessageState,
 } from './message.schema';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   ServiceBusClient,
-  ServiceBusReceivedMessage,
   ServiceBusReceiver,
 } from '@azure/service-bus';
 import {
   ConfigService,
   ServiceBusQueue,
   ServiceBusTopic,
-  ServiceBusSubscription,
 } from '../common/config.service';
 import Long from 'long';
 import * as parse from 'iso8601-duration';
@@ -36,665 +33,339 @@ export class MessageService {
     );
   }
 
-  // @Cron(CronExpression.EVERY_30_SECONDS)
-  // async monitorMessages() {
-  //   try {
-  //     console.log('[MonitorMessages] Starting monitoring cycle...');
-  //     // Reconcile MongoDB-saved messages against Service Bus. Any missing are marked completed.
-  //     await this.reconcileMongoWithServiceBus();
-
-  //     console.log('[MonitorMessages] Monitoring cycle completed successfully');
-  //   } catch (error) {
-  //     console.error('[MonitorMessages] Fatal error during monitoring:', error);
-  //   }
-  // }
-
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async monitorMessages() {
     const config = this.configService.getServiceBusConfiguration();
     const queues = config.UserConfig.Namespaces.flatMap(
       (ns) => ns.Queues || []
     );
-    let reciever;
+    const topics = config.UserConfig.Namespaces.flatMap(
+      (ns) => ns.Topics || []
+    );
+
+    // Skip monitoring if no queues or topics configured
+    if (queues.length === 0 && topics.length === 0) {
+      console.log('[MonitorMessages] No queues or topics configured, skipping monitoring');
+      return;
+    }
+
+    // Check if Service Bus client is available
+    if (!this.serviceBusClient) {
+      console.log('[MonitorMessages] Service Bus client not available, skipping monitoring');
+      return;
+    }
+
+    // Monitor queues
     for (const queue of queues) {
-      reciever = this.serviceBusClient.createReceiver(queue.Name);
-
-      // Peek messages from the queue
-      const messages = await reciever.peekMessages(100, {
-        fromSequenceNumber: Long.fromNumber(1),
-      });
-
-      if (messages.length > 0) {
-        for (const msg of messages) {
-          console.log(
-            `[MonitorMessages] Processing message ${msg.messageId} in ${queue.Name} with state: ${msg.state}`
-          );
-
-          await this.messageModel.updateOne(
-            { messageId: msg.messageId }, // Match by messageId only
-            {
-              $set: {
-                body: msg.body,
-                subject: queue.Name,
-                state: msg.state,
-                applicationProperties: msg.applicationProperties || undefined,
-                lastUpdated: new Date(),
-              },
-            },
-            { upsert: true }
-          );
-        }
-      }
-      const ids = await this.messageModel
-        .find({ subject: queue.Name })
-        .distinct('messageId')
-        .exec();
-      console.log(ids);
-      const serviceBusIds = messages.map((m) => m.messageId);
-     //when message is in service bus but not processed marked as not processed
-      await this.messageModel
-        .updateMany(
-          { subject: queue.Name, messageId: { $nin: serviceBusIds } },
-          {
-            $set: {
-              state: 'completed',
-              lastUpdated: new Date(),
-            },
-          }
-        )
-        .exec();
-
-      const now = new Date();
-      const ttlSeconds = parse.toSeconds(parse.parse('PT1H')); // 3600
-      const expiryThreshold = new Date(now.getTime() - ttlSeconds * 1000);
-
-      const result = await this.messageModel
-        .deleteMany({
-          createdAt: { $lt: expiryThreshold },
-        })
-        .exec();
-      console.log(
-        `[MonitorMessages] Deleted ${result.deletedCount} expired messages from ${queue.Name}`
-      );
-    }
-    await reciever?.close();
-  }
-  /**
-   * Separate cron to cleanup expired messages (by per-message TTL and entity default TTL)
-   */
-  //@Cron(CronExpression.EVERY_MINUTE)
-  async cleanupExpiredMessagesCron() {
-    try {
-      const config = this.configService.getServiceBusConfiguration();
-      const queues = config.UserConfig.Namespaces.flatMap(
-        (ns) => ns.Queues || []
-      );
-      const topics = config.UserConfig.Namespaces.flatMap(
-        (ns) => ns.Topics || []
-      );
-      await this.cleanupExpiredMessages(queues, topics);
-    } catch (error) {
-      console.error('[CleanupExpired] Cron failed:', error);
-    }
-  }
-
-  /**
-   * Reconcile all messages stored in MongoDB against Service Bus peek results.
-   * If a messageId no longer appears in Service Bus for its path, mark it completed.
-   */
-  private async reconcileMongoWithServiceBus(): Promise<void> {
-    // Drive from MongoDB: get distinct stored paths and reconcile those
-    const allPaths = (await this.messageModel.distinct('queue')) as (
-      | string
-      | null
-      | undefined
-    )[];
-    const paths: string[] = allPaths
-      .filter((p): p is string => typeof p === 'string')
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-
-    if (!paths || paths.length === 0) {
-      console.log('[Reconcile] No paths found in MongoDB to reconcile');
-      return;
-    }
-
-    console.log(`[Reconcile] Reconciling ${paths.length} path(s)`);
-
-    // Process in parallel
-    await Promise.allSettled(
-      paths.map(async (path) => {
-        let receiver: ServiceBusReceiver | undefined;
-        try {
-          // Determine if path is queue, topic/subscription, or a DLQ variant
-          const parts = path.split('/');
-          const isDlq = parts[parts.length - 1] === 'DLQ';
-          if (isDlq) {
-            if (parts.length === 2) {
-              // queue/DLQ
-              const [queueName] = parts;
-              receiver = this.serviceBusClient.createReceiver(queueName, {
-                subQueueType: 'deadLetter',
-              });
-            } else if (parts.length === 3) {
-              // topic/sub/DLQ
-              const [topicName, subscriptionName] = parts;
-              receiver = this.serviceBusClient.createReceiver(
-                topicName,
-                subscriptionName,
-                { subQueueType: 'deadLetter' }
-              );
-            } else {
-              // Fallback: skip malformed DLQ path
-              console.warn(
-                `[Reconcile] Skipping unrecognized DLQ path: ${path}`
-              );
-              return;
-            }
-          } else if (parts.length === 2) {
-            // topic/subscription
-            const [topicName, subscriptionName] = parts;
-            receiver = this.serviceBusClient.createReceiver(
-              topicName,
-              subscriptionName
-            );
-          } else {
-            // plain queue
-            receiver = this.serviceBusClient.createReceiver(path);
-          }
-
-          const currentIds = await this.collectCurrentIds(receiver);
-          await this.reconcileCompletedForPath(path, currentIds);
-        } catch (error: unknown) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          console.error(`[Reconcile] Error reconciling path ${path}:`, err);
-        } finally {
-          if (receiver) {
-            try {
-              await receiver.close();
-            } catch (closeError) {
-              console.error(
-                `[Reconcile] Error closing receiver for ${path}:`,
-                closeError
-              );
-            }
-          }
-        }
-      })
-    );
-  }
-
-  // backfillMissingQueues removed to simplify reconciliation
-
-  private async monitorQueues(queues: ServiceBusQueue[]): Promise<void> {
-    if (!queues || queues.length === 0) {
-      console.log('[MonitorQueues] No queues to monitor');
-      return;
-    }
-
-    console.log(`[MonitorQueues] Monitoring ${queues.length} queue(s)`);
-
-    // Process queues in parallel but with controlled concurrency
-    const results = await Promise.allSettled(
-      queues.map((queue) => this.processQueue(queue))
-    );
-
-    // Log any failures
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(
-          `[MonitorQueues] Failed to process queue ${queues[index].Name}:`,
-          result.reason
-        );
-      }
-    });
-  }
-
-  private async processQueue(queue: ServiceBusQueue): Promise<void> {
-    let receiver;
-    try {
-      console.log(`[ProcessQueue] Processing queue: ${queue.Name}`);
-      receiver = this.serviceBusClient.createReceiver(queue.Name);
-
-      // Peek messages from the queue
-      const messages = await receiver.peekMessages(100, {
-        fromSequenceNumber: Long.fromNumber(1),
-      });
-
-      console.log(
-        `[ProcessQueue] Found ${messages.length} message(s) in ${queue.Name}`
-      );
-
-      // Process messages in parallel for better performance
-      await Promise.allSettled(
-        messages.map((msg) => this.processMessage(msg, queue.Name))
-      );
-
-      // Mark messages that are no longer present as completed
-      const currentIds = await this.collectCurrentIds(receiver);
-      await this.reconcileCompletedForPath(queue.Name, currentIds);
-
-      // Clean up deferred messages after processing
-      await this.cleanDeferredMessages([queue]);
-    } catch (error) {
-      console.error(
-        `[ProcessQueue] Error processing queue ${queue.Name}:`,
-        error
-      );
-      throw error;
-    } finally {
-      // Ensure receiver is always closed
-      if (receiver) {
-        try {
-          await receiver.close();
-        } catch (closeError) {
-          console.error(
-            `[ProcessQueue] Error closing receiver for ${queue.Name}:`,
-            closeError
-          );
-        }
-      }
-    }
-  }
-
-  private async processMessage(
-    msg: ServiceBusReceivedMessage,
-    queueOrTopic: string
-  ): Promise<void> {
-    try {
-      console.log(
-        `[ProcessMessage] Processing message ${msg.messageId} in ${queueOrTopic} with state: ${msg.state}`
-      );
-
-      // Map Azure Service Bus state to our status
-      // Status reflects what the cron job observed in Service Bus
-      let status = MessageStatus.ACTIVE; // default
-      const state = msg.state;
-
-      switch (state) {
-        case MessageState.ACTIVE:
-          // Message is in queue, waiting to be processed
-          status = MessageStatus.ACTIVE;
-          break;
-        case MessageState.DEFERRED:
-          // Message processing was postponed
-          status = MessageStatus.DEFERRED;
-          break;
-        case MessageState.SCHEDULED:
-          // Message is scheduled for future delivery
-          status = MessageStatus.SCHEDULED;
-          break;
-        default:
-          status = MessageStatus.ACTIVE;
-      }
-
-      await this.upsertMessageFromServiceBus(msg, queueOrTopic, status, state);
-
-      console.log(
-        `[ProcessMessage] Updated message ${msg.messageId} - Status: ${status}, State: ${state}`
-      );
-    } catch (error) {
-      console.error(
-        `[ProcessMessage] Error processing message ${msg.messageId}:`,
-        error
-      );
-      // Don't throw - let other messages continue processing
-    }
-  }
-
-  private async monitorTopics(topics: ServiceBusTopic[]): Promise<void> {
-    if (!topics || topics.length === 0) {
-      console.log('[MonitorTopics] No topics to monitor');
-      return;
-    }
-
-    console.log(`[MonitorTopics] Monitoring ${topics.length} topic(s)`);
-
-    // Process topics in parallel
-    const results = await Promise.allSettled(
-      topics.map((topic) => this.processTopic(topic))
-    );
-
-    // Log any failures
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(
-          `[MonitorTopics] Failed to process topic ${topics[index].Name}:`,
-          result.reason
-        );
-      }
-    });
-  }
-
-  private async processTopic(topic: ServiceBusTopic): Promise<void> {
-    const subscriptions = topic.Subscriptions || [];
-
-    if (subscriptions.length === 0) {
-      console.log(`[ProcessTopic] No subscriptions for topic ${topic.Name}`);
-      return;
-    }
-
-    // Process all subscriptions in parallel
-    await Promise.allSettled(
-      subscriptions.map((subscription: ServiceBusSubscription) =>
-        this.processTopicSubscription(topic.Name, subscription)
-      )
-    );
-  }
-
-  private async processTopicSubscription(
-    topicName: string,
-    subscription: ServiceBusSubscription
-  ): Promise<void> {
-    let receiver;
-    try {
-      const subscriptionName = subscription.Name;
-      console.log(
-        `[ProcessTopicSubscription] ${topicName}/${subscriptionName}`
-      );
-
-      receiver = this.serviceBusClient.createReceiver(
-        topicName,
-        subscriptionName
-      );
-
-      const messages = await receiver.peekMessages(100);
-      console.log(
-        `[ProcessTopicSubscription] Found ${messages.length} message(s)`
-      );
-
-      // Process messages in parallel
-      await Promise.allSettled(
-        messages.map((msg) =>
-          this.processMessage(msg, `${topicName}/${subscriptionName}`)
-        )
-      );
-
-      // Mark messages that are no longer present as completed
-      const currentIds = await this.collectCurrentIds(receiver);
-      await this.reconcileCompletedForPath(
-        `${topicName}/${subscriptionName}`,
-        currentIds
-      );
-    } catch (error) {
-      console.error(
-        `[ProcessTopicSubscription] Error processing topic ${topicName}/${subscription.Name}:`,
-        error
-      );
-      throw error;
-    } finally {
-      // Ensure receiver is always closed
-      if (receiver) {
-        try {
-          await receiver.close();
-        } catch (closeError) {
-          console.error(
-            `[ProcessTopicSubscription] Error closing receiver for ${topicName}/${subscription.Name}:`,
-            closeError
-          );
-        }
-      }
-    }
-  }
-  private async cleanDeferredMessages(
-    queues: ServiceBusQueue[]
-  ): Promise<void> {
-    console.log('[DeferredSync] Starting deferred message synchronization...');
-
-    for (const queue of queues) {
-      // Find deferred messages stored in MongoDB
-      const deferredMsgs = await this.messageModel.find({
-        queue: queue.Name,
-        state: MessageState.DEFERRED,
-        sequenceNumber: { $ne: null },
-      });
-
-      if (deferredMsgs.length === 0) {
-        console.log(
-          `[DeferredSync] No deferred messages found for ${queue.Name}`
-        );
-        continue;
-      }
-
-      console.log(
-        `[DeferredSync] Found ${deferredMsgs.length} deferred messages in MongoDB for ${queue.Name}`
-      );
-
-      const receiver = this.serviceBusClient.createReceiver(queue.Name);
-      const stillDeferred: string[] = [];
-
-      for (const msg of deferredMsgs) {
-        if (!msg.sequenceNumber) continue;
-
-        try {
-          const deferredMessage = await receiver.receiveDeferredMessages([
-            Long.fromNumber(msg.sequenceNumber),
-          ]);
-
-          if (deferredMessage && deferredMessage.length > 0) {
-            const sbMessage = deferredMessage[0];
-
-            await this.upsertMessageFromServiceBus(
-              sbMessage,
-              queue.Name,
-              MessageStatus.DEFERRED,
-              MessageState.DEFERRED
-            );
-
-            stillDeferred.push(msg.messageId + '');
-            console.log(
-              `[DeferredSync] Synced deferred message ${msg.messageId} (Seq: ${msg.sequenceNumber})`
-            );
-          } else {
-            // Not found — message might have expired or been completed
-            console.log(
-              `[DeferredSync] Deferred message ${msg.messageId} (Seq: ${msg.sequenceNumber}) not found in queue, marking expired`
-            );
-
-            await this.messageModel.updateOne(
-              { _id: msg._id },
-              {
-                $set: {
-                  status: MessageStatus.COMPLETED,
-                  state: MessageState.DEFERRED,
-                  lastUpdated: new Date(),
-                },
-              }
-            );
-          }
-        } catch (error: unknown) {
-          const err = error as { code?: string };
-          if (err && err.code === 'MessageNotFound') {
-            console.warn(
-              `[DeferredSync] Deferred message ${msg.messageId} no longer exists (MessageNotFound)`
-            );
-
-            await this.messageModel.updateOne(
-              { _id: msg._id },
-              {
-                $set: {
-                  status: MessageStatus.COMPLETED,
-                  lastUpdated: new Date(),
-                },
-              }
-            );
-          } else {
-            console.error(
-              `[DeferredSync] Error receiving deferred message ${msg.messageId}:`,
-              err
-            );
-          }
-        }
-      }
-
-      await receiver.close();
-
-      console.log(
-        `[DeferredSync] Completed syncing deferred messages for ${queue.Name}. Still deferred: ${stillDeferred.length}`
-      );
-    }
-
-    console.log('[DeferredSync] Deferred message synchronization finished.');
-  }
-
-  private async upsertMessageFromServiceBus(
-    msg: ServiceBusReceivedMessage,
-    queueOrTopic: string,
-    status: string,
-    state: string
-  ): Promise<void> {
-    const messageId = msg.messageId || msg.body?.id || 'unknown';
-    const existing = await this.messageModel.findOne({ messageId });
-
-    const payload = {
-      messageId,
-      body: msg.body,
-      queue: queueOrTopic,
-      sequenceNumber: msg.sequenceNumber?.toNumber() || null,
-      enqueuedTimeUtc: msg.enqueuedTimeUtc,
-      state,
-      status,
-      lastUpdated: new Date(),
-      contentType: msg.contentType,
-      correlationId: msg.correlationId,
-      partitionKey: msg.partitionKey,
-      sessionId: msg.sessionId,
-      replyTo: msg.replyTo,
-      replyToSessionId: msg.replyToSessionId,
-      timeToLive: msg.timeToLive,
-      subject: msg.subject,
-      to: msg.to,
-      scheduledEnqueueTimeUtc: msg.scheduledEnqueueTimeUtc,
-      applicationProperties: msg.applicationProperties || undefined,
-    };
-
-    if (existing) {
-      await this.messageModel.updateOne({ messageId }, { $set: payload });
-    } else {
-      await this.messageModel.create(payload);
-    }
-  }
-  /**
-   * Check Dead Letter Queue for queues
-   */
-  private async monitorDeadLetterQueues(
-    queues: ServiceBusQueue[]
-  ): Promise<void> {
-    for (const queue of queues) {
-      let dlqReceiver;
+      let receiver;
       try {
-        console.log(
-          `[MonitorDLQ] Checking Dead Letter Queue for: ${queue.Name}`
-        );
+        receiver = this.serviceBusClient.createReceiver(queue.Name);
 
-        dlqReceiver = this.serviceBusClient.createReceiver(queue.Name, {
-          subQueueType: 'deadLetter',
+        // Peek messages from the queue
+        const messages = await receiver.peekMessages(100, {
+          fromSequenceNumber: Long.fromNumber(1),
         });
 
-        const messages = await dlqReceiver.peekMessages(100);
-        console.log(
-          `[MonitorDLQ] Found ${messages.length} dead-lettered message(s) in ${queue.Name}`
-        );
+        if (messages.length > 0) {
+          for (const msg of messages) {
+            console.log(
+              `[MonitorMessages] Processing message ${msg.messageId} in ${queue.Name} with state: ${msg.state}`
+            );
 
-        if (messages.length === 0) {
-          console.log(
-            `[MonitorDLQ] No messages in DLQ for ${queue.Name}. Deleting synced records from MongoDB...`
-          );
-          await this.messageModel.deleteMany({
-            queue: `${queue.Name}/DLQ`,
-            status: MessageStatus.DEAD_LETTERED,
-            state: MessageState.DEAD_LETTERED,
-          });
-          return;
+            // Map Service Bus state to our MessageState enum
+            let messageState: MessageState;
+            const serviceBusState = msg.state?.toString().toLowerCase() || 'active';
+
+            switch (serviceBusState) {
+              case 'deferred':
+                messageState = MessageState.DEFERRED;
+                break;
+              case 'scheduled':
+                messageState = MessageState.SCHEDULED;
+                break;
+              case 'dead-lettered':
+              case 'deadlettered':
+                messageState = MessageState.DEAD_LETTERED;
+                break;
+              case 'active':
+              default:
+                messageState = MessageState.ACTIVE;
+                break;
+            }
+
+            await this.messageModel.updateOne(
+              { messageId: msg.messageId }, // Match by messageId only
+              {
+                $set: {
+                  body: msg.body,
+                  queue: queue.Name, // Store in queue field for consistency
+                  state: messageState, // Use the actual Service Bus state
+                  applicationProperties: msg.applicationProperties || undefined,
+                  lastUpdated: new Date(),
+                },
+              },
+              { upsert: true }
+            );
+          }
         }
 
-        // Process dead-lettered messages
-        for (const msg of messages) {
-          await this.upsertMessageFromServiceBus(
-            msg,
-            `${queue.Name}/DLQ`,
-            MessageStatus.DEAD_LETTERED,
-            MessageState.DEAD_LETTERED
-          );
+        const ids = await this.messageModel
+          .find({ queue: queue.Name })
+          .distinct('messageId')
+          .exec();
+        console.log(ids);
+        const serviceBusIds = messages.map((m) => m.messageId);
+
+        // Mark messages that are not in Service Bus as completed, but only if they were active (being processed)
+        await this.messageModel
+          .updateMany(
+            { queue: queue.Name, messageId: { $nin: serviceBusIds }, state: MessageState.ACTIVE },
+            {
+              $set: {
+                state: MessageState.COMPLETED,
+                lastUpdated: new Date(),
+              },
+            }
+          )
+          .exec();
+
+        const now = new Date();
+        const ttlSeconds = parse.toSeconds(parse.parse('PT1H')); // 3600
+        const expiryThreshold = new Date(now.getTime() - ttlSeconds * 1000);
+
+        const result = await this.messageModel
+          .deleteMany({
+            queue: queue.Name,
+            createdAt: { $lt: expiryThreshold },
+          })
+          .exec();
+        console.log(
+          `[MonitorMessages] Deleted ${result.deletedCount} expired messages from ${queue.Name}`
+        );
+      } catch (error) {
+        console.error(`Error monitoring queue ${queue.Name}:`, error);
+        // Continue with other queues even if one fails
+      } finally {
+        if (receiver) {
+          try {
+            await receiver.close();
+          } catch (error) {
+            console.error(`Error closing receiver for queue ${queue.Name}:`, error);
+          }
+        }
+      }
+
+      // Also monitor dead letter queue for this queue
+      const deadLetterPath = `${queue.Name}/$DeadLetterQueue`;
+      console.log(`Creating receiver for queue dead letter queue: ${deadLetterPath}`);
+
+      let dlqReceiver;
+      try {
+        dlqReceiver = this.serviceBusClient.createReceiver(deadLetterPath);
+
+        // Peek messages from the dead letter queue
+        const dlqMessages = await dlqReceiver.peekMessages(100, {
+          fromSequenceNumber: Long.fromNumber(1),
+        });
+
+        if (dlqMessages.length > 0) {
+          for (const msg of dlqMessages) {
+            console.log(
+              `[MonitorMessages] Processing dead-lettered message ${msg.messageId} in ${deadLetterPath} with state: ${msg.state}`
+            );
+
+            // Dead-lettered messages should be marked as dead-lettered in our database
+            await this.messageModel.updateOne(
+              { messageId: msg.messageId }, // Match by messageId only
+              {
+                $set: {
+                  body: msg.body,
+                  queue: deadLetterPath, // Store in queue field for consistency
+                  state: MessageState.DEAD_LETTERED,
+                  applicationProperties: msg.applicationProperties || undefined,
+                  lastUpdated: new Date(),
+                },
+              },
+              { upsert: true }
+            );
+          }
         }
       } catch (error) {
-        console.error(
-          `[MonitorDLQ] Error checking DLQ for ${queue.Name}:`,
-          error
-        );
+        console.error(`Error monitoring queue dead letter queue ${deadLetterPath}:`, error);
+        // Dead letter queue might not exist yet, that's okay
       } finally {
         if (dlqReceiver) {
           try {
             await dlqReceiver.close();
-          } catch (closeError) {
-            console.error(
-              `[MonitorDLQ] Error closing DLQ receiver for ${queue.Name}:`,
-              closeError
-            );
+          } catch (error) {
+            console.error(`Error closing DLQ receiver for ${deadLetterPath}:`, error);
           }
         }
       }
     }
-  }
 
-  /**
-   * Check Dead Letter Queue for topic subscriptions
-   */
-  private async monitorDeadLetterTopics(
-    topics: ServiceBusTopic[]
-  ): Promise<void> {
+    // Monitor topics and subscriptions (including dead letter queues)
     for (const topic of topics) {
-      const subscriptions = topic.Subscriptions || [];
+      for (const subscription of topic.Subscriptions || []) {
+        // Monitor active subscription
+        // SDK requires "topic/Subscriptions/subscription" format for creating receivers
+        const receiverPath = `${topic.Name}/Subscriptions/${subscription.Name}`;
+        // But we store in MongoDB as "topic/subscription" for simplicity
+        const storagePath = `${topic.Name}/${subscription.Name}`;
+        console.log(`Creating receiver for topic subscription: ${receiverPath} (storing as: ${storagePath})`);
 
-      for (const subscription of subscriptions) {
+        let receiver;
+        try {
+          receiver = this.serviceBusClient.createReceiver(receiverPath);
+
+          // Peek messages from the topic subscription
+          const messages = await receiver.peekMessages(100, {
+            fromSequenceNumber: Long.fromNumber(1),
+          });
+
+          if (messages.length > 0) {
+            for (const msg of messages) {
+              console.log(
+                `[MonitorMessages] Processing message ${msg.messageId} in ${receiverPath} with state: ${msg.state}`
+              );
+
+              // Map Service Bus state to our MessageState enum
+              let messageState: MessageState;
+              const serviceBusState = msg.state?.toString().toLowerCase() || 'active';
+
+              switch (serviceBusState) {
+                case 'deferred':
+                  messageState = MessageState.DEFERRED;
+                  break;
+                case 'scheduled':
+                  messageState = MessageState.SCHEDULED;
+                  break;
+                case 'dead-lettered':
+                case 'deadlettered':
+                  messageState = MessageState.DEAD_LETTERED;
+                  break;
+                case 'active':
+                default:
+                  messageState = MessageState.ACTIVE;
+                  break;
+              }
+
+              await this.messageModel.updateOne(
+                { messageId: msg.messageId }, // Match by messageId only
+                {
+                  $set: {
+                    body: msg.body,
+                    queue: storagePath, // Store in queue field using simplified path
+                    state: messageState, // Use the actual Service Bus state
+                    applicationProperties: msg.applicationProperties || undefined,
+                    lastUpdated: new Date(),
+                  },
+                },
+                { upsert: true }
+              );
+            }
+          }
+
+          const ids = await this.messageModel
+            .find({ queue: storagePath })
+            .distinct('messageId')
+            .exec();
+          console.log(ids);
+          const serviceBusIds = messages.map((m) => m.messageId);
+
+          // Mark messages that are not in Service Bus as completed, but only if they were active (being processed)
+          await this.messageModel
+            .updateMany(
+              { queue: storagePath, messageId: { $nin: serviceBusIds }, state: MessageState.ACTIVE },
+              {
+                $set: {
+                  state: MessageState.COMPLETED,
+                  lastUpdated: new Date(),
+                },
+              }
+            )
+            .exec();
+
+          const now = new Date();
+          const ttlSeconds = parse.toSeconds(parse.parse('PT1H')); // 3600
+          const expiryThreshold = new Date(now.getTime() - ttlSeconds * 1000);
+
+          const result = await this.messageModel
+            .deleteMany({
+              queue: storagePath,
+              createdAt: { $lt: expiryThreshold },
+            })
+            .exec();
+          console.log(
+            `[MonitorMessages] Deleted ${result.deletedCount} expired messages from ${storagePath}`
+          );
+        } catch (error) {
+          console.error(`Error monitoring topic subscription ${receiverPath}:`, error);
+          // Continue with other subscriptions even if one fails
+        } finally {
+          if (receiver) {
+            try {
+              await receiver.close();
+            } catch (error) {
+              console.error(`Error closing receiver for ${receiverPath}:`, error);
+            }
+          }
+        }
+
+        // Also monitor dead letter queue for this subscription
+        // SDK requires full path with "Subscriptions"
+        const dlqReceiverPath = `${topic.Name}/Subscriptions/${subscription.Name}/$DeadLetterQueue`;
+        // Store as simplified path
+        const dlqStoragePath = `${topic.Name}/${subscription.Name}/$DeadLetterQueue`;
+        console.log(`Creating receiver for dead letter queue: ${dlqReceiverPath} (storing as: ${dlqStoragePath})`);
+
         let dlqReceiver;
         try {
-          console.log(
-            `[MonitorDLQ] Checking Dead Letter Queue for: ${topic.Name}/${subscription.Name}`
-          );
+          dlqReceiver = this.serviceBusClient.createReceiver(dlqReceiverPath);
 
-          dlqReceiver = this.serviceBusClient.createReceiver(
-            topic.Name,
-            subscription.Name,
-            {
-              subQueueType: 'deadLetter',
+          // Peek messages from the dead letter queue
+          const dlqMessages = await dlqReceiver.peekMessages(100, {
+            fromSequenceNumber: Long.fromNumber(1),
+          });
+
+          if (dlqMessages.length > 0) {
+            for (const msg of dlqMessages) {
+              console.log(
+                `[MonitorMessages] Processing dead-lettered message ${msg.messageId} in ${dlqReceiverPath} with state: ${msg.state}`
+              );
+
+              // Dead-lettered messages should be marked as dead-lettered in our database
+              await this.messageModel.updateOne(
+                { messageId: msg.messageId }, // Match by messageId only
+                {
+                  $set: {
+                    body: msg.body,
+                    queue: dlqStoragePath, // Store in queue field using simplified path
+                    state: MessageState.DEAD_LETTERED,
+                    applicationProperties: msg.applicationProperties || undefined,
+                    lastUpdated: new Date(),
+                  },
+                },
+                { upsert: true }
+              );
             }
-          );
-
-          const messages = await dlqReceiver.peekMessages(100);
-          console.log(
-            `[MonitorDLQ] Found ${messages.length} dead-lettered message(s) in ${topic.Name}/${subscription.Name}`
-          );
-
-          // Process dead-lettered messages
-          for (const msg of messages) {
-            await this.upsertMessageFromServiceBus(
-              msg,
-              `${topic.Name}/${subscription.Name}/DLQ`,
-              MessageStatus.DEAD_LETTERED,
-              MessageState.DEAD_LETTERED
-            );
           }
         } catch (error) {
-          console.error(
-            `[MonitorDLQ] Error checking DLQ for ${topic.Name}/${subscription.Name}:`,
-            error
-          );
+          console.error(`Error monitoring dead letter queue ${dlqReceiverPath}:`, error);
+          // Dead letter queue might not exist yet, that's okay
         } finally {
           if (dlqReceiver) {
             try {
               await dlqReceiver.close();
-            } catch (closeError) {
-              console.error(
-                `[MonitorDLQ] Error closing DLQ receiver for ${topic.Name}/${subscription.Name}:`,
-                closeError
-              );
+            } catch (error) {
+              console.error(`Error closing DLQ receiver for ${dlqReceiverPath}:`, error);
             }
           }
         }
       }
     }
   }
+
   // CRUD operations
   async findAll(filters?: {
     queue?: string;
@@ -709,7 +380,9 @@ export class MessageService {
 
       // Build a target path if topic/subscription provided
       let targetPath: string | undefined;
+
       if (filters.topic && filters.subscription) {
+        // For topic subscriptions, use the subscription path that matches how we store them
         targetPath = `${filters.topic}/${filters.subscription}`;
       } else if (filters.queue) {
         targetPath = filters.queue;
@@ -723,7 +396,8 @@ export class MessageService {
             { queue: targetPath },
             { to: targetPath },
             { 'applicationProperties.queue': targetPath },
-            { 'applicationProperties.topic': targetPath },
+            { 'applicationProperties.topic': filters.topic },
+            ...(filters.subscription ? [{ 'applicationProperties.subscription': filters.subscription }] : []),
           ],
         });
       }
@@ -803,8 +477,8 @@ export class MessageService {
 
       // Update old "sent" status to "active"
       const sentResult = await this.messageModel.updateMany(
-        { status: 'sent' },
-        { $set: { status: MessageStatus.ACTIVE } }
+        { state: 'sent' },
+        { $set: { state: MessageState.ACTIVE } }
       );
       console.log(
         `[MigrateMessages] Updated ${sentResult.modifiedCount} messages from 'sent' to 'active'`
@@ -812,8 +486,8 @@ export class MessageService {
 
       // Update old "processed" status to "completed"
       const processedResult = await this.messageModel.updateMany(
-        { status: 'processed' },
-        { $set: { status: MessageStatus.COMPLETED } }
+        { state: 'processed' },
+        { $set: { state: MessageState.COMPLETED } }
       );
       console.log(
         `[MigrateMessages] Updated ${processedResult.modifiedCount} messages from 'processed' to 'completed'`
@@ -891,10 +565,10 @@ export class MessageService {
         `[MigrateMessages] Updated ${deferredResult.modifiedCount} messages from 'deffered' to 'deferred'`
       );
 
-      // Ensure all messages have a status field
+      // Ensure all messages have a state field
       const noStatusResult = await this.messageModel.updateMany(
-        { $or: [{ status: null }, { status: { $exists: false } }] },
-        { $set: { status: MessageStatus.ACTIVE } }
+        { $or: [{ state: null }, { state: { $exists: false } }] },
+        { $set: { state: MessageState.ACTIVE } }
       );
       console.log(
         `[MigrateMessages] Set status for ${noStatusResult.modifiedCount} messages without status`
@@ -925,7 +599,7 @@ export class MessageService {
         const perMessageFilter: any = {
           timeToLive: { $gt: 0 },
           enqueuedTimeUtc: { $type: 'date' },
-          status: { $ne: MessageStatus.DEAD_LETTERED },
+          state: { $ne: MessageState.DEAD_LETTERED },
           $expr: {
             $lt: [{ $add: ['$enqueuedTimeUtc', '$timeToLive'] }, now],
           },
@@ -973,7 +647,7 @@ export class MessageService {
         // Use enqueuedTimeUtc if available, otherwise createdAt; and only for docs without per-message TTL
         const queueFilter: any = {
           queue: queue.Name,
-          status: { $ne: MessageStatus.DEAD_LETTERED },
+          state: { $ne: MessageState.DEAD_LETTERED },
           $or: [
             { timeToLive: { $exists: false } },
             { timeToLive: { $in: [null, 0] } },
@@ -1019,7 +693,7 @@ export class MessageService {
           // Use enqueuedTimeUtc if available, otherwise createdAt; and only for docs without per-message TTL
           const topicFilter: any = {
             queue: topicSubscriptionPath,
-            status: { $ne: MessageStatus.DEAD_LETTERED },
+            state: { $ne: MessageState.DEAD_LETTERED },
             $or: [
               { timeToLive: { $exists: false } },
               { timeToLive: { $in: [null, 0] } },
@@ -1108,7 +782,7 @@ export class MessageService {
         { messageId: msg.messageId, queue: path },
         {
           $set: {
-            status: MessageStatus.COMPLETED,
+            state: MessageState.COMPLETED,
             lastUpdated: new Date(),
           },
         }

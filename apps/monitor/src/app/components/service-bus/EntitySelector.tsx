@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
+import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
 
 export type EntitySelection =
   | { kind: 'queue'; name: string; namespace: string }

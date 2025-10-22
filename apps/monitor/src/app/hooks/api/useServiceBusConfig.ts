@@ -118,6 +118,12 @@ export const useServiceBusConfig = () => {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // If it's a 503 error (Service Bus not initialized), don't throw
+        // Just return null to fall back to static config
+        if (response.status === 503) {
+          console.warn('Service Bus not initialized in backend, using static config');
+          return null;
+        }
         throw new Error(`Backend error: ${response.statusText}`);
       }
 

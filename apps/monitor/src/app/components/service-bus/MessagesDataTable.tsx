@@ -72,7 +72,7 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       return (
-        <div className="font-medium font-mono text-xs">
+        <div className="font-mono text-xs font-medium truncate">
           {row.original.messageId || '-'}
         </div>
       );
@@ -86,8 +86,8 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       const queue = row.original.subject;
-      if (!queue) return <span className="text-muted-foreground">-</span>;
-      return <div className="text-sm font-mono max-w-xs truncate">{queue}</div>;
+      if (!queue) return <span className="text-muted-foreground text-xs">-</span>;
+      return <div className="text-xs font-mono truncate max-w-32">{queue}</div>;
     },
   },
   {
@@ -99,7 +99,7 @@ const createColumns = (
     cell: ({ row }) => {
       const status = row.original.state || MessageState.ACTIVE;
       return (
-        <Badge variant={getStatusBadgeVariant(status)}>
+        <Badge variant={getStatusBadgeVariant(status)} className="text-xs px-2 py-0.5 h-5">
           {formatStatus(status)}
         </Badge>
       );
@@ -126,7 +126,7 @@ const createColumns = (
       }
 
       return (
-        <div className="max-w-md truncate font-mono text-xs">{bodyText}</div>
+        <div className="max-w-48 truncate font-mono text-xs leading-tight">{bodyText}</div>
       );
     },
   },
@@ -137,9 +137,8 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       const timestamp = row.original.createdAt;
-      console.log('timestamp', row.original);
       return (
-        <div className="text-sm text-muted-foreground whitespace-nowrap">
+        <div className="text-xs text-muted-foreground whitespace-nowrap font-mono">
           {timestamp ? timestamp.toLocaleString() : 'N/A'}
         </div>
       );
@@ -150,33 +149,36 @@ const createColumns = (
     cell: ({ row }) => {
       const state = row.original.state || MessageState.ACTIVE;
       return (
-        <div>
+        <div className="flex gap-1">
           <Button
             variant="ghost"
             size="sm"
+            className="h-6 w-6 p-0"
             onClick={() => onMessageSelect(row.original)}
           >
-            <Eye className="h-4 w-4" />
+            <Eye className="h-3 w-3" />
           </Button>
           {state === MessageState.DEAD_LETTERED && (
             <Button
               variant="ghost"
               size="sm"
+              className="h-6 w-6 p-0"
               onClick={() =>
                 onMessageReplay(row.original.messageId?.toString() || '')
               }
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3 w-3" />
             </Button>
           )}
           <Button
             variant="ghost"
             size="sm"
+            className="h-6 w-6 p-0"
             onClick={() =>
               onMessageDelete(row.original.messageId?.toString() || '')
             }
           >
-            <Trash className="h-4 w-4" />
+            <Trash className="h-3 w-3" />
           </Button>
         </div>
       );

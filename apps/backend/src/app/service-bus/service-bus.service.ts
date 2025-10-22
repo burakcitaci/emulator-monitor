@@ -36,9 +36,6 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   /**
    * Initialize Service Bus with configuration
    */
-  /**
-   * Initialize Service Bus with configuration
-   */
   async initialize(
     config: ServiceBusConfig,
     connectionString: string
@@ -52,6 +49,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       'Initializing Service Bus with config:',
       JSON.stringify(config, null, 2)
     );
+    console.log('Using connection string (key masked):', connectionString.replace(/SharedAccessKey=[^;]+/, 'SharedAccessKey=***'));
 
     // Create clients for each namespace
     for (const namespace of config.UserConfig.Namespaces) {
@@ -59,6 +57,17 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         console.log(`Creating client for namespace: ${namespace.Name}`);
         const client = new ServiceBusClient(connectionString);
         this.clients.set(namespace.Name, client);
+
+        // Test the connection by trying to create a receiver for an existing queue
+        console.log(`Testing connection for namespace: ${namespace.Name}`);
+        try {
+          const testReceiver = client.createReceiver('orders-queue'); // Use a queue from config
+          await testReceiver.close();
+          console.log(`✓ Successfully connected to namespace: ${namespace.Name}`);
+        } catch (error) {
+          console.warn(`Could not test connection for namespace ${namespace.Name}:`, error instanceof Error ? error.message : String(error));
+          // Continue initialization even if test fails
+        }
 
         // Create senders for each topic
         if (namespace.Topics && Array.isArray(namespace.Topics)) {
@@ -68,6 +77,24 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
             const sender = client.createSender(topic.Name);
             this.senders.set(senderKey, sender);
             console.log(`✓ Topic sender created and stored for: ${senderKey}`);
+
+            // Create subscriptions for each topic
+            if (topic.Subscriptions && Array.isArray(topic.Subscriptions)) {
+              for (const subscription of topic.Subscriptions) {
+                const subscriptionPath = `${topic.Name}/Subscriptions/${subscription.Name}`;
+                console.log(`Creating subscription: ${subscriptionPath}`);
+                try {
+                  await client.createSubscription(topic.Name, subscription.Name, {
+                    maxDeliveryCount: subscription.MaxDeliveryCount || 10,
+                    deadLetteringOnMessageExpiration: subscription.DeadLetteringOnMessageExpiration || true,
+                  });
+                  console.log(`✓ Subscription created: ${subscriptionPath}`);
+                } catch (error) {
+                  // Subscription might already exist, that's okay
+                  console.log(`Subscription ${subscriptionPath} might already exist:`, error instanceof Error ? error.message : String(error));
+                }
+              }
+            }
           }
         }
 
@@ -79,6 +106,19 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
             const sender = client.createSender(queue.Name);
             this.senders.set(senderKey, sender);
             console.log(`✓ Queue sender created and stored for: ${senderKey}`);
+
+            // Create the queue if it doesn't exist
+            try {
+              await client.createQueue(queue.Name, {
+                maxDeliveryCount: queue.Properties.MaxDeliveryCount || 10,
+                deadLetteringOnMessageExpiration: queue.Properties.DeadLetteringOnMessageExpiration || true,
+                defaultMessageTimeToLive: queue.Properties.DefaultMessageTimeToLive || 'PT1H',
+              });
+              console.log(`✓ Queue created: ${queue.Name}`);
+            } catch (error) {
+              // Queue might already exist, that's okay
+              console.log(`Queue ${queue.Name} might already exist:`, error instanceof Error ? error.message : String(error));
+            }
           }
         }
       } catch (error: any) {
@@ -175,6 +215,31 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       };
 
       const mappedMessage = mapToMessage(message);
+      
+      // Set the queue field based on the topic and subscription from applicationProperties
+      // This ensures proper tracking when messages are completed
+      if (mappedMessage.applicationProperties) {
+        const appProps = mappedMessage.applicationProperties instanceof Map 
+          ? Object.fromEntries(mappedMessage.applicationProperties) 
+          : mappedMessage.applicationProperties;
+        
+        if (appProps.topic && appProps.subscription) {
+          // For topics, store as "topic/subscription" to match monitoring format
+          mappedMessage.queue = `${appProps.topic}/${appProps.subscription}`;
+        } else if (appProps.topic) {
+          // If no subscription specified, just use topic name
+          mappedMessage.queue = appProps.topic;
+        } else if (appProps.queue) {
+          // For queues, use the queue name
+          mappedMessage.queue = appProps.queue;
+        }
+      }
+      
+      // Fallback: use the topic name if queue still not set
+      if (!mappedMessage.queue) {
+        mappedMessage.queue = dto.topic;
+      }
+      
       await this.messageService.saveReceivedMessage(mappedMessage); // Save the message to MongoDB
       await sender.sendMessages(message);
 
@@ -449,18 +514,76 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
    * Auto-initialize Service Bus when module starts
    */
   async onModuleInit() {
+    // Skip initialization if SERVICE_BUS_AUTO_INIT is explicitly disabled
+    if (process.env.SERVICE_BUS_AUTO_INIT === 'false') {
+      console.log('Service Bus auto-initialization disabled (SERVICE_BUS_AUTO_INIT=false)');
+      return;
+    }
+
+    // Skip initialization in development if SERVICE_BUS_AUTO_INIT is not set
+    if (process.env.NODE_ENV === 'development' && !process.env.SERVICE_BUS_AUTO_INIT) {
+      console.log('Skipping Service Bus auto-initialization in development mode');
+      return;
+    }
+
     try {
       // Load configuration from file
       const config = this.configService.getServiceBusConfiguration();
       const connectionString = this.configService.serviceBusConnectionString;
 
       console.log('Auto-initializing Service Bus on module start...');
+      console.log('Connection string:', connectionString.replace(/SharedAccessKey=[^;]+/, 'SharedAccessKey=***'));
+      console.log('Environment:', process.env.NODE_ENV || 'production');
+
+      // Check if Service Bus emulator is accessible first
+      console.log('Checking Service Bus emulator connectivity...');
+      if (!await this.checkEmulatorConnectivity(connectionString)) {
+        console.warn('Service Bus emulator is not accessible. Skipping initialization.');
+        console.warn('Please ensure:');
+        console.warn('1. Service Bus emulator is running (docker-compose up)');
+        console.warn('2. Connection string is correct');
+        console.warn('3. Port 5672 is accessible');
+        return;
+      }
+
       await this.initialize(config, connectionString);
       console.log('Service Bus auto-initialization completed');
     } catch (error) {
       console.error('Failed to auto-initialize Service Bus:', error);
+      console.error('This is non-fatal - the service will remain uninitialized');
+      console.error('To disable auto-initialization, set SERVICE_BUS_AUTO_INIT=false');
+      console.error('To check emulator status, run: docker-compose ps | grep emulator');
       // Don't throw error here as it might prevent the app from starting
       // The service will remain uninitialized and endpoints will handle this gracefully
+    }
+  }
+
+  /**
+   * Check if Service Bus emulator is accessible
+   */
+  private async checkEmulatorConnectivity(connectionString: string): Promise<boolean> {
+    try {
+      const client = new ServiceBusClient(connectionString);
+      const testReceiver = client.createReceiver('test-queue');
+
+      // Try to peek (this will fail if entity doesn't exist, but connection should work)
+      try {
+        await testReceiver.peekMessages(1);
+      } catch (peekError) {
+        // Entity not found is okay - it means connection works but queue doesn't exist
+        if (peekError instanceof Error && peekError.message.includes('not found')) {
+          console.log('Service Bus emulator connection successful (entity not found is expected)');
+        } else {
+          throw peekError;
+        }
+      }
+
+      await testReceiver.close();
+      await client.close();
+      return true;
+    } catch (error) {
+      console.error('Service Bus emulator connectivity check failed:', error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 

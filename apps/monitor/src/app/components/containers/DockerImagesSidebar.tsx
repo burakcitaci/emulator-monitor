@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { useFile } from '../../hooks/useFile';
+import { useFile } from '../../hooks/api/useFile';
 import { AlertCircle, Container } from 'lucide-react';
 import { DockerCompose } from '@e2e-monitor/entities';
 import { ContainerSkeleton } from '../ui/skeleton';

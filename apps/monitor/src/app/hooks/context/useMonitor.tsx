@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { MonitorContext, MonitorContextType } from './monitor-provider';
+import { MonitorContext, MonitorContextType } from './MonitorProvider';
 
 export const useMonitor = (): MonitorContextType => {
   const context = useContext(MonitorContext);

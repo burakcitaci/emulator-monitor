@@ -18,8 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
-import { useMonitor } from '../../hooks/useMonitor';
+import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
+import { useMonitor } from '../../hooks/context/useMonitor';
 import toast from 'react-hot-toast';
 import { FormSkeleton } from '../ui/skeleton';
 
@@ -42,8 +42,47 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   } = useServiceBusConfig();
   const { isLoading, isSendingMessage, error } = useMonitor();
 
+  const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
+
   const queues = getQueueNames();
   const topics = getTopicNames();
+
+  const handleInitializeServiceBus = async () => {
+    setIsInitializingServiceBus(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/v1/servicebus/debug-init', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Service Bus initialized successfully!');
+        // Refresh the page or reload the configuration
+        window.location.reload();
+      } else {
+        toast.error(result.message || 'Failed to initialize Service Bus');
+      }
+    } catch (err) {
+      console.error('Service Bus initialization failed:', err);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Failed to initialize Service Bus. Please check the backend logs.',
+        { duration: 5000 }
+      );
+    } finally {
+      setIsInitializingServiceBus(false);
+    }
+  };
 
   // Validation state - moved before any early returns
   const [validationErrors, setValidationErrors] = useState<{
@@ -243,7 +282,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
         <>
           <AlertCircle className="w-5 h-5 text-red-500" />
           <span className="font-medium text-red-700">
-            Backend Service Unavailable
+            Service Bus Not Initialized
           </span>
         </>
       );
@@ -269,12 +308,39 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
 
     return (
       <div className="rounded-lg border p-4 mb-4">
-        <div className="flex items-center space-x-2">{statusContent}</div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">{statusContent}</div>
+          {isBackendUnavailable && (
+            <Button
+              onClick={handleInitializeServiceBus}
+              disabled={isInitializingServiceBus}
+              size="sm"
+              variant="outline"
+              className="ml-4"
+            >
+              {isInitializingServiceBus ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Initializing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Initialize Service Bus
+                </>
+              )}
+            </Button>
+          )}
+        </div>
         {isBackendUnavailable && (
-          <p className="text-sm text-red-600 mt-2">
-            Unable to connect to backend service. Please ensure the backend is
-            running and accessible.
-          </p>
+          <div className="mt-2 space-y-1">
+            <p className="text-sm text-red-600">
+              Service Bus emulator is not connected to the backend.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Please ensure the Service Bus emulator is running and click "Initialize Service Bus" to connect it to the backend.
+            </p>
+          </div>
         )}
         {error && !isBackendUnavailable && (
           <p className="text-sm text-red-600 mt-2">Error: {error}</p>
@@ -446,10 +512,16 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           )}
         </Button>
         {isBackendUnavailable && (
-          <p className="text-sm text-muted-foreground text-center">
-            Backend service is unavailable. Please start the backend service to
-            send messages.
-          </p>
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Service Bus is not initialized. Click the "Initialize Service Bus" button above to connect to the emulator.
+            </p>
+            <div className="text-xs text-muted-foreground">
+              <p>1. Ensure Service Bus emulator is running: <code>docker-compose up</code></p>
+              <p>2. Click "Initialize Service Bus" above</p>
+              <p>3. Then try sending your message</p>
+            </div>
+          </div>
         )}
         {!isBackendUnavailable && Object.keys(validationErrors).length > 0 && (
           <p className="text-sm text-muted-foreground text-center">

@@ -14,11 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useFile } from '../../hooks/useFile';
-import { useDocker } from '../../hooks/useDocker';
+import { useFile } from '../../hooks/api/useFile';
+import { useDocker } from '../../hooks/api/useDocker';
 import { PauseIcon, PlayIcon, Square, AlertCircle } from 'lucide-react';
 import { Label } from '../ui/label';
-import { useDockerCompose } from '../../hooks/useDockerCompose';
+import { useDockerCompose } from '../../hooks/api/useDockerCompose';
 import { ContainerSkeleton } from '../ui/skeleton';
 import { Button } from '../ui/button';
 import { DockerCompose } from '@e2e-monitor/entities';
@@ -364,6 +364,7 @@ export const ContainerSidebar = () => {
                       >
                         <AccordionTrigger className="hover:no-underline py-2 px-0">
                           <SidebarMenuButton
+                            asChild
                             tooltip={`${container.serviceConfig.container_name || container.serviceName}: ${statusDisplay.label}`}
                             className="h-auto py-1 w-full"
                           >

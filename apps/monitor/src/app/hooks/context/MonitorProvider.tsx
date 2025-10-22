@@ -10,8 +10,8 @@ import {
   useServiceBus,
   DeadLetterMessage,
   DeadLetterMessageResponse,
-} from './useServiceBus';
-import { useServiceBusConfig } from './useServiceBusConfig';
+} from '../api/useServiceBus';
+import { useServiceBusConfig } from '../api/useServiceBusConfig';
 import toast from 'react-hot-toast';
 
 interface MonitorState {
@@ -202,7 +202,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
         ...(isTopic
           ? {
               topic: destination,
-              ...(preferredSub ? { subscription: preferredSub } : {}),
+              subscription: preferredSub, // Always set subscription for topics
             }
           : {}),
       } as Record<string, unknown>;

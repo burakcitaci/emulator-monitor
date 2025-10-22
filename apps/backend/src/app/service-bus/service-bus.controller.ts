@@ -8,12 +8,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { ServiceBusService } from './service-bus.service';
+import { ConfigService } from '../common/config.service';
 import * as types from '@e2e-monitor/entities';
 import { DeadLetterMessageResponse } from '@e2e-monitor/entities';
 
 @Controller('servicebus')
 export class ServiceBusController {
-  constructor(private readonly serviceBusService: ServiceBusService) {}
+  constructor(
+    private readonly serviceBusService: ServiceBusService,
+    private readonly configService: ConfigService
+  ) {}
 
   /**
    * Initialize Service Bus with configuration (legacy endpoint - auto-initialization now happens on startup)
@@ -45,14 +49,58 @@ export class ServiceBusController {
    */
   @Get('config')
   getConfig(): types.ServiceBusConfig | null {
+    return this.serviceBusService.getConfig();
+  }
+
+  /**
+   * Get Service Bus status and debugging information
+   */
+  @Get('status')
+  getStatus() {
     const config = this.serviceBusService.getConfig();
-    if (!config) {
-      throw new HttpException(
-        'Service Bus not initialized',
-        HttpStatus.BAD_REQUEST
-      );
+    const isInitialized = !!config;
+
+    return {
+      initialized: isInitialized,
+      config: config ? {
+        namespaces: config.UserConfig.Namespaces.length,
+        topics: config.UserConfig.Namespaces.flatMap(ns => ns.Topics || []).length,
+        queues: config.UserConfig.Namespaces.flatMap(ns => ns.Queues || []).length,
+      } : null,
+      environment: process.env.NODE_ENV || 'production',
+      autoInitDisabled: process.env.SERVICE_BUS_AUTO_INIT === 'false',
+      connectionString: config ? 'configured' : 'not configured',
+    };
+  }
+
+  /**
+   * Manually initialize Service Bus (for debugging)
+   */
+  @Post('debug-init')
+  async debugInitialize() {
+    try {
+      const config = this.configService.getServiceBusConfiguration();
+      const connectionString = this.configService.serviceBusConnectionString;
+
+      console.log('Manual Service Bus initialization requested...');
+      console.log('Config loaded successfully:', !!config);
+      console.log('Connection string configured:', !!connectionString);
+
+      const result = await this.serviceBusService.initialize(config, connectionString);
+
+      return {
+        success: true,
+        message: 'Service Bus initialized successfully',
+        result,
+      };
+    } catch (error: unknown) {
+      console.error('Manual initialization failed:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.stack : String(error),
+      };
     }
-    return config;
   }
 
   /**
@@ -80,7 +128,7 @@ export class ServiceBusController {
       const config = this.serviceBusService.getConfig();
       if (!config) {
         throw new HttpException(
-          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          'Service Bus is not initialized. Please ensure: 1) Service Bus emulator is running, 2) Configuration file exists, 3) Auto-initialization is enabled (or manually initialize via POST /api/v1/servicebus/initialize)',
           HttpStatus.SERVICE_UNAVAILABLE
         );
       }
@@ -117,7 +165,7 @@ export class ServiceBusController {
       const config = this.serviceBusService.getConfig();
       if (!config) {
         throw new HttpException(
-          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          'Service Bus is not initialized. Please ensure: 1) Service Bus emulator is running, 2) Configuration file exists, 3) Auto-initialization is enabled (or manually initialize via POST /api/v1/servicebus/initialize)',
           HttpStatus.SERVICE_UNAVAILABLE
         );
       }
@@ -176,7 +224,7 @@ export class ServiceBusController {
       const config = this.serviceBusService.getConfig();
       if (!config) {
         throw new HttpException(
-          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          'Service Bus is not initialized. Please ensure: 1) Service Bus emulator is running, 2) Configuration file exists, 3) Auto-initialization is enabled (or manually initialize via POST /api/v1/servicebus/initialize)',
           HttpStatus.SERVICE_UNAVAILABLE
         );
       }
@@ -222,7 +270,7 @@ export class ServiceBusController {
       const config = this.serviceBusService.getConfig();
       if (!config) {
         throw new HttpException(
-          'Service Bus is not initialized. Please ensure Service Bus is properly configured.',
+          'Service Bus is not initialized. Please ensure: 1) Service Bus emulator is running, 2) Configuration file exists, 3) Auto-initialization is enabled (or manually initialize via POST /api/v1/servicebus/initialize)',
           HttpStatus.SERVICE_UNAVAILABLE
         );
       }

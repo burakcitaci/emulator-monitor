@@ -26,20 +26,20 @@ export function DataTableColumnHeader<TData, TValue>({
   }
 
   const getSortIcon = (sortState: string) => {
-    if (sortState === 'desc') return <ArrowDown className="ml-2 h-4 w-4" />;
-    if (sortState === 'asc') return <ArrowUp className="ml-2 h-4 w-4" />;
-    return <ChevronsUpDown className="ml-2 h-4 w-4" />;
+    if (sortState === 'desc') return <ArrowDown className="ml-1 h-3 w-3" />;
+    if (sortState === 'asc') return <ArrowUp className="ml-1 h-3 w-3" />;
+    return <ChevronsUpDown className="ml-1 h-3 w-3" />;
   };
   return (
-    <div className={cn('flex items-center space-x-2', className)}>
+    <div className={cn('flex items-center', className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-3 h-8 data-[state=open]:bg-accent"
+            className="-ml-2 h-6 px-1 text-xs font-medium data-[state=open]:bg-accent"
           >
-            <span>{title}</span>
+            <span className="text-xs">{title}</span>
             {getSortIcon(column.getIsSorted().toString())}
           </Button>
         </DropdownMenuTrigger>

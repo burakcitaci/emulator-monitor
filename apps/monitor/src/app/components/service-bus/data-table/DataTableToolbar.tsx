@@ -18,8 +18,8 @@ export function DataTableToolbar<TData>({
   const isFiltered = table.getState().columnFilters.length > 0;
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex flex-1 items-center space-x-2">
+    <div className="flex flex-col sm:flex-row gap-1 sm:items-center sm:justify-between">
+      <div className="flex flex-1 items-center gap-1 min-w-0">
         {searchKey && (
           <Input
             placeholder={searchPlaceholder}
@@ -29,17 +29,17 @@ export function DataTableToolbar<TData>({
             onChange={(event) =>
               table.getColumn(searchKey)?.setFilterValue(event.target.value)
             }
-            className="h-8 w-[150px] lg:w-[250px]"
+            className="h-7 text-xs w-full sm:w-[120px] lg:w-[200px]"
           />
         )}
         {isFiltered && (
           <Button
             variant="ghost"
             onClick={() => table.resetColumnFilters()}
-            className="h-8 px-2 lg:px-3"
+            className="h-7 px-1.5 text-xs shrink-0"
           >
             Reset
-            <X className="ml-2 h-4 w-4" />
+            <X className="ml-1 h-3 w-3" />
           </Button>
         )}
       </div>

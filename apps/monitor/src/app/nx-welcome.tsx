@@ -12,7 +12,7 @@ import {
   ConnectionTab,
   ConfigurationTab,
 } from './components';
-import { DeadLetterMessage } from './hooks/useServiceBus';
+import { DeadLetterMessage } from './hooks/api/useServiceBus';
 import { Message } from '@e2e-monitor/entities';
 type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
 
