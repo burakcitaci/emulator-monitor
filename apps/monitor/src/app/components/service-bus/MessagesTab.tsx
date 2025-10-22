@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from 'react';
 import { MessagesDataTable } from './MessagesDataTable';
 import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
 import { useServiceBus } from '../../hooks/useServiceBus';
@@ -66,7 +72,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
 
   // Update version when queuesAndTopics changes
   useEffect(() => {
-    setQueuesAndTopicsVersion(v => v + 1);
+    setQueuesAndTopicsVersion((v) => v + 1);
   }, [queuesAndTopics]);
 
   const resolveNamespace = useCallback(() => {
@@ -74,8 +80,14 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
 
     if (!primary) {
       // For no selection, use the first available namespace
-      const defaultNamespace = currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '';
-      console.log('Resolving default namespace:', { defaultNamespace, queuesAndTopicsLength: currentQueuesAndTopics.length });
+      const defaultNamespace =
+        currentQueuesAndTopics.length > 0
+          ? currentQueuesAndTopics[0]?.namespace
+          : '';
+      console.log('Resolving default namespace:', {
+        defaultNamespace,
+        queuesAndTopicsLength: currentQueuesAndTopics.length,
+      });
       return defaultNamespace;
     }
 
@@ -83,7 +95,12 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       (i) => i.type === primary.kind && i.name === primary.name,
     );
     const namespace = item?.namespace ?? '';
-    console.log('Resolving namespace for:', { primary, item, namespace, queuesAndTopicsLength: currentQueuesAndTopics.length });
+    console.log('Resolving namespace for:', {
+      primary,
+      item,
+      namespace,
+      queuesAndTopicsLength: currentQueuesAndTopics.length,
+    });
     return namespace;
   }, [primary, queuesAndTopicsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -140,7 +157,11 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     // If no primary selection, use default namespace to fetch all messages
     if (!primary) {
       const currentQueuesAndTopics = queuesAndTopicsRef.current;
-      const defaultNamespace = namespace || (currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '');
+      const defaultNamespace =
+        namespace ||
+        (currentQueuesAndTopics.length > 0
+          ? currentQueuesAndTopics[0]?.namespace
+          : '');
       if (!defaultNamespace) return null;
 
       return {
@@ -160,12 +181,19 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   }, [primary, namespace, subscription]);
 
   const loadMessages = useCallback(async () => {
-    console.log('loadMessages called with:', { primary, namespace, subscription });
+    console.log('loadMessages called with:', {
+      primary,
+      namespace,
+      subscription,
+    });
 
     // For topics, we need namespace and subscription
     if (primary?.kind === 'topic') {
       if (!namespace || !subscription) {
-        console.log('Missing required parameters for topic:', { namespace, subscription });
+        console.log('Missing required parameters for topic:', {
+          namespace,
+          subscription,
+        });
         return;
       }
     } else if (primary?.kind === 'queue') {
@@ -177,7 +205,11 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     } else if (!primary) {
       // For no selection, we need at least a default namespace
       const currentQueuesAndTopics = queuesAndTopicsRef.current;
-      const defaultNamespace = namespace || (currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '');
+      const defaultNamespace =
+        namespace ||
+        (currentQueuesAndTopics.length > 0
+          ? currentQueuesAndTopics[0]?.namespace
+          : '');
       if (!defaultNamespace) {
         console.log('No namespace available for loading all messages');
         return;
@@ -216,13 +248,24 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     } finally {
       setIsFetching(false);
     }
-  }, [primary, namespace, subscription, getMessages, buildMessagesParams, onMessagesUpdate]);
+  }, [
+    primary,
+    namespace,
+    subscription,
+    getMessages,
+    buildMessagesParams,
+    onMessagesUpdate,
+  ]);
 
   const canLoad = useMemo(() => {
     // If no primary selection, we need at least a namespace
     if (!primary) {
       const currentQueuesAndTopics = queuesAndTopicsRef.current;
-      const defaultNamespace = namespace || (currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '');
+      const defaultNamespace =
+        namespace ||
+        (currentQueuesAndTopics.length > 0
+          ? currentQueuesAndTopics[0]?.namespace
+          : '');
       return !!defaultNamespace;
     }
 
@@ -241,22 +284,37 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       namespace,
       subscription,
       hasLoaded,
-      canLoad: canLoad
+      canLoad: canLoad,
     });
 
     if (canLoad && !hasLoaded) {
-      console.log('Loading messages for:', { primary, namespace, subscription });
+      console.log('Loading messages for:', {
+        primary,
+        namespace,
+        subscription,
+      });
       void loadMessages();
     } else if (primary && !namespace && queuesAndTopicsRef.current.length > 0) {
       // If we have primary but no namespace yet, try to resolve namespace
-      console.log('Primary set but namespace not resolved yet, trying again...');
+      console.log(
+        'Primary set but namespace not resolved yet, trying again...',
+      );
       const newNamespace = resolveNamespace();
       if (newNamespace) {
         console.log('Namespace resolved:', newNamespace);
         setNamespace(newNamespace);
       }
     }
-  }, [primary, namespace, subscription, hasLoaded, loadMessages, resolveNamespace, isFetching, canLoad]);
+  }, [
+    primary,
+    namespace,
+    subscription,
+    hasLoaded,
+    loadMessages,
+    resolveNamespace,
+    isFetching,
+    canLoad,
+  ]);
 
   const displayedMessages = hasLoaded ? localMessages : messages;
   const messageCount = displayedMessages?.length || 0;
@@ -272,114 +330,103 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
           emulator.
         </p>
       </div>
-
       {/* Filters */}
-      <div className="flex items-center justify-between p-6 bg-card border rounded-lg">
-        <div className="space-y-3">
-          <Label className="text-base font-medium">Select Queue or Topic (Optional)</Label>
-
-          <div className="flex items-center gap-3">
-            <Select
-              value={primary ? `${primary.kind}::${primary.name}` : 'all'}
-              onValueChange={handlePrimaryChange}
+      <div className="flex flex-row items-center justify-between bg-card ">
+        <div className="flex gap-2">
+          {/* Queue/Topic Selector */}
+          <Select
+            value={primary ? `${primary.kind}::${primary.name}` : 'all'}
+            onValueChange={handlePrimaryChange}
+            disabled={configLoading}
+          >
+            <SelectTrigger
+              className="h-10 w-[220px] sm:w-[280px] rounded-sm"
               disabled={configLoading}
             >
-              <SelectTrigger
-                className="w-[340px] rounded-sm"
-                disabled={configLoading}
-              >
-                <SelectValue placeholder="Select queue or topic (optional)..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
+              <SelectValue placeholder="Select queue or topic (optional)..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <div className="flex items-center space-x-2">
+                  <span aria-hidden="true">🔄</span>
+                  <span>Show All Messages</span>
+                </div>
+              </SelectItem>
+
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                Queues
+              </div>
+              {queues.map((q) => (
+                <SelectItem key={`queue::${q}`} value={`queue::${q}`}>
                   <div className="flex items-center space-x-2">
-                    <span aria-hidden="true">🔄</span>
-                    <span>Show All Messages</span>
+                    <span aria-hidden="true">📦</span>
+                    <span>{q}</span>
                   </div>
                 </SelectItem>
+              ))}
 
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                  Queues
-                </div>
-                {queues.map((q) => (
-                  <SelectItem key={`queue::${q}`} value={`queue::${q}`}>
-                    <div className="flex items-center space-x-2">
-                      <span aria-hidden="true">📦</span>
-                      <span>{q}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                  Topics
-                </div>
-                {topics.map((t) => (
-                  <SelectItem key={`topic::${t}`} value={`topic::${t}`}>
-                    <div className="flex items-center space-x-2">
-                      <span aria-hidden="true">📡</span>
-                      <span>{t}</span>
-                    </div>
-                  </SelectItem>
-                ))}
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                Topics
+              </div>
+              {topics.map((t) => (
+                <SelectItem key={`topic::${t}`} value={`topic::${t}`}>
+                  <div className="flex items-center space-x-2">
+                    <span aria-hidden="true">📡</span>
+                    <span>{t}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Load Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canLoad || isFetching}
+            onClick={loadMessages}
+            className="h-10 rounded-sm"
+          >
+            <RefreshCcw
+              className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
+            />
+            {primary ? 'Load Messages' : 'Load All Messages'}
+          </Button>
+          {/* Subscription selector only for topics */}
+          {isTopicSelected && (
+            <Select
+              value={subscription}
+              onValueChange={setSubscription}
+              disabled={configLoading || topicSubscriptions.length === 0}
+            >
+              <SelectTrigger
+                className="h-10 w-[180px] rounded-sm"
+                disabled={configLoading || topicSubscriptions.length === 0}
+              >
+                <SelectValue placeholder="Select subscription..." />
+              </SelectTrigger>
+              <SelectContent>
+                {topicSubscriptions.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No subscriptions
+                  </div>
+                ) : (
+                  topicSubscriptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
-
-            {/* Subscription selector only for topics */}
-            {isTopicSelected && (
-              <>
-                <Label className="text-sm text-muted-foreground">
-                  Subscription
-                </Label>
-                <Select
-                  value={subscription}
-                  onValueChange={setSubscription}
-                  disabled={configLoading || topicSubscriptions.length === 0}
-                >
-                  <SelectTrigger
-                    className="w-[240px] rounded-sm"
-                    disabled={configLoading || topicSubscriptions.length === 0}
-                  >
-                    <SelectValue placeholder="Select subscription..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {topicSubscriptions.length === 0 ? (
-                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                        No subscriptions
-                      </div>
-                    ) : (
-                      topicSubscriptions.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
-
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!canLoad || isFetching}
-              onClick={loadMessages}
-              className="rounded-sm"
-            >
-              <RefreshCcw
-                className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
-              />
-              {primary ? 'Load Messages' : 'Load All Messages'}
-            </Button>
-          </div>
+          )}
         </div>
 
-        <div className="flex items-center space-x-3 bg-accent/30 px-4 py-3 rounded-sm border border-border/50">
-          <span className="text-sm font-medium">
-            <Badge variant="outline" className="mr-2 rounded-sm">
-              {messageCount}
-            </Badge>
-            messages
-          </span>
+        {/* Message Counter */}
+        <div className="flex items-center justify-center bg-accent/30 px-4 py-2 rounded-sm border border-border/50">
+          <Badge variant="outline" className="mr-2 rounded-sm">
+            {messageCount}
+          </Badge>
+          <span className="text-sm font-medium">messages</span>
         </div>
       </div>
 

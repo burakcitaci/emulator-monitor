@@ -27,7 +27,7 @@ services:
 
   sqledge:
     container_name: "sqledge"
-    image: "mcr.microsoft.com/azure-sql-edge:latest@sha256:902628a8be89e35dfb7895ca31d602974c7bafde4d583a0d0873844feb1c42cf"
+    image: "mcr.microsoft.com/mssql/server:2022-latest"
     ports:
       - "1431:1433" # Host:Container
     networks:
@@ -37,9 +37,8 @@ services:
     environment:
       ACCEPT_EULA: Y
       MSSQL_SA_PASSWORD: P@ssw0rd
+      MSSQL_PID: Developer
     volumes:
-      # EXISTING: Initializes the database on first run
-      - "./init-test-db.sql:/opt/init-test-db.sql"
       # FIX: Add a volume mount to persist the SQL data directory
       - "sqldata:/var/opt/mssql"
 

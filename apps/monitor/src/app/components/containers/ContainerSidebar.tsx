@@ -16,12 +16,7 @@ import {
 } from '../ui/select';
 import { useFile } from '../../hooks/useFile';
 import { useDocker } from '../../hooks/useDocker';
-import {
-  PauseIcon,
-  PlayIcon,
-  Square,
-  AlertCircle,
-} from 'lucide-react';
+import { PauseIcon, PlayIcon, Square, AlertCircle } from 'lucide-react';
 import { Label } from '../ui/label';
 import { useDockerCompose } from '../../hooks/useDockerCompose';
 import { ContainerSkeleton } from '../ui/skeleton';
@@ -106,7 +101,7 @@ export const ContainerSidebar = () => {
           containerInfo,
           status,
         };
-      }
+      },
     );
   }, [fileData, containers, dockerError]);
 
@@ -126,10 +121,10 @@ export const ContainerSidebar = () => {
   // Show loading skeleton only while file is loading (since we need docker-compose.yml to show services)
   if (fileLoading) {
     return (
-      <Sidebar collapsible="icon">
-        <SidebarContent className="p-4">
+      <Sidebar collapsible="icon" className="h-screen overflow-hidden">
+        <SidebarContent className="p-4 flex-1 min-h-0">
           <div className="space-y-4">
-            <div className="h-8 bg-muted rounded mb-4 animate-pulse"></div>
+            <div className="h-8 bg-muted rounded-md mb-4 animate-pulse"></div>
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <ContainerSkeleton key={i} />
@@ -145,8 +140,8 @@ export const ContainerSidebar = () => {
   // If file loading failed, we can't show anything (no YAML data available)
   if (fileError) {
     return (
-      <Sidebar collapsible="icon">
-        <SidebarContent className="p-4">
+      <Sidebar collapsible="icon" className="h-screen overflow-hidden">
+        <SidebarContent className="p-4 flex-1 min-h-0">
           <Card className="border-destructive">
             <CardContent className="pt-6 space-y-3">
               <div className="flex items-center gap-2">
@@ -176,8 +171,12 @@ export const ContainerSidebar = () => {
                 <div className="text-muted-foreground">
                   <p className="font-medium">To view Docker services:</p>
                   <ol className="list-decimal list-inside mt-1 space-y-1">
-                    <li>Start the backend server (usually runs on port 3000)</li>
-                    <li>Ensure docker-compose.yml exists in the project root</li>
+                    <li>
+                      Start the backend server (usually runs on port 3000)
+                    </li>
+                    <li>
+                      Ensure docker-compose.yml exists in the project root
+                    </li>
                     <li>Make sure Docker Desktop is running</li>
                   </ol>
                 </div>
@@ -203,10 +202,14 @@ export const ContainerSidebar = () => {
   }
 
   return (
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar
+      collapsible="icon"
+      variant="inset"
+      className="h-screen overflow-hidden"
+    >
       <SidebarHeader>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-bold group-data-[collapsible=icon]:hidden">
               Emulator Containers
             </h2>
@@ -214,8 +217,11 @@ export const ContainerSidebar = () => {
               variant="secondary"
               className="text-xs group-data-[collapsible=icon]:hidden"
             >
-              {containersWithStatus.filter((c) => c.status === 'running').length}/
-              {containersWithStatus.length}
+              {
+                containersWithStatus.filter((c) => c.status === 'running')
+                  .length
+              }
+              /{containersWithStatus.length}
             </Badge>
           </div>
         </div>
@@ -223,28 +229,28 @@ export const ContainerSidebar = () => {
 
       <SidebarSeparator />
 
-      <SidebarContent>
+      <SidebarContent className="flex-1 min-h-0">
         {/* Docker Error Banner */}
         {dockerError && (
-          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20 group-data-[collapsible=icon]:hidden">
+          <Card className="border-black-500 rounded-md shadow-none bg-yellow-50 dark:bg-yellow-950/20 group-data-[collapsible=icon]:hidden">
             <CardContent className="pt-4 pb-4 space-y-2">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                
                 <div className="flex-1 space-y-1">
-                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
+                  <p className="text-sm font-medium text-yellow-800 dark:text-black-500">
                     Docker Connection Error
                   </p>
-                  <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                  <p className="text-xs text-yellow-700 dark:text-black-400">
                     {dockerError.message.includes('timeout') ||
                     dockerError.message.includes('Failed to fetch') ||
                     dockerError.message.includes('NetworkError')
                       ? 'Cannot connect to backend server. Make sure the backend server is running on port 3000.'
                       : dockerError.message.includes('ECONNREFUSED')
-                      ? 'Backend server is not accessible. Make sure the backend is running.'
-                      : dockerError.message.includes('connect') ||
-                        dockerError.message.includes('ENOTFOUND')
-                      ? 'Cannot connect to Docker. Make sure Docker Desktop is running.'
-                      : 'Connection error. Please check your backend server and Docker Desktop.'}
+                        ? 'Backend server is not accessible. Make sure the backend is running.'
+                        : dockerError.message.includes('connect') ||
+                            dockerError.message.includes('ENOTFOUND')
+                          ? 'Cannot connect to Docker. Make sure Docker Desktop is running.'
+                          : 'Connection error. Please check your backend server and Docker Desktop.'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Showing services from docker-compose.yml. Status information
@@ -267,7 +273,7 @@ export const ContainerSidebar = () => {
 
         {/* Project Filter Dropdown */}
         {projects.length > 0 && (
-          <div className="space-y-2 group-data-[collapsible=icon]:hidden">
+          <div className="space-y-2 group-data-[collapsible=icon]:hidden mx-1 mb-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-muted-foreground">
                 Filter by Project
@@ -290,7 +296,7 @@ export const ContainerSidebar = () => {
                       (c) =>
                         c.containerInfo?.Labels?.[
                           'com.docker.compose.project'
-                        ] === project
+                        ] === project,
                     ).length;
                     return (
                       <SelectItem key={project} value={project}>
@@ -340,61 +346,77 @@ export const ContainerSidebar = () => {
           </div>
         )}
 
-        <SidebarGroup>
+        <SidebarGroup className="mx- border border-red-500 rounded-md p-">
           <SidebarGroupLabel>Containers</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
+          <SidebarGroupContent className="overflow-hidden">
+            <SidebarMenu className="space-y-0">
               {containersWithStatus.map((container) => {
                 const statusDisplay = getStatusDisplay(container.status);
                 return (
-                  <SidebarMenuItem key={container.serviceName}>
-                    <Accordion type="multiple" className="w-full">
-                      <AccordionItem value={container.serviceName} className="border-none">
-                        <AccordionTrigger className="hover:no-underline p-0">
+                  <SidebarMenuItem key={container.serviceName} className="py-0">
+                    <Accordion
+                      type="multiple"
+                      className="w-full overflow-hidden"
+                    >
+                      <AccordionItem
+                        value={container.serviceName}
+                        className="border-none"
+                      >
+                        <AccordionTrigger className="hover:no-underline py-2 px-0">
                           <SidebarMenuButton
                             tooltip={`${container.serviceConfig.container_name || container.serviceName}: ${statusDisplay.label}`}
+                            className="h-auto py-1 w-full"
                           >
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <statusDisplay.icon className={`w-4 h-4 ${statusDisplay.color}`} />
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-semibold truncate">
-                                  {container.serviceConfig.container_name || container.serviceName}
-                                </span>
-                                <span className="text-xs text-muted-foreground truncate">
-                                  {container.serviceConfig.image?.split('@')[0] || 'No image specified'}
-                                </span>
+                            <div className="flex flex-col gap-1.5 w-full">
+                              {/* Header with name and status badge */}
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <statusDisplay.icon
+                                    className={`w-3 h-3 flex-shrink-0 ${statusDisplay.color}`}
+                                    aria-hidden="true"
+                                  />
+                                  <span className="font-medium truncate text-sm">
+                                    {container.serviceConfig.container_name ||
+                                      container.serviceName}
+                                  </span>
+                                </div>
+
+                                <Badge
+                                  variant="outline"
+                                  className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/20 dark:bg-muted/50 flex-shrink-0"
+                                >
+                                  <statusDisplay.icon
+                                    className={`w-2.5 h-2.5 ${statusDisplay.color}`}
+                                    aria-hidden="true"
+                                  />
+                                  <span
+                                    className={`text-xs font-medium ${statusDisplay.color}`}
+                                  >
+                                    {statusDisplay.label}
+                                  </span>
+                                </Badge>
                               </div>
                             </div>
-                            <Badge
-                              variant="outline"
-                              className={`flex items-center gap-1 px-2 py-0.5 bg-muted/20 dark:bg-muted/50`}
-                            >
-                              <statusDisplay.icon
-                                className={`w-3 h-3 ${statusDisplay.color}`}
-                              />
-                              <span
-                                className={`text-xs font-medium ${statusDisplay.color}`}
-                              >
-                                {statusDisplay.label}
-                              </span>
-                            </Badge>
                           </SidebarMenuButton>
                         </AccordionTrigger>
-                        <AccordionContent className="p-3 pt-0 space-y-3 text-sm">
-                          {/* Status text + buttons */}
-                          <div className="flex flex-wrap items-center justify-between gap-2">
+                        <AccordionContent className="px-2 pb-2 pt-0 overflow-hidden">
+                          {/* Action buttons */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
                             <span className="text-xs text-muted-foreground">
-                              {container.containerInfo?.Status || 'No status available'}
+                              {container.containerInfo?.Status ||
+                                'No status available'}
+                              +
                             </span>
-
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex gap-1">
                               {container.status === 'exited' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   disabled={!!dockerError}
                                   onClick={() =>
-                                    startContainer(container.containerInfo?.Id || '')
+                                    startContainer(
+                                      container.containerInfo?.Id || '',
+                                    )
                                   }
                                   title={
                                     dockerError
@@ -412,7 +434,9 @@ export const ContainerSidebar = () => {
                                   variant="outline"
                                   disabled={!!dockerError}
                                   onClick={() =>
-                                    stopContainer(container.containerInfo?.Id || '')
+                                    stopContainer(
+                                      container.containerInfo?.Id || '',
+                                    )
                                   }
                                   title={
                                     dockerError
@@ -427,14 +451,14 @@ export const ContainerSidebar = () => {
                             </div>
                           </div>
 
-                          {/* Ports + dependencies (same TS-safe logic) */}
+                          {/* Ports + dependencies */}
                           {(!!container.serviceConfig.ports?.length ||
                             !!container.serviceConfig.depends_on?.length) && (
-                            <div className="border-t pt-3 space-y-2">
+                            <div className="space-y-2 text-sm">
                               {container.serviceConfig.ports &&
                                 container.serviceConfig.ports.length > 0 && (
                                   <div>
-                                    <span className="font-medium text-muted-foreground">
+                                    <span className="font-medium text-muted-foreground text-xs">
                                       Ports:
                                     </span>
                                     <div className="flex flex-wrap gap-1 mt-1">
@@ -449,9 +473,15 @@ export const ContainerSidebar = () => {
                                             {port}
                                           </Badge>
                                         ))}
-                                      {container.serviceConfig.ports.length > 3 && (
-                                        <Badge variant="outline" className="text-xs">
-                                          +{container.serviceConfig.ports.length - 3}
+                                      {container.serviceConfig.ports.length >
+                                        3 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs"
+                                        >
+                                          +
+                                          {container.serviceConfig.ports
+                                            .length - 3}
                                         </Badge>
                                       )}
                                     </div>
@@ -459,18 +489,21 @@ export const ContainerSidebar = () => {
                                 )}
 
                               {container.serviceConfig.depends_on &&
-                                container.serviceConfig.depends_on.length > 0 && (
+                                container.serviceConfig.depends_on.length >
+                                  0 && (
                                   <div>
-                                    <span className="font-medium text-muted-foreground">
+                                    <span className="font-medium text-muted-foreground text-xs">
                                       Depends on:
                                     </span>
                                     <div className="mt-1 text-xs text-muted-foreground break-words">
                                       {container.serviceConfig.depends_on
                                         .slice(0, 2)
                                         .join(', ')}
-                                      {container.serviceConfig.depends_on.length > 2 &&
+                                      {container.serviceConfig.depends_on
+                                        .length > 2 &&
                                         ` +${
-                                          container.serviceConfig.depends_on.length - 2
+                                          container.serviceConfig.depends_on
+                                            .length - 2
                                         } more`}
                                     </div>
                                   </div>
@@ -488,7 +521,7 @@ export const ContainerSidebar = () => {
         </SidebarGroup>
 
         {containersWithStatus.length === 0 && (
-          <div className="px-2 py-4">
+          <div className="mx-1 mb-3">
             <Card>
               <CardContent className="pt-6 text-center">
                 <p className="text-sm text-muted-foreground">
