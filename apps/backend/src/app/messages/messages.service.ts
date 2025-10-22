@@ -91,7 +91,7 @@ export class MessageService {
         .exec();
       console.log(ids);
       const serviceBusIds = messages.map((m) => m.messageId);
-
+     //when message is in service bus but not processed marked as not processed
       await this.messageModel
         .updateMany(
           { subject: queue.Name, messageId: { $nin: serviceBusIds } },

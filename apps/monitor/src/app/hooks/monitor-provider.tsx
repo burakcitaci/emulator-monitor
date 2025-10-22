@@ -122,9 +122,9 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
     setState((prev) => ({ ...prev, dlqQueue: queue }));
   };
 
-  const setMessages = (messages: Message[]) => {
+  const setMessages = useCallback((messages: Message[]) => {
     setState((prev) => ({ ...prev, messages }));
-  };
+  }, []);
 
   const setDlqMessages = (messages: DeadLetterMessageResponse) => {
     setState((prev) => ({ ...prev, dlqMessages: messages }));

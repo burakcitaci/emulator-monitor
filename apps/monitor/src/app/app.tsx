@@ -20,6 +20,7 @@ import { ThemeToggle } from './components/common/ThemeToggle';
 import { AlertCircle } from 'lucide-react';
 
 import { ConnectionForm } from '@e2e-monitor/entities';
+import { DockerImagesSidebar } from './components/containers';
 
 const MonitorContent: React.FC = () => {
   const {
@@ -28,6 +29,7 @@ const MonitorContent: React.FC = () => {
     sendForm,
     setSendForm,
     messages,
+    setMessages,
     dlqMessages,
     connectionInfo,
     setSelectedMessage,
@@ -48,6 +50,7 @@ const MonitorContent: React.FC = () => {
           <MessagesTab
             messages={messages}
             onMessageSelect={setSelectedMessage}
+            onMessagesUpdate={setMessages}
           />
         );
       case 'send':
@@ -78,18 +81,20 @@ const MonitorContent: React.FC = () => {
   };
 
   return (
-    <SidebarProvider>
-      <ContainerSidebar />
+    <SidebarProvider defaultOpen={true}>
+      <DockerImagesSidebar />
       <SidebarInset>
-        <header className="flex h-16 items-center gap-2 border-b px-3">
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="h-4" />
-          <Header
-            connectionInfo={connectionInfo}
-            messages={messages}
-            dlqMessages={dlqMessages.messages}
-          />
-          <div className="ml-auto">
+        <header className="flex h-16 items-center gap-2 border-b px-2 sm:px-3">
+          <SidebarTrigger className="flex-shrink-0" />
+          <Separator orientation="vertical" className="h-4 hidden sm:block" />
+          <div className="flex-1 min-w-0">
+            <Header
+              connectionInfo={connectionInfo}
+              messages={messages}
+              dlqMessages={dlqMessages.messages}
+            />
+          </div>
+          <div className="flex-shrink-0">
             <ThemeToggle />
           </div>
         </header>

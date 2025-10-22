@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { MessagesDataTable } from './MessagesDataTable';
 import { useServiceBusConfig } from '../../hooks/useServiceBusConfig';
 import { useServiceBus } from '../../hooks/useServiceBus';
@@ -18,6 +18,7 @@ import { RefreshCcw } from 'lucide-react';
 interface MessagesTabProps {
   messages: Message[];
   onMessageSelect: (message: Message) => void;
+  onMessagesUpdate: (messages: Message[]) => void;
 }
 
 type PrimarySelection =
@@ -27,14 +28,15 @@ type PrimarySelection =
 
 interface GetMessagesParams {
   namespace: string;
-  queue: string;
-  topic: string;
-  subscription: string;
+  queue?: string;
+  topic?: string;
+  subscription?: string;
 }
 
 export const MessagesTab: React.FC<MessagesTabProps> = ({
   messages,
   onMessageSelect,
+  onMessagesUpdate,
 }) => {
   const {
     queuesAndTopics,
@@ -56,18 +58,42 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [queuesAndTopicsVersion, setQueuesAndTopicsVersion] = useState(0);
+
+  // Use ref to store current queuesAndTopics value for loadMessages
+  const queuesAndTopicsRef = useRef(queuesAndTopics);
+  queuesAndTopicsRef.current = queuesAndTopics;
+
+  // Update version when queuesAndTopics changes
+  useEffect(() => {
+    setQueuesAndTopicsVersion(v => v + 1);
+  }, [queuesAndTopics]);
 
   const resolveNamespace = useCallback(() => {
-    if (!primary) return '';
-    const item = queuesAndTopics.find(
+    const currentQueuesAndTopics = queuesAndTopicsRef.current;
+
+    if (!primary) {
+      // For no selection, use the first available namespace
+      const defaultNamespace = currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '';
+      console.log('Resolving default namespace:', { defaultNamespace, queuesAndTopicsLength: currentQueuesAndTopics.length });
+      return defaultNamespace;
+    }
+
+    const item = currentQueuesAndTopics.find(
       (i) => i.type === primary.kind && i.name === primary.name,
     );
-    return item?.namespace ?? '';
-  }, [primary, queuesAndTopics]);
+    const namespace = item?.namespace ?? '';
+    console.log('Resolving namespace for:', { primary, item, namespace, queuesAndTopicsLength: currentQueuesAndTopics.length });
+    return namespace;
+  }, [primary, queuesAndTopicsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setNamespace(resolveNamespace());
-  }, [resolveNamespace]);
+    const newNamespace = resolveNamespace();
+    console.log('Setting namespace:', newNamespace, 'current:', namespace);
+    if (newNamespace !== namespace) {
+      setNamespace(newNamespace);
+    }
+  }, [resolveNamespace, namespace]);
 
   const topicSubscriptions = useMemo(() => {
     if (primary?.kind !== 'topic') return [];
@@ -90,50 +116,95 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   }, [primary, topicSubscriptions]);
 
   const handlePrimaryChange = useCallback((value: string) => {
-    const [kind, name] = value.split('::');
-
-    if (kind === 'queue') {
-      setPrimary({ kind: 'queue', name });
-    } else if (kind === 'topic') {
-      setPrimary({ kind: 'topic', name });
-    } else {
+    if (value === 'all' || value === '') {
       setPrimary(null);
+    } else {
+      const [kind, name] = value.split('::');
+
+      if (kind === 'queue') {
+        setPrimary({ kind: 'queue', name });
+      } else if (kind === 'topic') {
+        setPrimary({ kind: 'topic', name });
+      } else {
+        setPrimary(null);
+      }
     }
 
+    // Reset loading state when selection changes
     setLocalMessages([]);
+    setHasLoaded(false);
     setFetchError(null);
   }, []);
 
   const buildMessagesParams = useCallback((): GetMessagesParams | null => {
-    if (!primary) return null;
+    // If no primary selection, use default namespace to fetch all messages
+    if (!primary) {
+      const currentQueuesAndTopics = queuesAndTopicsRef.current;
+      const defaultNamespace = namespace || (currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '');
+      if (!defaultNamespace) return null;
+
+      return {
+        namespace: defaultNamespace,
+        queue: undefined,
+        topic: undefined,
+        subscription: undefined,
+      };
+    }
 
     return {
       namespace,
-      queue: primary.kind === 'queue' ? primary.name : '',
-      topic: primary.kind === 'topic' ? primary.name : '',
-      subscription: primary.kind === 'topic' ? subscription : '',
+      queue: primary.kind === 'queue' ? primary.name : undefined,
+      topic: primary.kind === 'topic' ? primary.name : undefined,
+      subscription: primary.kind === 'topic' ? subscription : undefined,
     };
   }, [primary, namespace, subscription]);
 
   const loadMessages = useCallback(async () => {
-    if (!primary) return;
-    if (primary && !namespace) return;
-    if (primary.kind === 'topic' && !subscription) return;
+    console.log('loadMessages called with:', { primary, namespace, subscription });
+
+    // For topics, we need namespace and subscription
+    if (primary?.kind === 'topic') {
+      if (!namespace || !subscription) {
+        console.log('Missing required parameters for topic:', { namespace, subscription });
+        return;
+      }
+    } else if (primary?.kind === 'queue') {
+      // For queues, we only need namespace
+      if (!namespace) {
+        console.log('Missing namespace for queue');
+        return;
+      }
+    } else if (!primary) {
+      // For no selection, we need at least a default namespace
+      const currentQueuesAndTopics = queuesAndTopicsRef.current;
+      const defaultNamespace = namespace || (currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '');
+      if (!defaultNamespace) {
+        console.log('No namespace available for loading all messages');
+        return;
+      }
+    }
 
     console.log('Loading messages for:', { primary, namespace, subscription });
     setIsFetching(true);
 
     try {
       const params = buildMessagesParams();
-      if (!params) return;
-      console.log('Making API call with params:', params);
+      if (!params) {
+        console.log('Failed to build message params');
+        return;
+      }
 
+      console.log('Making API call with params:', params);
       const res = await getMessages(params);
       console.log('API response:', res);
 
-      setLocalMessages(res.messages || []);
+      const loadedMessages = res.messages || [];
+      setLocalMessages(loadedMessages);
       setHasLoaded(true);
       setFetchError(null);
+
+      // Update parent component with loaded messages
+      onMessagesUpdate(loadedMessages);
 
       console.log('Messages loaded successfully');
     } catch (error) {
@@ -145,18 +216,47 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     } finally {
       setIsFetching(false);
     }
-  }, [primary, namespace, subscription, getMessages, buildMessagesParams]);
-
-  useEffect(() => {
-    void loadMessages();
-  }, [loadMessages]);
+  }, [primary, namespace, subscription, getMessages, buildMessagesParams, onMessagesUpdate]);
 
   const canLoad = useMemo(() => {
-    if (!primary) return true;
-    if (!namespace) return false;
-    if (primary.kind === 'topic' && !subscription) return false;
+    // If no primary selection, we need at least a namespace
+    if (!primary) {
+      const currentQueuesAndTopics = queuesAndTopicsRef.current;
+      const defaultNamespace = namespace || (currentQueuesAndTopics.length > 0 ? currentQueuesAndTopics[0]?.namespace : '');
+      return !!defaultNamespace;
+    }
+
+    if (!namespace) return false; // We need namespace for both queues and topics
+    if (primary.kind === 'topic' && !subscription) return false; // Topics need subscription
     return true;
   }, [primary, namespace, subscription]);
+
+  // Load messages when parameters become available
+  useEffect(() => {
+    // Prevent infinite loops by checking if already fetching
+    if (isFetching) return;
+
+    console.log('Auto-load effect triggered:', {
+      primary,
+      namespace,
+      subscription,
+      hasLoaded,
+      canLoad: canLoad
+    });
+
+    if (canLoad && !hasLoaded) {
+      console.log('Loading messages for:', { primary, namespace, subscription });
+      void loadMessages();
+    } else if (primary && !namespace && queuesAndTopicsRef.current.length > 0) {
+      // If we have primary but no namespace yet, try to resolve namespace
+      console.log('Primary set but namespace not resolved yet, trying again...');
+      const newNamespace = resolveNamespace();
+      if (newNamespace) {
+        console.log('Namespace resolved:', newNamespace);
+        setNamespace(newNamespace);
+      }
+    }
+  }, [primary, namespace, subscription, hasLoaded, loadMessages, resolveNamespace, isFetching, canLoad]);
 
   const displayedMessages = hasLoaded ? localMessages : messages;
   const messageCount = displayedMessages?.length || 0;
@@ -176,11 +276,11 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       {/* Filters */}
       <div className="flex items-center justify-between p-6 bg-card border rounded-lg">
         <div className="space-y-3">
-          <Label className="text-base font-medium">Select Queue or Topic</Label>
+          <Label className="text-base font-medium">Select Queue or Topic (Optional)</Label>
 
           <div className="flex items-center gap-3">
             <Select
-              value={primary ? `${primary.kind}::${primary.name}` : ''}
+              value={primary ? `${primary.kind}::${primary.name}` : 'all'}
               onValueChange={handlePrimaryChange}
               disabled={configLoading}
             >
@@ -188,10 +288,17 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
                 className="w-[340px] rounded-sm"
                 disabled={configLoading}
               >
-                <SelectValue placeholder="Select queue or topic..." />
+                <SelectValue placeholder="Select queue or topic (optional)..." />
               </SelectTrigger>
               <SelectContent>
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                <SelectItem value="all">
+                  <div className="flex items-center space-x-2">
+                    <span aria-hidden="true">🔄</span>
+                    <span>Show All Messages</span>
+                  </div>
+                </SelectItem>
+
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
                   Queues
                 </div>
                 {queues.map((q) => (
@@ -261,7 +368,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
               <RefreshCcw
                 className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
               />
-              Load Messages
+              {primary ? 'Load Messages' : 'Load All Messages'}
             </Button>
           </div>
         </div>

@@ -214,6 +214,7 @@ export interface Message {
   body: string;
   properties: Record<string, unknown>;
   timestamp: Date;
+  createdAt: Date;
   state: MessageState;
 }
 

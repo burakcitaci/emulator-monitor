@@ -136,7 +136,8 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Timestamp" />
     ),
     cell: ({ row }) => {
-      const timestamp = row.original.timestamp;
+      const timestamp = row.original.createdAt;
+      console.log('timestamp', row.original);
       return (
         <div className="text-sm text-muted-foreground whitespace-nowrap">
           {timestamp ? timestamp.toLocaleString() : 'N/A'}

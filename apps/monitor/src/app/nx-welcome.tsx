@@ -50,6 +50,7 @@ export default function ServiceBusMonitor() {
       messageId: `msg-${Date.now()}`,
       body: sendForm.body,
       subject: sendForm.queueName,
+      createdAt: new Date(),
       timestamp: new Date(),
       state: MessageState.ACTIVE,
       properties: {},
@@ -77,6 +78,7 @@ export default function ServiceBusMonitor() {
                 onMessageSelect={(message) =>
                   console.log('Selected message:', message)
                 }
+                onMessagesUpdate={() => {console.log('Messages updated');}}
               />
             )}
 
