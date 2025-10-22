@@ -5,7 +5,7 @@
   "scripts": {},
   "private": true,
   "dependencies": {
-    "@azure/service-bus": "^7.9.5",
+    "@azure/service-bus": "7.10.0-beta.2",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/mongoose": "^11.0.3",

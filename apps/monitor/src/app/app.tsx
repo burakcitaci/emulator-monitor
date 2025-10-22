@@ -82,7 +82,7 @@ const MonitorContent: React.FC = () => {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <DockerImagesSidebar />
+      <ContainerSidebar />
       <SidebarInset>
         <header className="flex h-16 items-center gap-2 border-b px-2 sm:px-3">
           <SidebarTrigger className="flex-shrink-0" />
