@@ -3,3 +3,4 @@ export { SendMessageTab } from './SendMessageTab';
 export { MessagesDataTable } from './MessagesDataTable';
 export { MessageFilters } from './MessageFilters';
 export { MessageTable } from './MessageTable';
+export { EntitySelector } from './EntitySelector';

@@ -546,7 +546,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
       {renderConnectionStatus()}
 
       {/* Main Form */}
-      <div className="bg-card border rounded-lg p-8 shadow-sm">
+      <div className="bg-card border rounded-lg p-8">
         <div className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-6">

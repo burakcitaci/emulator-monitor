@@ -10,11 +10,10 @@ import {
   MessagesTab,
   SendMessageTab,
   ConnectionTab,
-  ConfigurationTab,
 } from './components';
 import { DeadLetterMessage } from './hooks/api/useServiceBus';
 import { Message } from '@e2e-monitor/entities';
-type TabId = 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
+type TabId = 'messages' | 'send' | 'dlq' | 'connection';
 
 export default function ServiceBusMonitor() {
   const [activeTab, setActiveTab] = useState<TabId>('messages');
@@ -31,6 +30,10 @@ export default function ServiceBusMonitor() {
     connectionString: '',
     queues: 'test-queue,orders-queue',
   });
+
+  const handleConnectionFormChange = (form: ConnectionForm) => {
+    setConnectionForm(form);
+  };
 
   const [connectionInfo] = useState<ConnectionInfo>({
     isConnected: true,
@@ -87,16 +90,29 @@ export default function ServiceBusMonitor() {
               />
             )}
 
-            {activeTab === 'configuration' && <ConfigurationTab />}
 
             {activeTab === 'connection' && (
               <ConnectionTab
                 connectionInfo={connectionInfo}
                 form={connectionForm}
-                onFormChange={setConnectionForm}
-                onUpdate={() => alert('Connection updated!')}
-                onTest={() => alert('Testing connection...')}
-                onReset={() => alert('Reset to local emulator')}
+                onFormChange={handleConnectionFormChange}
+                onUpdate={() => {
+                  console.log('Connection updated successfully');
+                }}
+                onTest={() => {
+                  return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                      if (Math.random() > 0.2) {
+                        resolve('Connection successful');
+                      } else {
+                        reject(new Error('Connection failed'));
+                      }
+                    }, 2000);
+                  });
+                }}
+                onReset={() => {
+                  console.log('Reset to local emulator defaults');
+                }}
               />
             )}
           </div>

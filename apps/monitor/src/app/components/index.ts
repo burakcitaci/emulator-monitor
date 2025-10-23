@@ -8,6 +8,7 @@ export {
   MessageTable,
   MessageFilters,
   MessagesDataTable,
+  EntitySelector,
 } from './service-bus';
 
 // Container components
@@ -15,4 +16,3 @@ export { ContainerSidebar } from './containers';
 
 // Other components
 export { ConnectionTab } from './ConnectionTab';
-export { ConfigurationTab } from './ConfigurationTab';

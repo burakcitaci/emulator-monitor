@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 
 interface MonitorState {
   // Tab management
-  activeTab: 'messages' | 'send' | 'dlq' | 'connection' | 'configuration';
+  activeTab: 'messages' | 'send' | 'dlq' | 'connection';
 
   // Form states
   sendForm: SendForm;

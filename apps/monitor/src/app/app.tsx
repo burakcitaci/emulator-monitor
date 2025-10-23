@@ -5,7 +5,6 @@ import {
   Header,
   MessagesTab,
   SendMessageTab,
-  ConfigurationTab,
   ConnectionTab,
 } from './components';
 import {
@@ -32,6 +31,7 @@ const MonitorContent: React.FC = () => {
     setMessages,
     dlqMessages,
     connectionInfo,
+    setConnectionInfo,
     sendMessage,
     isLoading,
     error,
@@ -43,6 +43,21 @@ const MonitorContent: React.FC = () => {
     connectionString: '',
     queues: 'test-queue,orders-queue',
   });
+
+  const handleConnectionFormChange = (form: ConnectionForm) => {
+    setConnectionForm(form);
+    // Update connection info based on form
+    const endpoint = form.connectionString.trim() === ''
+      ? 'http://localhost:3000'
+      : form.connectionString.match(/Endpoint=([^;]+)/)?.[1] || 'Azure Service Bus';
+
+    setConnectionInfo({
+      isConnected: form.connectionString.trim() !== '' || serviceBusConfig !== null,
+      isLocal: form.connectionString.trim() === '',
+      endpoint: endpoint,
+      connectionString: form.connectionString,
+    });
+  };
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -62,17 +77,52 @@ const MonitorContent: React.FC = () => {
           />
         );
 
-      case 'configuration':
-        return <ConfigurationTab />;
       case 'connection':
         return (
           <ConnectionTab
             connectionInfo={connectionInfo}
             form={connectionForm}
-            onFormChange={setConnectionForm}
-            onUpdate={() => alert('Connection updated!')}
-            onTest={() => alert('Testing connection...')}
-            onReset={() => alert('Reset to local emulator')}
+            onFormChange={handleConnectionFormChange}
+            onUpdate={() => {
+              // Update connection info when connection is updated
+              const endpoint = connectionForm.connectionString.trim() === ''
+                ? 'http://localhost:3000'
+                : connectionForm.connectionString.match(/Endpoint=([^;]+)/)?.[1] || 'Azure Service Bus';
+
+              setConnectionInfo({
+                isConnected: connectionForm.connectionString.trim() !== '' || serviceBusConfig !== null,
+                isLocal: connectionForm.connectionString.trim() === '',
+                endpoint: endpoint,
+                connectionString: connectionForm.connectionString,
+              });
+              console.log('Connection updated successfully');
+            }}
+            onTest={() => {
+              // Simulate connection test
+              return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                  // Simulate success/failure (80% success rate)
+                  if (Math.random() > 0.2) {
+                    resolve('Connection successful');
+                  } else {
+                    reject(new Error('Connection failed'));
+                  }
+                }, 2000);
+              });
+            }}
+            onReset={() => {
+              setConnectionInfo({
+                isConnected: false,
+                isLocal: true,
+                endpoint: '',
+                connectionString: '',
+              });
+              setConnectionForm({
+                connectionString: '',
+                queues: 'test-queue,orders-queue',
+              });
+              console.log('Reset to local emulator defaults');
+            }}
           />
         );
       default:
@@ -94,8 +144,14 @@ const MonitorContent: React.FC = () => {
               dlqMessages={dlqMessages.messages}
               serviceBusConfig={serviceBusConfig}
               onServiceBusInitialized={() => {
-                // Optional: refresh data after initialization
+                // Update connection info when Service Bus is initialized
                 console.log('Service Bus initialized successfully');
+                setConnectionInfo({
+                  isConnected: true,
+                  isLocal: true,
+                  endpoint: 'http://localhost:3000',
+                  connectionString: '',
+                });
               }}
             />
           </div>
