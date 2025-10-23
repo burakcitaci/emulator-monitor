@@ -21,7 +21,7 @@ import { AlertCircle } from 'lucide-react';
 import { ConnectionForm } from '@e2e-monitor/entities';
 import { useServiceBusConfig } from './hooks/api/useServiceBusConfig';
 
-const MonitorContent: React.FC = () => {
+const ServiceBusMonitorView: React.FC = () => {
   const {
     activeTab,
     setActiveTab,
@@ -192,7 +192,7 @@ export function App() {
   return (
     <Providers>
       <MonitorProvider>
-        <MonitorContent />
+        <ServiceBusMonitorView />
       </MonitorProvider>
     </Providers>
   );

@@ -11,11 +11,19 @@ import {
   SendMessageTab,
   ConnectionTab,
 } from './components';
-import { DeadLetterMessage } from './hooks/api/useServiceBus';
 import { Message } from '@e2e-monitor/entities';
+
 type TabId = 'messages' | 'send' | 'dlq' | 'connection';
 
-export default function ServiceBusMonitor() {
+/**
+ * StandaloneServiceBusMonitor
+ * 
+ * A standalone demo version of the Service Bus Monitor without providers or context.
+ * Useful for testing individual components or as a fallback view.
+ * 
+ * Not used in production - see app.tsx for the main application.
+ */
+export default function StandaloneServiceBusMonitor() {
   const [activeTab, setActiveTab] = useState<TabId>('messages');
   const [deadLetterMessages, setDeadLetterMessages] = useState<Message[]>([]);
 
@@ -31,10 +39,6 @@ export default function ServiceBusMonitor() {
     queues: 'test-queue,orders-queue',
   });
 
-  const handleConnectionFormChange = (form: ConnectionForm) => {
-    setConnectionForm(form);
-  };
-
   const [connectionInfo] = useState<ConnectionInfo>({
     isConnected: true,
     isLocal: true,
@@ -42,9 +46,8 @@ export default function ServiceBusMonitor() {
     connectionString: '',
   });
 
-  // Handle viewing a DeadLetterMessage
-  const handleViewMessage = (message: DeadLetterMessage) => {
-    console.log('Viewing message:', message);
+  const handleConnectionFormChange = (form: ConnectionForm) => {
+    setConnectionForm(form);
   };
 
   const handleSendMessage = () => {
@@ -62,16 +65,10 @@ export default function ServiceBusMonitor() {
     setSendForm({ ...sendForm, body: '', properties: '' });
   };
 
-  const handleReplayMessage = (messageId: string) => {
-    setDeadLetterMessages((prev) =>
-      prev.filter((msg) => msg.messageId !== messageId)
-    );
-  };
-
   return (
-    <div className="min-h-screen ">
+    <div className="min-h-screen">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white rounded-lg shadow-md">
+        <div className="bg-white dark:bg-slate-950 rounded-lg shadow-md">
           <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
           <div className="p-6">
@@ -89,7 +86,6 @@ export default function ServiceBusMonitor() {
                 onSend={handleSendMessage}
               />
             )}
-
 
             {activeTab === 'connection' && (
               <ConnectionTab
@@ -118,11 +114,6 @@ export default function ServiceBusMonitor() {
           </div>
         </div>
       </div>
-
-      {/* <MessageDetailModal
-        message={selectedMessage}
-        onClose={() => setSelectedMessage(null)}
-      /> */}
     </div>
   );
 }

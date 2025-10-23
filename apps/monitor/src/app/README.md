@@ -1,129 +1,133 @@
-# Service Bus Monitor - Modular Architecture
+# Service Bus Monitor - App Structure
 
-This application has been refactored following React best practices with a clean, modular architecture.
+## Overview
 
-## Project Structure
+The Service Bus Monitor is a real-time monitoring application for Azure Service Bus. The app directory contains the main application logic and UI components.
+
+## File Organization
+
+### Core Application Files
+
+#### `app.tsx` (Main Application)
+
+The primary entry point for the Service Bus Monitor application.
+
+- **ServiceBusMonitorView**: Main component that renders the full UI with sidebar, header, and navigation
+- Uses context providers for global state management (MonitorProvider)
+- Integrates with the Header and ContainerSidebar components
+- Handles tab navigation and tab content rendering
+- Features:
+  - Real-time message display
+  - Message sending functionality
+  - Connection configuration
+  - Loading and error states
+  - Dark mode support
+
+Exports: `App` component (wrapped with providers)
+
+#### `nx-welcome.tsx` (Standalone Demo)
+
+A standalone demo version of the Service Bus Monitor without providers or context.
+
+- **StandaloneServiceBusMonitor**: Simplified component for testing or fallback scenarios
+- Uses local state instead of global context
+- Useful for:
+  - Component testing and development
+  - Storybook demonstrations
+  - Debugging individual components
+- **Note**: Not used in production - see `app.tsx` for the main application
+
+### Directory Structure
 
 ```
 src/app/
-├── components/           # Reusable UI components
-│   ├── Header.tsx       # Application header with connection status
-│   ├── TabNavigation.tsx # Tab navigation component
-│   ├── MessagesTab.tsx  # Messages tab with filtering and table
-│   ├── SendMessageTab.tsx # Send message form
-│   ├── DeadLetterQueueTab.tsx # DLQ management tab
-│   ├── ConnectionTab.tsx # Connection settings tab
-│   ├── MessageDetailModal.tsx # Message detail modal
-│   ├── MessageTable.tsx # Reusable message table
-│   ├── MessageFilters.tsx # Message filtering component
-│   ├── DLQTable.tsx     # Dead letter queue table
-│   └── index.ts         # Component exports
-├── hooks/               # Custom React hooks
-│   ├── useMessages.ts   # Message state management
-│   └── index.ts         # Hook exports
-├── types/               # TypeScript type definitions
-│   └── index.ts         # All type definitions
-├── utils/               # Utility functions
-│   ├── messageUtils.ts  # Message-related utilities
-│   └── index.ts         # Utility exports
-├── nx-welcome.tsx       # Main application component
-└── README.md           # This file
+├── app.tsx                 # Main application (production)
+├── nx-welcome.tsx         # Standalone demo version
+├── layout.tsx             # Layout wrapper
+├── providers.tsx          # Context providers
+├── components/            # React components
+│   ├── common/           # Shared components (Header, TabNavigation, etc.)
+│   ├── service-bus/      # Service Bus specific components
+│   ├── containers/       # Container/sidebar components
+│   └── ui/              # Generic UI components
+├── hooks/                # React hooks
+│   ├── api/             # API-related hooks
+│   └── context/         # Context providers
+├── lib/                 # Utility functions
+└── utils/               # Helper utilities
 ```
 
-## Key Benefits
+## Component Hierarchy
 
-### 1. **Separation of Concerns**
+### Production (app.tsx)
 
-- Each component has a single responsibility
-- Business logic is separated from UI components
-- State management is centralized in custom hooks
+```
+<Providers>
+  <MonitorProvider>
+    <ServiceBusMonitorView>
+      <SidebarProvider>
+        <ContainerSidebar />
+        <SidebarInset>
+          <Header />
+          <TabNavigation />
+          <main>
+            <MessagesTab />
+            <SendMessageTab />
+            <ConnectionTab />
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </ServiceBusMonitorView>
+  </MonitorProvider>
+</Providers>
+```
 
-### 2. **Reusability**
+### Standalone Demo (nx-welcome.tsx)
 
-- Components are designed to be reusable across the application
-- Utility functions can be shared between components
-- Type definitions are centralized and consistent
+```
+<StandaloneServiceBusMonitor>
+  <div>
+    <TabNavigation />
+    <div>
+      <MessagesTab />
+      <SendMessageTab />
+      <ConnectionTab />
+    </div>
+  </div>
+</StandaloneServiceBusMonitor>
+```
 
-### 3. **Maintainability**
+## State Management
 
-- Easy to locate and modify specific functionality
-- Clear component boundaries make testing easier
-- Consistent patterns across all components
+### Global Context (used in app.tsx)
 
-### 4. **Type Safety**
+- **MonitorProvider**: Manages application-wide state via `useMonitor()` hook
+  - activeTab, setActiveTab
+  - sendForm, setSendForm
+  - messages, setMessages
+  - dlqMessages
+  - connectionInfo, setConnectionInfo
+  - sendMessage()
+  - isLoading, error
 
-- All components are fully typed with TypeScript
-- Centralized type definitions prevent inconsistencies
-- Better IDE support and error catching
+### Local State (used in nx-welcome.tsx)
 
-### 5. **Performance**
+- Each component manages its own state independently
 
-- Components can be optimized individually
-- Potential for lazy loading of tab components
-- Better tree-shaking opportunities
+## Tab Types
 
-## Component Architecture
+- **messages**: View incoming messages
+- **send**: Send test messages
+- **connection**: Configure Service Bus connection
+- **dlq**: Dead letter queue (reserved)
 
-### Main Component (`nx-welcome.tsx`)
+## Styling
 
-- Orchestrates the overall application state
-- Manages tab navigation
-- Coordinates between child components
-- Handles high-level user interactions
+- Tailwind CSS for styling
+- Support for light/dark modes
+- Responsive design with sidebar navigation
+- Consistent typography using Inter font (see styles.css)
 
-### Feature Components
+## Entry Point
 
-Each tab is implemented as a separate component:
-
-- **MessagesTab**: Displays and filters messages
-- **SendMessageTab**: Form for sending new messages
-- **DeadLetterQueueTab**: Manages failed messages
-- **ConnectionTab**: Connection configuration
-
-### Shared Components
-
-- **Header**: Application header with status indicators
-- **TabNavigation**: Tab switching interface
-- **MessageTable**: Reusable table for displaying messages
-- **MessageFilters**: Search and filter functionality
-- **MessageDetailModal**: Detailed message view
-
-### Custom Hooks
-
-- **useMessages**: Manages message state and operations
-
-### Utilities
-
-- **messageUtils**: Helper functions for message formatting and styling
-
-## Usage Examples
-
-### Adding a New Tab
-
-1. Create a new component in `components/`
-2. Add the tab to `TabNavigation.tsx`
-3. Import and use in the main component
-4. Add the tab type to the `TabId` union type
-
-### Adding a New Message Operation
-
-1. Add the operation to `useMessages` hook
-2. Update the relevant component to use the new operation
-3. Add any new types to `types/index.ts`
-
-### Styling Components
-
-- All components use Tailwind CSS classes
-- Color utilities are centralized in `messageUtils.ts`
-- Consistent design patterns across all components
-
-## Best Practices Implemented
-
-1. **Single Responsibility Principle**: Each component has one clear purpose
-2. **Props Interface**: All components have well-defined prop interfaces
-3. **Custom Hooks**: Business logic is extracted into reusable hooks
-4. **Type Safety**: Full TypeScript coverage with proper interfaces
-5. **Clean Imports**: Organized imports with barrel exports
-6. **Consistent Naming**: Clear, descriptive component and function names
-7. **Error Boundaries**: Components handle edge cases gracefully
-8. **Accessibility**: Proper ARIA labels and keyboard navigation
+The application is mounted in `main.tsx` which imports and renders the `App` component from `app.tsx`.
