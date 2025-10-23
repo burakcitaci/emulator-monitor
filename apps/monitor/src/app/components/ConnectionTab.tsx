@@ -135,11 +135,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
           </div>
           <div className="flex-1 min-w-[200px]">
             <span className="text-sm text-muted-foreground">Endpoint:</span>
-            <p className="text-sm font-mono break-all mt-1">
-              {connectionInfo?.endpoint || 
-               extractEndpoint(form?.connectionString || '') || 
-               (isConnected && connectionInfo?.isLocal ? 'http://localhost:3000' : 'Not configured')}
-            </p>
+            <p className="text-sm break-all mt-1">{connectionInfo.endpoint}</p>
           </div>
           <Button
             onClick={handleTestConnection}
@@ -228,7 +224,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
                     <div key={topic.Name} className="p-2 bg-muted/30 rounded text-xs">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">•</span>
-                        <span className="font-mono">{topic.Name}</span>
+                        <span>{topic.Name}</span>
                       </div>
                       {topic.Subscriptions && topic.Subscriptions.length > 0 && (
                         <div className="ml-4 mt-1 flex flex-wrap gap-1">
@@ -276,7 +272,7 @@ const EntityList: React.FC<{
       {items.map(item => (
         <div key={item} className="flex items-center gap-2 p-2 bg-muted/30 rounded text-xs">
           <span className="text-muted-foreground">•</span>
-          <span className={mono ? 'font-mono' : 'font-medium'}>{item}</span>
+          <span className={mono ? 'font-medium' : 'font-medium'}>{item}</span>
         </div>
       ))}
     </div>

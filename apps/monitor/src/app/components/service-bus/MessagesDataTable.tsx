@@ -72,7 +72,7 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       return (
-        <div className="font-mono text-xs font-medium truncate">
+        <div className="text-xs font-medium truncate">
           {row.original.messageId || '-'}
         </div>
       );
@@ -87,7 +87,7 @@ const createColumns = (
     cell: ({ row }) => {
       const queue = row.original.subject;
       if (!queue) return <span className="text-muted-foreground text-xs">-</span>;
-      return <div className="text-xs font-mono truncate max-w-32">{queue}</div>;
+      return <div className="text-xs truncate max-w-32">{queue}</div>;
     },
   },
   {
@@ -126,7 +126,7 @@ const createColumns = (
       }
 
       return (
-        <div className="max-w-48 truncate font-mono text-xs leading-tight">{bodyText}</div>
+        <div className="max-w-48 truncate text-xs leading-tight">{bodyText}</div>
       );
     },
   },
@@ -138,7 +138,7 @@ const createColumns = (
     cell: ({ row }) => {
       const timestamp = row.original.createdAt;
       return (
-        <div className="text-xs text-muted-foreground whitespace-nowrap font-mono">
+        <div className="text-xs text-muted-foreground whitespace-nowrap">
           {timestamp ? timestamp.toLocaleString() : 'N/A'}
         </div>
       );

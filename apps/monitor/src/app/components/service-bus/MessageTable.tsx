@@ -89,11 +89,11 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                     {message.state}
                   </span>
                 </TableCell>
-                <TableCell className="font-mono">
+                <TableCell className="font-medium">
                   {message.id.substring(0, 12)}...
                 </TableCell>
                 <TableCell>
-                  <div className="max-w-md truncate font-mono text-xs">
+                  <div className="max-w-md truncate text-xs">
                     {(() => {
                       const bodyText = formatBodyForDisplay(message.body);
                       return bodyText.length > 80 ? `${bodyText.substring(0, 80)}...` : bodyText;
@@ -149,14 +149,14 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                       })}
                     </div>
 
-                    <div className="text-xs font-mono bg-gray-100 p-2 rounded">
+                    <div className="text-xs bg-gray-100 p-2 rounded">
                       {(() => {
                         const bodyText = formatBodyForDisplay(message.body);
                         return bodyText.length > 60 ? `${bodyText.substring(0, 60)}...` : bodyText;
                       })()}
                     </div>
 
-                    <div className="text-xs text-gray-500 font-mono">
+                    <div className="text-xs text-gray-500">
                       ID: {message.id.substring(0, 16)}...
                     </div>
                   </div>

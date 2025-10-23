@@ -435,7 +435,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
         value={form.body}
         onChange={(e) => handleInputChange('body', e.target.value)}
         rows={8}
-        className={`font-mono text-sm ${
+        className={`text-sm ${
           validationErrors.body ? 'border-destructive' : ''
         }`}
         placeholder='{"policyId": "P001", "violation": "speed"}'
@@ -462,7 +462,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
         value={form.properties}
         onChange={(e) => handleInputChange('properties', e.target.value)}
         rows={4}
-        className={`font-mono text-sm ${
+        className={`text-sm ${
           validationErrors.properties ? 'border-destructive' : ''
         }`}
         placeholder='{"severity": "high"}'

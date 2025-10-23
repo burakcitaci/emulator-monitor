@@ -80,7 +80,7 @@ export const MessageDetailModal: React.FC<MessageDetailModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Message ID
               </label>
-              <p className="text-sm text-gray-900 font-mono bg-gray-50 p-2 rounded">
+              <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
                 {message.messageId}
               </p>
             </div>
