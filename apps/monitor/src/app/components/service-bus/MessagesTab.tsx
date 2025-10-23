@@ -22,7 +22,6 @@ import { RefreshCcw } from 'lucide-react';
 
 interface MessagesTabProps {
   messages: Message[];
-  onMessageSelect: (message: Message) => void;
   onMessagesUpdate: (messages: Message[]) => void;
 }
 
@@ -40,7 +39,6 @@ interface GetMessagesParams {
 
 export const MessagesTab: React.FC<MessagesTabProps> = ({
   messages,
-  onMessageSelect,
   onMessagesUpdate,
 }) => {
   const {
@@ -461,7 +459,6 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       <div className="w-full min-w-0">
         <MessagesDataTable
           messages={displayedMessages}
-          onMessageSelect={onMessageSelect}
           onMessageReplay={(messageId: string) =>
             console.log('Replay message', messageId)
           }

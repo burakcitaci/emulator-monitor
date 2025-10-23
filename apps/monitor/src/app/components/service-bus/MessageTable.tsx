@@ -18,6 +18,16 @@ interface MessageTableProps {
   onMessageSelect: (message: Message) => void;
 }
 
+// Helper function to format body content for display
+const formatBodyForDisplay = (body: string | Record<string, unknown>): string => {
+  if (typeof body === 'string') {
+    return body;
+  } else if (typeof body === 'object' && body !== null) {
+    return JSON.stringify(body);
+  }
+  return String(body || '');
+};
+
 export const MessageTable: React.FC<MessageTableProps> = ({
   messages,
   onMessageSelect,
@@ -84,8 +94,10 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                 </TableCell>
                 <TableCell>
                   <div className="max-w-md truncate font-mono text-xs">
-                    {message.body.substring(0, 80)}
-                    {message.body.length > 80 ? '...' : ''}
+                    {(() => {
+                      const bodyText = formatBodyForDisplay(message.body);
+                      return bodyText.length > 80 ? `${bodyText.substring(0, 80)}...` : bodyText;
+                    })()}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
@@ -138,8 +150,10 @@ export const MessageTable: React.FC<MessageTableProps> = ({
                     </div>
 
                     <div className="text-xs font-mono bg-gray-100 p-2 rounded">
-                      {message.body.substring(0, 60)}
-                      {message.body.length > 60 ? '...' : ''}
+                      {(() => {
+                        const bodyText = formatBodyForDisplay(message.body);
+                        return bodyText.length > 60 ? `${bodyText.substring(0, 60)}...` : bodyText;
+                      })()}
                     </div>
 
                     <div className="text-xs text-gray-500 font-mono">

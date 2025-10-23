@@ -205,7 +205,7 @@ export const ContainerSidebar = () => {
     <Sidebar
       collapsible="icon"
       variant="inset"
-      className="h-screen overflow-hidden"
+      className="h-screen overflow-hidden gap-6"
     >
       <SidebarHeader>
         <div className="flex items-center justify-between">
@@ -229,7 +229,7 @@ export const ContainerSidebar = () => {
 
       <SidebarSeparator />
 
-      <SidebarContent className="flex-1 min-h-0">
+      <SidebarContent className="flex-1 min-h-0 ">
         {/* Docker Error Banner */}
         {dockerError && (
           <Card className="border-black-500 rounded-md shadow-none bg-yellow-50 dark:bg-yellow-950/20 group-data-[collapsible=icon]:hidden">
@@ -273,7 +273,7 @@ export const ContainerSidebar = () => {
 
         {/* Project Filter Dropdown */}
         {projects.length > 0 && (
-          <div className="space-y-2 group-data-[collapsible=icon]:hidden mx-1 mb-3">
+          <div className="space-y-3 group-data-[collapsible=icon]:hidden mx-1 mb-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-muted-foreground">
                 Filter by Project
@@ -284,7 +284,7 @@ export const ContainerSidebar = () => {
                 value={selectedProject}
                 onValueChange={setSelectedProject}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-8 rounded-sm">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -346,8 +346,8 @@ export const ContainerSidebar = () => {
           </div>
         )}
 
-        <SidebarGroup className="mx- border border-red-500 rounded-md p-">
-          <SidebarGroupLabel>Containers</SidebarGroupLabel>
+        <SidebarGroup className="mx- border border-red-500 rounded-md p-1">
+          <SidebarGroupLabel className='text-sm font-bold uppercase'>Containers</SidebarGroupLabel>
           <SidebarGroupContent className="overflow-hidden">
             <SidebarMenu className="space-y-0">
               {containersWithStatus.map((container) => {
@@ -362,20 +362,20 @@ export const ContainerSidebar = () => {
                         value={container.serviceName}
                         className="border-none"
                       >
-                        <AccordionTrigger className="hover:no-underline py-2 px-0">
+                        <AccordionTrigger className="hover:no-underline py-1 px-0">
                           <SidebarMenuButton
                             asChild
                             tooltip={`${container.serviceConfig.container_name || container.serviceName}: ${statusDisplay.label}`}
                             className="h-auto py-1 w-full"
                           >
-                            <div className="flex flex-col gap-1.5 w-full">
+                            <div className="flex flex-col gap-1.5 w-full uppercase">
                               {/* Header with name and status badge */}
                               <div className="flex items-center justify-between gap-2 w-full">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <statusDisplay.icon
+                                 {/*  <statusDisplay.icon
                                     className={`w-3 h-3 flex-shrink-0 ${statusDisplay.color}`}
                                     aria-hidden="true"
-                                  />
+                                  /> */}
                                   <span className="font-medium truncate text-sm">
                                     {container.serviceConfig.container_name ||
                                       container.serviceName}
@@ -400,7 +400,7 @@ export const ContainerSidebar = () => {
                             </div>
                           </SidebarMenuButton>
                         </AccordionTrigger>
-                        <AccordionContent className="px-2 pb-2 pt-0 overflow-hidden">
+                        <AccordionContent className="px-4 pb-2 py-2 overflow-hidden">
                           {/* Action buttons */}
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <span className="text-xs text-muted-foreground">
@@ -432,6 +432,7 @@ export const ContainerSidebar = () => {
                               {container.status === 'running' && (
                                 <Button
                                   size="sm"
+                                  className='h-6 px-2 py-0.5 rounded-sm'
                                   variant="outline"
                                   disabled={!!dockerError}
                                   onClick={() =>

@@ -75,9 +75,6 @@ export default function ServiceBusMonitor() {
             {activeTab === 'messages' && (
               <MessagesTab
                 messages={deadLetterMessages}
-                onMessageSelect={(message) =>
-                  console.log('Selected message:', message)
-                }
                 onMessagesUpdate={() => {console.log('Messages updated');}}
               />
             )}

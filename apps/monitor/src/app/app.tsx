@@ -32,7 +32,6 @@ const MonitorContent: React.FC = () => {
     setMessages,
     dlqMessages,
     connectionInfo,
-    setSelectedMessage,
     sendMessage,
     isLoading,
     error,
@@ -51,7 +50,6 @@ const MonitorContent: React.FC = () => {
         return (
           <MessagesTab
             messages={messages}
-            onMessageSelect={setSelectedMessage}
             onMessagesUpdate={setMessages}
           />
         );

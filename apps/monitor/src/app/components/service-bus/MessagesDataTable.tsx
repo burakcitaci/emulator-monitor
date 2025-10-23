@@ -1,11 +1,12 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Eye, Send, Trash } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { DataTable } from './data-table/DataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
 import { Message } from '@e2e-monitor/entities';
+import { MessageDetailModal } from './MessageDetailModal';
 
 export enum MessageState {
   ACTIVE = 'active', // Message is available for processing
@@ -55,15 +56,14 @@ const formatStatus = (status?: string): string => {
 
 interface MessagesDataTableProps {
   messages: Message[];
-  onMessageSelect: (message: Message) => void;
   onMessageReplay: (messageId: string) => void;
   onMessageDelete: (messageId: string) => void;
 }
 
 const createColumns = (
-  onMessageSelect: (message: Message) => void,
   onMessageReplay: (messageId: string) => void,
   onMessageDelete: (messageId: string) => void,
+  onMessageSelect: (message: Message) => void,
 ): ColumnDef<Message>[] => [
   {
     accessorKey: 'messageId',
@@ -188,21 +188,40 @@ const createColumns = (
 
 export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
   messages,
-  onMessageSelect,
   onMessageReplay,
   onMessageDelete,
 }) => {
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleMessageSelect = (message: Message) => {
+    setSelectedMessage(message);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedMessage(null);
+  };
+
   const columns = React.useMemo(
-    () => createColumns(onMessageSelect, onMessageReplay, onMessageDelete),
-    [onMessageSelect, onMessageReplay, onMessageDelete],
+    () => createColumns(onMessageReplay, onMessageDelete, handleMessageSelect),
+    [onMessageReplay, onMessageDelete],
   );
 
   return (
-    <DataTable
-      columns={columns}
-      data={messages}
-      searchKey="body"
-      searchPlaceholder="Search message body..."
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={messages}
+        searchKey="body"
+        searchPlaceholder="Search message body..."
+      />
+      <MessageDetailModal
+        message={selectedMessage}
+        open={isModalOpen}
+        onOpenChange={handleModalClose}
+      />
+    </>
   );
 };

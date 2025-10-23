@@ -5,7 +5,6 @@ export { Header, TabNavigation } from './common';
 export {
   MessagesTab,
   SendMessageTab,
-  MessageDetailModal,
   MessageTable,
   MessageFilters,
   MessagesDataTable,

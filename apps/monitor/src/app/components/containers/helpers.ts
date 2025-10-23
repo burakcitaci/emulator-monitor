@@ -25,7 +25,7 @@ export const getStatusDisplay = (status: ContainerWithStatus['status']) => {
     running: {
       icon: PlayIcon,
       label: 'Running',
-      color: 'text-green-600 dark:text-green-400',
+      color: 'text-green-600 dark:text-green-600',
       borderColor: 'border-green-500',
       dotColor: 'bg-green-500',
     },

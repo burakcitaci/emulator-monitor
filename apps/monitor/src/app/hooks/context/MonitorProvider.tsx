@@ -28,7 +28,6 @@ interface MonitorState {
   connectionInfo: ConnectionInfo;
 
   // UI states
-  selectedMessage: Message | null;
   isLoading: boolean;
   isSendingMessage: boolean;
   error: string | null;
@@ -48,7 +47,6 @@ interface MonitorActions {
   setConnectionInfo: (info: ConnectionInfo) => void;
 
   // UI actions
-  setSelectedMessage: (message: Message | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 
@@ -86,7 +84,6 @@ const initialState: MonitorState = {
     isLocal: true,
     isConnected: false,
   },
-  selectedMessage: null,
   isLoading: false,
   isSendingMessage: false,
   error: null,
@@ -132,10 +129,6 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
 
   const setConnectionInfo = (info: ConnectionInfo) => {
     setState((prev) => ({ ...prev, connectionInfo: info }));
-  };
-
-  const setSelectedMessage = (message: Message | null) => {
-    setState((prev) => ({ ...prev, selectedMessage: message }));
   };
 
   const setLoading = (loading: boolean) => {
@@ -362,7 +355,6 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
       setMessages,
       setDlqMessages,
       setConnectionInfo,
-      setSelectedMessage,
       setLoading,
       setError,
       sendMessage,

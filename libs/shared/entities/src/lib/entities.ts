@@ -211,7 +211,7 @@ export interface Message {
   id: string;
   messageId: string;
   subject: string;
-  body: string;
+  body: string | Record<string, unknown>;
   properties: Record<string, unknown>;
   timestamp: Date;
   createdAt: Date;
