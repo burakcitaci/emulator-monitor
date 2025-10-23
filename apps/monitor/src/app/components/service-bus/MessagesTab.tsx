@@ -343,8 +343,9 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
         </p>
       </div>
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2 min-w-0">
+      <div className="flex flex-col gap-4 w-full">
+        {/* Top Row: Queue/Topic/Subscription Selectors and Load Button */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:items-center flex-wrap">
           {/* Queue/Topic Selector */}
           <Select
             value={primary ? `${primary.kind}::${primary.name}` : 'all'}
@@ -352,7 +353,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
             disabled={configLoading}
           >
             <SelectTrigger
-              className="h-10 w-full sm:w-[220px] md:w-[280px] rounded-sm"
+              className="h-10 w-full sm:flex-1 sm:min-w-[200px] md:min-w-[280px] rounded-sm"
               disabled={configLoading}
             >
               <SelectValue placeholder="Select queue or topic (optional)..." />
@@ -390,19 +391,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
               ))}
             </SelectContent>
           </Select>
-          {/* Load Button */}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canLoad || isFetching}
-            onClick={loadMessages}
-            className="h-10 rounded-sm whitespace-nowrap"
-          >
-            <RefreshCcw
-              className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
-            />
-            {primary ? 'Load Messages' : 'Load All Messages'}
-          </Button>
+
           {/* Subscription selector only for topics */}
           {isTopicSelected && (
             <Select
@@ -411,7 +400,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
               disabled={configLoading || topicSubscriptions.length === 0}
             >
               <SelectTrigger
-                className="h-10 w-full sm:w-[180px] rounded-sm"
+                className="h-10 w-full sm:flex-1 sm:min-w-[150px] rounded-sm"
                 disabled={configLoading || topicSubscriptions.length === 0}
               >
                 <SelectValue placeholder="Select subscription..." />
@@ -431,10 +420,24 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
               </SelectContent>
             </Select>
           )}
+
+          {/* Load Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canLoad || isFetching}
+            onClick={loadMessages}
+            className="h-10 w-full sm:w-auto rounded-sm whitespace-nowrap"
+          >
+            <RefreshCcw
+              className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
+            />
+            {primary ? 'Load' : 'Load All'}
+          </Button>
         </div>
 
-        {/* Message Counter */}
-        <div className="flex items-center justify-center bg-accent/30 px-4 py-2 rounded-sm border border-border/50 shrink-0">
+        {/* Bottom Row: Message Counter */}
+        <div className="flex items-center justify-center bg-accent/30 px-4 py-2 rounded-sm border border-border/50 w-full sm:w-auto">
           <Badge variant="outline" className="mr-2 rounded-sm">
             {messageCount}
           </Badge>
