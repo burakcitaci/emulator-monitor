@@ -154,9 +154,12 @@ export class ConfigService {
   // Load Service Bus configuration from file
   getServiceBusConfiguration(): ServiceBusConfig {
     try {
-      // Try multiple possible paths for the config file
+      // Try multiple possible paths for the config file, prioritizing root directory
       const possiblePaths = [
+        // Root directory (preferred - single source of truth)
+        join(process.cwd(), '..', '..', 'config', 'servicebus-config.json'),
         join(process.cwd(), 'config', 'servicebus-config.json'),
+        // Relative to dist directory when built
         join(
           __dirname,
           '..',
@@ -172,10 +175,10 @@ export class ConfigService {
       let configData: string | null = null;
       let configPath = '';
 
-      for (const path of possiblePaths) {
+      for (const filePath of possiblePaths) {
         try {
-          configData = readFileSync(path, 'utf8');
-          configPath = path;
+          configData = readFileSync(filePath, 'utf8');
+          configPath = filePath;
           break;
         } catch {
           // Try next path
@@ -184,11 +187,11 @@ export class ConfigService {
 
       if (!configData) {
         throw new Error(
-          'Configuration file not found in any expected location'
+          'Configuration file not found in any expected location. Expected: root/config/servicebus-config.json'
         );
       }
 
-      console.log(`Loading Service Bus configuration from: ${configPath}`);
+      console.log(`✓ Loading Service Bus configuration from: ${configPath}`);
       const config = JSON.parse(configData);
 
       // Validate the configuration structure
@@ -201,12 +204,12 @@ export class ConfigService {
       return config;
     } catch (error) {
       console.error(
-        'Failed to load Service Bus configuration from file:',
+        '✗ Failed to load Service Bus configuration from file:',
         error
       );
 
       // Instead of throwing, return a default configuration
-      console.log('Using default Service Bus configuration');
+      console.log('⚠ Using default Service Bus configuration as fallback');
       return this.getDefaultServiceBusConfig();
     }
   }

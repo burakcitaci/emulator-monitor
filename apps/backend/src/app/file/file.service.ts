@@ -9,8 +9,10 @@ export class FileService {
     console.log('Attempting to read file:', fileName);
     console.log('Current working directory:', process.cwd());
 
-    // Try multiple possible paths for docker-compose.yml
+    // Try multiple possible paths for docker-compose.yml and other files
+    // Prioritize root directory (single source of truth)
     const possiblePaths = [
+      path.join(process.cwd(), '..', '..', fileName),
       path.join(process.cwd(), fileName),
       path.join(process.cwd(), '..', fileName),
       path.join(process.cwd(), '../..', fileName),
@@ -24,10 +26,10 @@ export class FileService {
         console.log('Trying path:', testPath);
         file = readFileSync(testPath, 'utf-8');
         filePath = testPath;
-        console.log('Successfully read file from:', filePath);
+        console.log('✓ Successfully read file from:', filePath);
         break;
       } catch (error: any) {
-        console.log('Failed to read from:', testPath, error.message);
+        console.log('- Failed to read from:', testPath, error.message);
       }
     }
 
