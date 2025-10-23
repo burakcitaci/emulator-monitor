@@ -8,7 +8,6 @@ export class DockerConnectionException extends HttpException {
         status: HttpStatus.SERVICE_UNAVAILABLE,
         error: 'Docker Connection Error',
         message,
-        timestamp: new Date().toISOString(),
       },
       HttpStatus.SERVICE_UNAVAILABLE
     );
@@ -21,8 +20,7 @@ export class ContainerNotFoundException extends HttpException {
       {
         status: HttpStatus.NOT_FOUND,
         error: 'Container Not Found',
-        message: `Container with ID '${containerId}' not found`,
-        timestamp: new Date().toISOString(),
+        message: `Container '${containerId}' not found`,
       },
       HttpStatus.NOT_FOUND
     );
@@ -37,7 +35,6 @@ export class ContainerOperationException extends HttpException {
         error: 'Container Operation Failed',
         message: `Failed to ${operation} container '${containerId}'`,
         details: originalError?.message,
-        timestamp: new Date().toISOString(),
       },
       HttpStatus.INTERNAL_SERVER_ERROR
     );
@@ -50,8 +47,7 @@ export class FileNotFoundException extends HttpException {
       {
         status: HttpStatus.NOT_FOUND,
         error: 'File Not Found',
-        message: `Configuration file '${fileName}' not found`,
-        timestamp: new Date().toISOString(),
+        message: `File '${fileName}' not found`,
       },
       HttpStatus.NOT_FOUND
     );
@@ -65,7 +61,6 @@ export class ServiceBusConnectionException extends HttpException {
         status: HttpStatus.SERVICE_UNAVAILABLE,
         error: 'Service Bus Connection Error',
         message,
-        timestamp: new Date().toISOString(),
       },
       HttpStatus.SERVICE_UNAVAILABLE
     );
@@ -80,7 +75,6 @@ export class ValidationException extends HttpException {
         error: 'Validation Error',
         message,
         validationErrors: errors,
-        timestamp: new Date().toISOString(),
       },
       HttpStatus.BAD_REQUEST
     );

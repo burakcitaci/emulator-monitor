@@ -21,64 +21,40 @@ export class DockerService {
 
     try {
       const dockerConfig = this.configService.getDockerConfig();
-
-      // Use socket path for both platforms (named pipe on Windows, Unix socket on Linux)
-      const dockerOptions: any = {
+      this.docker = new Docker({
         socketPath: dockerConfig.socketPath,
         timeout: dockerConfig.timeout,
-      };
-
-      this.docker = new Docker(dockerOptions);
-      this.logger.logDockerOperation('initialized', undefined, {
+      });
+      this.logger.log('Docker initialized', {
         protocol: dockerConfig.protocol,
-        host: dockerConfig.host,
         socketPath: dockerConfig.socketPath,
       });
     } catch (error) {
-      this.logger.logDockerError('initialization', error as Error);
+      this.logger.error('Docker initialization failed', error as Error);
       throw new DockerConnectionException('Failed to initialize Docker client');
     }
   }
 
   async listContainers() {
     try {
-      this.logger.logDockerOperation('listing containers');
-      const containers = await this.docker.listContainers({
-        all: true,
-      });
-
-      this.logger.logDockerOperation('containers listed', undefined, {
-        count: containers.length,
-      });
-
+      const containers = await this.docker.listContainers({ all: true });
+      this.logger.log('Containers listed', { count: containers.length });
       return containers;
     } catch (error) {
-      this.logger.logDockerError('list containers', error as Error);
+      this.logger.error('Failed to list containers', error as Error);
       throw new DockerConnectionException('Failed to list Docker containers');
     }
   }
 
   async createContainer(options: Docker.ContainerCreateOptions) {
     try {
-      this.logger.logDockerOperation('creating container', undefined, {
-        image: options.Image,
-        name: options.name,
-      });
-
       const container = await this.docker.createContainer(options);
-
-      this.logger.logDockerOperation('container created', container.id);
+      this.logger.log('Container created', { id: container.id, name: options.name });
       return container;
     } catch (error) {
-      this.logger.logDockerError(
-        'create container',
-        error as Error,
-        undefined,
-        {
-          image: options.Image,
-          name: options.name,
-        }
-      );
+      this.logger.error('Failed to create container', error as Error, {
+        name: options.name,
+      });
       throw new ContainerOperationException(
         'create',
         options.name || 'unknown',
@@ -89,140 +65,98 @@ export class DockerService {
 
   async getContainer(idOrName: string) {
     try {
-      this.logger.logDockerOperation('inspecting container', idOrName);
       const container = this.docker.getContainer(idOrName);
       const info = await container.inspect();
-
-      this.logger.logDockerOperation('container inspected', idOrName, {
-        state: info.State.Status,
-      });
-
+      this.logger.log('Container inspected', { id: idOrName, state: info.State.Status });
       return info;
     } catch (error: any) {
-      this.logger.logDockerError('inspect container', error as Error, idOrName);
+      this.logger.error('Failed to inspect container', error as Error, { id: idOrName });
 
       if (error.message?.includes('No such container')) {
         throw new ContainerNotFoundException(idOrName);
       }
 
-      throw new ContainerOperationException(
-        'inspect',
-        idOrName,
-        error as Error
-      );
+      throw new ContainerOperationException('inspect', idOrName, error as Error);
     }
   }
 
   async startContainer(idOrName: string) {
     try {
-      this.logger.logDockerOperation('starting container', idOrName);
       const container = this.docker.getContainer(idOrName);
       await container.start();
-
-      this.logger.logDockerOperation('container started', idOrName);
+      this.logger.log('Container started', { id: idOrName });
       return { success: true };
     } catch (error) {
-      this.logger.logDockerError('start container', error as Error, idOrName);
+      this.logger.error('Failed to start container', error as Error, { id: idOrName });
       throw new ContainerOperationException('start', idOrName, error as Error);
     }
   }
 
   async stopContainer(idOrName: string) {
     try {
-      this.logger.logDockerOperation('stopping container', idOrName);
       const container = this.docker.getContainer(idOrName);
       await container.stop();
-
-      this.logger.logDockerOperation('container stopped', idOrName);
+      this.logger.log('Container stopped', { id: idOrName });
       return { success: true };
     } catch (error) {
-      this.logger.logDockerError('stop container', error as Error, idOrName);
+      this.logger.error('Failed to stop container', error as Error, { id: idOrName });
       throw new ContainerOperationException('stop', idOrName, error as Error);
     }
   }
 
   async restartContainer(idOrName: string) {
     try {
-      this.logger.logDockerOperation('restarting container', idOrName);
       const container = this.docker.getContainer(idOrName);
       await container.restart();
-
-      this.logger.logDockerOperation('container restarted', idOrName);
+      this.logger.log('Container restarted', { id: idOrName });
       return { success: true };
     } catch (error) {
-      this.logger.logDockerError('restart container', error as Error, idOrName);
-      throw new ContainerOperationException(
-        'restart',
-        idOrName,
-        error as Error
-      );
+      this.logger.error('Failed to restart container', error as Error, { id: idOrName });
+      throw new ContainerOperationException('restart', idOrName, error as Error);
     }
   }
 
   async getContainerLogs(idOrName: string, tail = 100) {
     try {
-      this.logger.logDockerOperation('fetching container logs', idOrName, {
-        tail,
-      });
       const container = this.docker.getContainer(idOrName);
-
       const logs = await container.logs({
         stdout: true,
         stderr: true,
         tail,
         timestamps: true,
       });
-
-      this.logger.logDockerOperation('container logs fetched', idOrName, {
-        logLength: logs.length,
-      });
-
+      this.logger.log('Container logs fetched', { id: idOrName, logLength: logs.length });
       return logs;
     } catch (error: any) {
-      this.logger.logDockerError(
-        'fetch container logs',
-        error as Error,
-        idOrName,
-        { tail }
-      );
+      this.logger.error('Failed to fetch container logs', error as Error, {
+        id: idOrName,
+        tail,
+      });
 
       if (error.message?.includes('No such container')) {
         throw new ContainerNotFoundException(idOrName);
       }
 
-      throw new ContainerOperationException(
-        'get logs',
-        idOrName,
-        error as Error
-      );
+      throw new ContainerOperationException('get logs', idOrName, error as Error);
     }
   }
 
   async getContainerStats(idOrName: string) {
     try {
-      this.logger.logDockerOperation('fetching container stats', idOrName);
       const container = this.docker.getContainer(idOrName);
-
       const stats = await container.stats({ stream: false });
-
-      this.logger.logDockerOperation('container stats fetched', idOrName);
+      this.logger.log('Container stats fetched', { id: idOrName });
       return stats;
     } catch (error: any) {
-      this.logger.logDockerError(
-        'fetch container stats',
-        error as Error,
-        idOrName
-      );
+      this.logger.error('Failed to fetch container stats', error as Error, {
+        id: idOrName,
+      });
 
       if (error.message?.includes('No such container')) {
         throw new ContainerNotFoundException(idOrName);
       }
 
-      throw new ContainerOperationException(
-        'get stats',
-        idOrName,
-        error as Error
-      );
+      throw new ContainerOperationException('get stats', idOrName, error as Error);
     }
   }
 }

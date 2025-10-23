@@ -13,32 +13,20 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   try {
-    // Create the application
     const app = await NestFactory.create(AppModule, {
-      logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+      logger: ['error', 'warn', 'log'],
     });
 
-    // Get configuration service - use a more defensive approach
-    let configService;
-    let corsOrigin: string | string[] = 'http://localhost:4200';
-    let port = 3000;
+    const configService = app.get(ConfigService);
+    configService.validateRequiredEnvVars();
 
-    try {
-      configService = app.get(ConfigService);
-      if (configService) {
-        configService.validateRequiredEnvVars();
-        corsOrigin = configService.corsOrigin;
-        port = configService.port;
-      }
-    } catch {
-      logger.warn('ConfigService not available, using default configuration');
-    }
+    const port = configService.port;
+    const corsOrigin = configService.corsOrigin;
 
-    // Global prefix for all routes
-    const globalPrefix = 'api';
-    app.setGlobalPrefix(globalPrefix);
+    // Global prefix
+    app.setGlobalPrefix('api');
 
-    // Enable CORS with configuration
+    // CORS
     app.enableCors({
       origin: corsOrigin,
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
@@ -52,7 +40,7 @@ async function bootstrap() {
       defaultVersion: '1',
     });
 
-    // Global validation pipe
+    // Global validation
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -64,7 +52,7 @@ async function bootstrap() {
       })
     );
 
-    // Graceful shutdown handling
+    // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.log('SIGTERM received, shutting down gracefully');
       await app.close();
@@ -77,43 +65,13 @@ async function bootstrap() {
       process.exit(0);
     });
 
-    // Start the server
     await app.listen(port);
 
-    // Log startup information
-    const environment = configService?.nodeEnv || 'development';
-    const isProduction = configService?.isProduction || false;
-
-    logger.log(`🚀 Application started successfully!`, 'Bootstrap');
-    logger.log(`📊 Environment: ${environment}`, 'Bootstrap');
-    logger.log(
-      `🌐 Server: http://localhost:${port}/${globalPrefix}`,
-      'Bootstrap'
-    );
-    logger.log(`🔗 Health: http://localhost:${port}/health`, 'Bootstrap');
-
-    if (isProduction) {
-      logger.log(`⚡ Production mode enabled`, 'Bootstrap');
-    } else {
-      logger.log(`🔧 Development mode enabled`, 'Bootstrap');
-      logger.log(
-        `📋 API Documentation: http://localhost:${port}/${globalPrefix}`,
-        'Bootstrap'
-      );
-    }
-
-    // Log Docker configuration (without sensitive data)
-    if (configService) {
-      const dockerConfig = configService.getDockerConfig();
-      logger.log(`🐳 Docker Socket: ${dockerConfig.socketPath}`, 'Bootstrap');
-      logger.log(`⏱️  Docker Timeout: ${dockerConfig.timeout}ms`, 'Bootstrap');
-    }
+    logger.log(`🚀 Application started on http://localhost:${port}/api`);
+    logger.log(`📊 Environment: ${configService.nodeEnv}`);
+    logger.log(`🐳 Docker Socket: ${configService.getDockerConfig().socketPath}`);
   } catch (error: any) {
-    logger.error(
-      `❌ Failed to start application: ${error.message}`,
-      error.stack,
-      'Bootstrap'
-    );
+    logger.error(`❌ Failed to start application: ${error.message}`, error.stack);
     process.exit(1);
   }
 }

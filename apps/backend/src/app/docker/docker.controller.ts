@@ -28,141 +28,76 @@ export class DockerController {
 
   @Get()
   async listContainers() {
-    this.logger.logWithContext('Listing all containers', 'DockerController');
+    this.logger.log('Listing containers');
     const containers = await this.dockerService.listContainers();
-    this.logger.logWithContext(
-      `Found ${containers.length} containers`,
-      'DockerController'
-    );
     return containers;
   }
 
   @Post('create')
   async createContainer(@Body() createDto: ContainerCreateDto) {
-    this.logger.logWithContext('Creating container', 'DockerController', {
-      image: createDto.Image,
-      name: createDto.name,
-    });
-
     const container = await this.dockerService.createContainer(createDto);
-
-    this.logger.logWithContext(
-      'Container created successfully',
-      'DockerController',
-      {
-        id: container.id,
-        name: createDto.name,
-      }
-    );
+    this.logger.log('Container created', { id: container.id, name: createDto.name });
 
     return {
       success: true,
       containerId: container.id,
-      message: `Container '${
-        createDto.name || container.id
-      }' created successfully`,
+      message: `Container '${createDto.name || container.id}' created successfully`,
     };
   }
 
   @Get(':id')
   async getContainer(@Param('id') id: string) {
-    this.logger.logWithContext('Inspecting container', 'DockerController', {
-      containerId: id,
-    });
-
     if (!id || id.trim().length === 0) {
       throw new Error('Container ID is required');
     }
 
     const containerInfo = await this.dockerService.getContainer(id);
-
-    this.logger.logWithContext(
-      'Container inspected successfully',
-      'DockerController',
-      {
-        containerId: id,
-        state: containerInfo.State.Status,
-      }
-    );
-
+    this.logger.log('Container inspected', { id, state: containerInfo.State.Status });
     return containerInfo;
   }
 
   @Post(':id/start')
   async startContainer(@Param('id') id: string) {
-    this.logger.logWithContext('Starting container', 'DockerController', {
-      containerId: id,
-    });
-
     if (!id || id.trim().length === 0) {
       throw new Error('Container ID is required');
     }
 
-    const result = await this.dockerService.startContainer(id);
-
-    this.logger.logWithContext(
-      'Container started successfully',
-      'DockerController',
-      {
-        containerId: id,
-      }
-    );
+    await this.dockerService.startContainer(id);
+    this.logger.log('Container started', { id });
 
     return {
+      success: true,
       message: `Container '${id}' started successfully`,
-      ...result,
     };
   }
 
   @Post(':id/stop')
   async stopContainer(@Param('id') id: string) {
-    this.logger.logWithContext('Stopping container', 'DockerController', {
-      containerId: id,
-    });
-
     if (!id || id.trim().length === 0) {
       throw new Error('Container ID is required');
     }
 
-    const result = await this.dockerService.stopContainer(id);
-
-    this.logger.logWithContext(
-      'Container stopped successfully',
-      'DockerController',
-      {
-        containerId: id,
-      }
-    );
+    await this.dockerService.stopContainer(id);
+    this.logger.log('Container stopped', { id });
 
     return {
+      success: true,
       message: `Container '${id}' stopped successfully`,
-      ...result,
     };
   }
 
   @Post(':id/restart')
   async restartContainer(@Param('id') id: string) {
-    this.logger.logWithContext('Restarting container', 'DockerController', {
-      containerId: id,
-    });
-
     if (!id || id.trim().length === 0) {
       throw new Error('Container ID is required');
     }
 
-    const result = await this.dockerService.restartContainer(id);
-
-    this.logger.logWithContext(
-      'Container restarted successfully',
-      'DockerController',
-      {
-        containerId: id,
-      }
-    );
+    await this.dockerService.restartContainer(id);
+    this.logger.log('Container restarted', { id });
 
     return {
+      success: true,
       message: `Container '${id}' restarted successfully`,
-      ...result,
     };
   }
 
@@ -171,11 +106,6 @@ export class DockerController {
     @Param('id') id: string,
     @Query() queryDto: ContainerLogsDto
   ) {
-    this.logger.logWithContext('Fetching container logs', 'DockerController', {
-      containerId: id,
-      tail: queryDto.tail,
-    });
-
     if (!id || id.trim().length === 0) {
       throw new Error('Container ID is required');
     }
@@ -185,14 +115,7 @@ export class DockerController {
       queryDto.tail || 100
     );
 
-    this.logger.logWithContext(
-      'Container logs fetched successfully',
-      'DockerController',
-      {
-        containerId: id,
-        logLength: logs.length,
-      }
-    );
+    this.logger.log('Container logs fetched', { id, logLength: logs.length });
 
     return {
       containerId: id,
@@ -207,24 +130,12 @@ export class DockerController {
     @Param('id') id: string,
     @Query() queryDto: ContainerStatsDto
   ) {
-    this.logger.logWithContext('Fetching container stats', 'DockerController', {
-      containerId: id,
-      stream: queryDto.stream,
-    });
-
     if (!id || id.trim().length === 0) {
       throw new Error('Container ID is required');
     }
 
     const stats = await this.dockerService.getContainerStats(id);
-
-    this.logger.logWithContext(
-      'Container stats fetched successfully',
-      'DockerController',
-      {
-        containerId: id,
-      }
-    );
+    this.logger.log('Container stats fetched', { id });
 
     return {
       containerId: id,
