@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 
 interface MonitorState {
   // Tab management
-  activeTab: 'messages' | 'send' | 'dlq' | 'connection';
+  activeTab: 'messages' | 'send' | 'dlq' | 'configuration';
 
   // Form states
   sendForm: SendForm;
@@ -80,7 +80,7 @@ const initialState: MonitorState = {
   },
   connectionInfo: {
     connectionString: '',
-    endpoint: '',
+    endpoint: 'http://localhost:3000',
     isLocal: true,
     isConnected: false,
   },

@@ -73,7 +73,7 @@ src/app/
           <main>
             <MessagesTab />
             <SendMessageTab />
-            <ConnectionTab />
+            <Configuration />
           </main>
         </SidebarInset>
       </SidebarProvider>
@@ -91,7 +91,7 @@ src/app/
     <div>
       <MessagesTab />
       <SendMessageTab />
-      <ConnectionTab />
+      <Configuration />
     </div>
   </div>
 </StandaloneServiceBusMonitor>
@@ -118,7 +118,7 @@ src/app/
 
 - **messages**: View incoming messages
 - **send**: Send test messages
-- **connection**: Configure Service Bus connection
+- **configuration**: Configure Service Bus connection
 - **dlq**: Dead letter queue (reserved)
 
 ## Styling

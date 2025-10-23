@@ -5,7 +5,7 @@ import {
   Header,
   MessagesTab,
   SendMessageTab,
-  ConnectionTab,
+  Configuration,
 } from './components';
 import {
   SidebarInset,
@@ -77,14 +77,14 @@ const ServiceBusMonitorView: React.FC = () => {
           />
         );
 
-      case 'connection':
+      case 'configuration':
         return (
-          <ConnectionTab
+          <Configuration
             connectionInfo={connectionInfo}
             form={connectionForm}
             onFormChange={handleConnectionFormChange}
             onUpdate={() => {
-              // Update connection info when connection is updated
+              // Update connection info when configuration is updated
               const endpoint = connectionForm.connectionString.trim() === ''
                 ? 'http://localhost:3000'
                 : connectionForm.connectionString.match(/Endpoint=([^;]+)/)?.[1] || 'Azure Service Bus';
@@ -95,7 +95,7 @@ const ServiceBusMonitorView: React.FC = () => {
                 endpoint: endpoint,
                 connectionString: connectionForm.connectionString,
               });
-              console.log('Connection updated successfully');
+              console.log('Configuration updated successfully');
             }}
             onTest={() => {
               // Simulate connection test
@@ -114,7 +114,7 @@ const ServiceBusMonitorView: React.FC = () => {
               setConnectionInfo({
                 isConnected: false,
                 isLocal: true,
-                endpoint: '',
+                endpoint: 'http://localhost:3000',
                 connectionString: '',
               });
               setConnectionForm({

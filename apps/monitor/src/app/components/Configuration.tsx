@@ -6,7 +6,7 @@ import { useServiceBusConfig } from '../hooks/api/useServiceBusConfig';
 import { Server, Database, AlertCircle, CheckCircle, TestTube, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface ConnectionTabProps {
+interface ConfigurationProps {
   connectionInfo: ConnectionInfo;
   form: ConnectionForm;
   onFormChange: (form: ConnectionForm) => void;
@@ -15,7 +15,7 @@ interface ConnectionTabProps {
   onReset: () => void;
 }
 
-export const ConnectionTab: React.FC<ConnectionTabProps> = ({
+export const Configuration: React.FC<ConfigurationProps> = ({
   connectionInfo,
   form,
   onTest,
@@ -33,11 +33,6 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
     }
   }, [form?.connectionString, testResult]);
 
-  const extractEndpoint = (connectionString: string): string => {
-    if (!connectionString?.trim()) return '';
-    const match = connectionString.match(/Endpoint=([^;]+)/);
-    return match ? match[1] : 'http://localhost:3000';
-  };
 
   const handleTestConnection = async () => {
     if (!form?.connectionString?.trim() && !connectionInfo?.isLocal) {
@@ -82,7 +77,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
           <div>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Server className="h-5 w-5" />
-              Connection Status & Settings
+              Configuration Status & Settings
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
               Configure connection and view real-time status
@@ -101,7 +96,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
               </span>
             </Button>
             {testResult ? (
-              testResult === 'success' ? 
+              testResult === 'success' ?
                 <CheckCircle className="h-4 w-4 text-green-500 animate-pulse" /> :
                 <AlertCircle className="h-4 w-4 text-red-500 animate-pulse" />
             ) : isConnected ? (
@@ -135,7 +130,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
           </div>
           <div className="flex-1 min-w-[200px]">
             <span className="text-sm text-muted-foreground">Endpoint:</span>
-            <p className="text-sm break-all mt-1">{connectionInfo.endpoint}</p>
+            <p className="text-sm break-all mt-1">{connectionInfo.endpoint || 'http://localhost:3000'}</p>
           </div>
           <Button
             onClick={handleTestConnection}
@@ -199,7 +194,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
               count={config.UserConfig.Namespaces.length}
               items={config.UserConfig.Namespaces.map(ns => ns.Name)}
             />
-            
+
             {/* Queues */}
             <EntityList
               title="Queues"
@@ -208,7 +203,7 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
               items={config.UserConfig.Namespaces.flatMap(ns => ns.Queues?.map(q => q.Name) || [])}
               mono
             />
-            
+
             {/* Topics & Subscriptions */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -247,18 +242,11 @@ export const ConnectionTab: React.FC<ConnectionTabProps> = ({
   );
 };
 
-// Helper Components
-const StatCard: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <div className="bg-muted/50 rounded-lg p-3 text-center">
-    <div className="text-xl font-bold text-primary">{value}</div>
-    <div className="text-xs text-muted-foreground">{label}</div>
-  </div>
-);
 
-const EntityList: React.FC<{ 
-  title: string; 
-  icon: string; 
-  count: number; 
+const EntityList: React.FC<{
+  title: string;
+  icon: string;
+  count: number;
   items: string[];
   mono?: boolean;
 }> = ({ title, icon, count, items, mono }) => (

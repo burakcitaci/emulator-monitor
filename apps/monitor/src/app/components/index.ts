@@ -15,4 +15,4 @@ export {
 export { ContainerSidebar } from './containers';
 
 // Other components
-export { ConnectionTab } from './ConnectionTab';
+export { Configuration } from './Configuration';

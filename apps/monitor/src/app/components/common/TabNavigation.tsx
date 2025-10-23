@@ -1,8 +1,8 @@
 import React from 'react';
-import { Activity, Send, Database } from 'lucide-react';
+import { Activity, Send, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-type TabId = 'messages' | 'send' | 'dlq' | 'connection';
+type TabId = 'messages' | 'send' | 'dlq' | 'configuration';
 
 interface TabNavigationProps {
   activeTab: TabId;
@@ -23,9 +23,9 @@ const tabs = [
     color: 'text-green-600',
   },
   {
-    id: 'connection' as const,
-    name: 'Connection',
-    icon: Database,
+    id: 'configuration' as const,
+    name: 'Configuration',
+    icon: Settings,
     color: 'text-orange-600',
   },
 ];

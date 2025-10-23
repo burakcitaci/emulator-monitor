@@ -9,11 +9,11 @@ import {
   TabNavigation,
   MessagesTab,
   SendMessageTab,
-  ConnectionTab,
+  Configuration,
 } from './components';
 import { Message } from '@e2e-monitor/entities';
 
-type TabId = 'messages' | 'send' | 'dlq' | 'connection';
+type TabId = 'messages' | 'send' | 'dlq' | 'configuration';
 
 /**
  * StandaloneServiceBusMonitor
@@ -87,13 +87,13 @@ export default function StandaloneServiceBusMonitor() {
               />
             )}
 
-            {activeTab === 'connection' && (
-              <ConnectionTab
+            {activeTab === 'configuration' && (
+              <Configuration
                 connectionInfo={connectionInfo}
                 form={connectionForm}
                 onFormChange={handleConnectionFormChange}
                 onUpdate={() => {
-                  console.log('Connection updated successfully');
+                  console.log('Configuration updated successfully');
                 }}
                 onTest={() => {
                   return new Promise((resolve, reject) => {

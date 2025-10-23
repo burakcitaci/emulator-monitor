@@ -222,7 +222,7 @@ import { cn } from '../lib/utils';
   className={cn(
     'base-class',
     isActive && 'active-class',
-    className // Additional classes from props
+    className, // Additional classes from props
   )}
 />;
 ```
@@ -247,7 +247,7 @@ You can now update the remaining components:
 - `MessageTable` - Can use Table, Badge, Button components
 - `DLQTable` - Can use Table, Badge, Button components
 - `Header` - Can use Badge components for status indicators
-- `ConnectionTab` - Can use Card, Button, Input, Label components
+- `Configuration` - Can use Card, Button, Input, Label components
 - `MessageDetailModal` - Can use Dialog component (need to install it)
 
 ## 🐛 Troubleshooting
@@ -263,5 +263,3 @@ If you encounter path issues when adding components:
 - [Shadcn/UI Documentation](https://ui.shadcn.com)
 - [Tailwind CSS Documentation](https://tailwindcss.com)
 - [Radix UI Documentation](https://radix-ui.com) (underlying component library)
-
-

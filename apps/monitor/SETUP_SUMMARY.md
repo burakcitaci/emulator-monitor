@@ -86,23 +86,20 @@ You can now update the remaining components to use shadcn/ui:
 ### High Priority
 
 1. **MessageTable.tsx** & **DLQTable.tsx**
-
    - Replace `<table>` with shadcn `<Table>` components
    - Use `<Badge>` for status indicators
    - Use `<Button>` for action buttons
 
 2. **Header.tsx**
-
    - Use `<Badge>` for connection status and message counts
 
-3. **ConnectionTab.tsx**
+3. **Configuration.tsx**
    - Use `<Card>` for the connection info display
    - Use `<Input>`, `<Label>`, and `<Button>` for the form
 
 ### Medium Priority
 
 4. **MessageDetailModal.tsx**
-
    - Install and use shadcn `Dialog` component:
      ```bash
      cd apps/monitor
@@ -217,7 +214,7 @@ rmdir src/app/components/ui/ui
 - ✅ Setup Complete
 - ✅ 9 Components Installed
 - ✅ 2 Components Migrated (SendMessageTab, MessageFilters)
-- 🚧 6 Components Remaining (MessageTable, DLQTable, Header, ConnectionTab, MessageDetailModal, TabNavigation)
+- 🚧 6 Components Remaining (MessageTable, DLQTable, Header, Configuration, MessageDetailModal, TabNavigation)
 
 ## 💡 Tips
 
@@ -227,5 +224,3 @@ rmdir src/app/components/ui/ui
 4. Run `npm run dev` to see changes in real-time
 
 Happy coding! 🚀
-
-
