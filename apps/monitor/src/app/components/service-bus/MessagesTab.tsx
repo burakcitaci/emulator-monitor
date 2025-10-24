@@ -19,10 +19,15 @@ import { Message } from '@e2e-monitor/entities';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { RefreshCcw } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
+import { StatusIndicator } from '../common/StatusIndicator';
+import toast from 'react-hot-toast';
 
 interface MessagesTabProps {
   messages: Message[];
   onMessagesUpdate: (messages: Message[]) => void;
+  dlqMessages: any[];
 }
 
 type PrimarySelection =
@@ -37,9 +42,136 @@ interface GetMessagesParams {
   subscription?: string;
 }
 
+function PrimarySelector({
+  primary,
+  queues,
+  topics,
+  handlePrimaryChange,
+  configLoading,
+  isTopicSelected,
+  subscription,
+  setSubscription,
+  topicSubscriptions,
+}: {
+  primary: PrimarySelection;
+  queues: string[];
+  topics: string[];
+  handlePrimaryChange: (value: string) => void;
+  configLoading: boolean;
+  isTopicSelected: boolean;
+  subscription: string;
+  setSubscription: (v: string) => void;
+  topicSubscriptions: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-medium text-muted-foreground">
+        Filter Messages
+      </label>
+      <div className="flex flex-col gap-2">
+        <Select
+          value={primary ? `${primary.kind}::${primary.name}` : 'all'}
+          onValueChange={handlePrimaryChange}
+          disabled={configLoading}
+        >
+          <SelectTrigger
+            className="h-10 w-full rounded-sm"
+            disabled={configLoading}
+          >
+            <SelectValue placeholder="Show all messages..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">
+              <div className="flex items-center space-x-2">
+                <span aria-hidden="true">🔄</span>
+                <span>Show All Messages</span>
+              </div>
+            </SelectItem>
+
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+              Queues
+            </div>
+            {queues.map((q) => (
+              <SelectItem key={`queue::${q}`} value={`queue::${q}`}>
+                <div className="flex items-center space-x-2">
+                  <span aria-hidden="true">📦</span>
+                  <span>{q}</span>
+                </div>
+              </SelectItem>
+            ))}
+
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+              Topics
+            </div>
+            {topics.map((t) => (
+              <SelectItem key={`topic::${t}`} value={`topic::${t}`}>
+                <div className="flex items-center space-x-2">
+                  <span aria-hidden="true">📡</span>
+                  <span>{t}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {isTopicSelected && (
+          <Select
+            value={subscription}
+            onValueChange={setSubscription}
+            disabled={configLoading || topicSubscriptions.length === 0}
+          >
+            <SelectTrigger
+              className="h-10 w-full rounded-sm"
+              disabled={configLoading || topicSubscriptions.length === 0}
+            >
+              <SelectValue placeholder="Select subscription..." />
+            </SelectTrigger>
+            <SelectContent>
+              {topicSubscriptions.length === 0 ? (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  No subscriptions
+                </div>
+              ) : (
+                topicSubscriptions.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ErrorMessage({
+  icon,
+  title,
+  message,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+}) {
+  return (
+    <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
+      <div className="flex items-start gap-3">
+        {icon}
+        <div>
+          <p className="text-sm font-semibold text-destructive mb-1">{title}</p>
+          <p className="text-xs text-destructive/80">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const MessagesTab: React.FC<MessagesTabProps> = ({
   messages,
   onMessagesUpdate,
+  dlqMessages,
 }) => {
   const {
     queuesAndTopics,
@@ -62,6 +194,16 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [queuesAndTopicsVersion, setQueuesAndTopicsVersion] = useState(0);
+  const [backendStatus, setBackendStatus] = useState<
+    'checking' | 'running' | 'offline'
+  >('checking');
+  const [emulatorStatus, setEmulatorStatus] = useState<
+    'checking' | 'connected' | 'offline'
+  >('checking');
+  const [serviceBusInitialized, setServiceBusInitialized] = useState<
+    boolean | null
+  >(null);
+  const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
 
   // Use ref to store current queuesAndTopics value for loadMessages
   const queuesAndTopicsRef = useRef(queuesAndTopics);
@@ -71,6 +213,59 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   useEffect(() => {
     setQueuesAndTopicsVersion((v) => v + 1);
   }, [queuesAndTopics]);
+
+  // Status check effect
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const backendResponse = await fetch(
+          'http://localhost:3000/api/v1/health',
+          {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        setBackendStatus(backendResponse.ok ? 'running' : 'offline');
+      } catch {
+        setBackendStatus('offline');
+      }
+
+      try {
+        const emulatorResponse = await fetch(
+          'http://localhost:3000/api/v1/servicebus/health',
+          {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        setEmulatorStatus(emulatorResponse.ok ? 'connected' : 'offline');
+      } catch {
+        setEmulatorStatus('offline');
+      }
+
+      try {
+        const statusResponse = await fetch(
+          'http://localhost:3000/api/v1/servicebus/status',
+          {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setServiceBusInitialized(statusData.initialized || false);
+        } else {
+          setServiceBusInitialized(false);
+        }
+      } catch {
+        setServiceBusInitialized(null);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const resolveNamespace = useCallback(() => {
     const currentQueuesAndTopics = queuesAndTopicsRef.current;
@@ -273,8 +468,8 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
 
   // Load messages when parameters become available
   useEffect(() => {
-    // Prevent infinite loops by checking if already fetching
-    if (isFetching) return;
+    // Prevent infinite loops by checking if already fetching or if there is an error
+    if (isFetching || fetchError || configError) return;
 
     console.log('Auto-load effect triggered:', {
       primary,
@@ -311,22 +506,71 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     resolveNamespace,
     isFetching,
     canLoad,
+    fetchError,
+    configError,
   ]);
 
   // Auto-refresh messages every 30 seconds
   useEffect(() => {
-    // Only start auto-refresh if we have successfully loaded messages and can load
-    if (!hasLoaded || !canLoad) return;
+    // Only start auto-refresh if we have successfully loaded messages and can load, and no error
+    if (!hasLoaded || !canLoad || fetchError || configError) return;
 
-    const intervalId = setInterval(() => {
-      console.log('Auto-refreshing messages...');
-      void loadMessages();
+    let cancelled = false;
+    const intervalId = setInterval(async () => {
+      // If error occurs, stop auto-refresh immediately
+      if (fetchError || configError || cancelled) {
+        clearInterval(intervalId);
+        return;
+      }
+      try {
+        await loadMessages();
+      } catch {
+        clearInterval(intervalId);
+      }
     }, 30000); // 30 seconds
 
     return () => {
+      cancelled = true;
       clearInterval(intervalId);
     };
-  }, [hasLoaded, canLoad, loadMessages]);
+  }, [hasLoaded, canLoad, loadMessages, fetchError, configError]);
+
+  const handleInitializeServiceBus = async () => {
+    setIsInitializingServiceBus(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/v1/servicebus/debug-init', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Service Bus initialized successfully!');
+        // Refresh the page or reload the configuration
+        window.location.reload();
+      } else {
+        toast.error(result.message || 'Failed to initialize Service Bus');
+      }
+    } catch (err) {
+      console.error('Service Bus initialization failed:', err);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Failed to initialize Service Bus. Please check the backend logs.',
+        { duration: 5000 }
+      );
+    } finally {
+      setIsInitializingServiceBus(false);
+    }
+  };
 
   const displayedMessages = hasLoaded ? localMessages : messages;
   const messageCount = displayedMessages?.length || 0;
@@ -342,133 +586,111 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
           emulator.
         </p>
       </div>
-      {/* Filters */}
-      <div className="flex flex-col gap-4 w-full">
-        {/* Top Row: Queue/Topic/Subscription Selectors and Load Button */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:items-center flex-wrap">
-          {/* Queue/Topic Selector */}
-          <Select
-            value={primary ? `${primary.kind}::${primary.name}` : 'all'}
-            onValueChange={handlePrimaryChange}
-            disabled={configLoading}
-          >
-            <SelectTrigger
-              className="h-10 w-full sm:flex-1 sm:min-w-[200px] md:min-w-[280px] rounded-sm"
-              disabled={configLoading}
-            >
-              <SelectValue placeholder="Select queue or topic (optional)..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                <div className="flex items-center space-x-2">
-                  <span aria-hidden="true">🔄</span>
-                  <span>Show All Messages</span>
-                </div>
-              </SelectItem>
+      <div className="flex items-center justify-start gap-2 bg-accent/30 px-4 py-2 rounded-sm border border-border/50 min-h-[60px]">
+        <StatusIndicator
+          label="Messages"
+          status="success"
+          count={messageCount}
+          animate={true}
+        />
+        <StatusIndicator
+          label={`Backend: ${backendStatus === 'running' ? 'Running' : 'Offline'}`}
+          status={
+            backendStatus === 'running'
+              ? 'success'
+              : backendStatus === 'offline'
+                ? 'error'
+                : 'warning'
+          }
+          animate={backendStatus === 'checking'}
+          showCount={false}
+        />
 
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                Queues
-              </div>
-              {queues.map((q) => (
-                <SelectItem key={`queue::${q}`} value={`queue::${q}`}>
-                  <div className="flex items-center space-x-2">
-                    <span aria-hidden="true">📦</span>
-                    <span>{q}</span>
-                  </div>
-                </SelectItem>
-              ))}
-
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                Topics
-              </div>
-              {topics.map((t) => (
-                <SelectItem key={`topic::${t}`} value={`topic::${t}`}>
-                  <div className="flex items-center space-x-2">
-                    <span aria-hidden="true">📡</span>
-                    <span>{t}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Subscription selector only for topics */}
-          {isTopicSelected && (
-            <Select
-              value={subscription}
-              onValueChange={setSubscription}
-              disabled={configLoading || topicSubscriptions.length === 0}
-            >
-              <SelectTrigger
-                className="h-10 w-full sm:flex-1 sm:min-w-[150px] rounded-sm"
-                disabled={configLoading || topicSubscriptions.length === 0}
-              >
-                <SelectValue placeholder="Select subscription..." />
-              </SelectTrigger>
-              <SelectContent>
-                {topicSubscriptions.length === 0 ? (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    No subscriptions
-                  </div>
-                ) : (
-                  topicSubscriptions.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* Load Button */}
+        <StatusIndicator
+          label={`Service Bus: ${serviceBusInitialized ? 'Initialized' : 'Not Initialized'}`}
+          status={
+            serviceBusInitialized === null
+              ? 'warning'
+              : serviceBusInitialized
+                ? 'success'
+                : 'error'
+          }
+          animate={serviceBusInitialized === null}
+          showCount={false}
+        />
+        {!serviceBusInitialized && (
           <Button
+            onClick={handleInitializeServiceBus}
+            disabled={isInitializingServiceBus}
             size="sm"
             variant="outline"
-            disabled={!canLoad || isFetching}
-            onClick={loadMessages}
-            className="h-10 w-full sm:w-auto rounded-sm whitespace-nowrap"
+            className="ml-2"
           >
-            <RefreshCcw
-              className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`}
-            />
-            {primary ? 'Load' : 'Load All'}
+            {isInitializingServiceBus ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Initializing...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Initialize Service Bus
+              </>
+            )}
           </Button>
-        </div>
-
-        {/* Bottom Row: Message Counter */}
-        <div className="flex items-center justify-center bg-accent/30 px-4 py-2 rounded-sm border border-border/50 w-full sm:w-auto">
-          <Badge variant="outline" className="mr-2 rounded-sm">
-            {messageCount}
-          </Badge>
-          <span className="text-sm font-medium">messages</span>
-        </div>
+        )}
       </div>
-
-      {/* Error Messages */}
-      {configError && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
-          <p className="text-sm text-destructive">{String(configError)}</p>
+      {/* Filters */}
+      <div className="flex flex-col gap-4 w-full">
+      
+        {/* Error Messages */}
+        {configError && (
+          <ErrorMessage
+            icon={
+              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+            }
+            title="Failed to Load Service Bus Configuration"
+            message={
+              String(configError).includes('Failed to fetch')
+                ? 'Backend server is not running on port 3000 or Service Bus Emulator is offline. Please ensure both are running.'
+                : String(configError)
+            }
+          />
+        )}
+        {fetchError && (
+          <ErrorMessage
+            icon={
+              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+            }
+            title="Failed to Load Messages"
+            message={
+              fetchError.includes('Failed to fetch')
+                ? 'Backend server is not running on port 3000 or Service Bus Emulator is offline. Please ensure both are running.'
+                : fetchError.includes('timeout')
+                  ? 'Request timed out. The backend or emulator may be unresponsive.'
+                  : fetchError
+            }
+          />
+        )}
+        {/* Table */}
+        <div className="w-full min-w-0">
+          <MessagesDataTable
+            messages={displayedMessages}
+            onMessageReplay={(messageId: string) =>
+              console.log('Replay message', messageId)
+            }
+            onMessageDelete={(messageId: string) =>
+              console.log('Delete message', messageId)
+            }
+            queueOptions={queuesAndTopics
+              .filter(item => item.type === 'queue' || item.type === 'topic')
+              .map(item => ({
+                label: item.name,
+                value: item.name,
+                icon: item.type === 'queue' ? () => <span>📦</span> : () => <span>📡</span>,
+              }))}
+          />
         </div>
-      )}
-
-      {fetchError && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
-          <p className="text-sm text-destructive">{fetchError}</p>
-        </div>
-      )}
-
-      {/* Table */}
-      <div className="w-full min-w-0">
-        <MessagesDataTable
-          messages={displayedMessages}
-          onMessageReplay={(messageId: string) =>
-            console.log('Replay message', messageId)
-          }
-          onMessageDelete={(messageId: string) =>
-            console.log('Delete message', messageId)
-          }
-        />
       </div>
     </div>
   );

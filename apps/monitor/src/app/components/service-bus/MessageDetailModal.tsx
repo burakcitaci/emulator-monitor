@@ -24,13 +24,15 @@ const formatStatus = (status?: string): string => {
 const getStatusBadgeVariant = (status?: string) => {
   switch (status) {
     case MessageState.ACTIVE:
-      return 'default';
+      return 'active';
     case MessageState.DEAD_LETTERED:
-      return 'destructive';
+      return 'dead-lettered';
     case MessageState.DEFERRED:
-      return 'secondary';
+      return 'deferred';
     case MessageState.SCHEDULED:
-      return 'default';
+      return 'scheduled';
+    case MessageState.EXPIRED:
+      return 'expired';
     default:
       return 'secondary';
   }
@@ -90,7 +92,7 @@ export const MessageDetailModal: React.FC<MessageDetailModalProps> = ({
                 Subject
               </label>
               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
-                {message.subject || 'N/A'}
+                {message.properties?.subject?.toString() || 'N/A'}
               </p>
             </div>
 

@@ -23,6 +23,8 @@ const badgeVariants = cva(
           'border-transparent bg-blue-500 text-white hover:bg-blue-600', // scheduled for later
         'dead-lettered':
           'border-transparent bg-red-600 text-white hover:bg-red-700', // permanently failed
+        expired:
+          'border-transparent bg-orange-500 text-white hover:bg-orange-600', // TTL expired, waiting for completion
       },
     },
     defaultVariants: {

@@ -140,6 +140,7 @@ export interface DockerService {
 }
 
 export interface DockerCompose {
+  name?: string;
   version?: string;
   services: Record<string, DockerService>;
 }
@@ -210,7 +211,7 @@ export type MessageDirection = 'incoming' | 'outgoing';
 export interface Message {
   id: string;
   messageId: string;
-  subject: string;
+  queue: string;
   body: string | Record<string, unknown>;
   properties: Record<string, unknown>;
   timestamp: Date;

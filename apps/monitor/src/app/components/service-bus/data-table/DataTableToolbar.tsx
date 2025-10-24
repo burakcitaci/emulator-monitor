@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { DataTableViewOptions } from './DataTableViewOptions';
+import { DataTableFacetedFilter } from './DataTableFacetedFilter';
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
@@ -17,9 +18,26 @@ export function DataTableToolbar<TData>({
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
+  const columns = table.getAllColumns().filter((column) => column.getCanFilter());
+
   return (
-    <div className="flex flex-col sm:flex-row gap-1 sm:items-center sm:justify-between">
-      <div className="flex flex-1 items-center gap-1 min-w-0">
+    <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+      <div className="flex flex-1 flex-wrap items-center gap-2">
+        {columns.map((column) => (
+          <DataTableToolbarFilter key={column.id} column={column} />
+        ))}
+        {isFiltered && (
+          <Button
+            variant="outline"
+            onClick={() => table.resetColumnFilters()}
+            className="h-7 px-2 text-xs"
+          >
+            Reset
+            <X className="ml-1 h-3 w-3" />
+          </Button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
         {searchKey && (
           <Input
             placeholder={searchPlaceholder}
@@ -32,18 +50,35 @@ export function DataTableToolbar<TData>({
             className="h-7 text-xs w-full sm:w-[120px] lg:w-[200px]"
           />
         )}
-        {isFiltered && (
-          <Button
-            variant="ghost"
-            onClick={() => table.resetColumnFilters()}
-            className="h-7 px-1.5 text-xs shrink-0"
-          >
-            Reset
-            <X className="ml-1 h-3 w-3" />
-          </Button>
-        )}
+        <DataTableViewOptions table={table} />
       </div>
-      <DataTableViewOptions table={table} />
     </div>
   );
+}
+
+interface DataTableToolbarFilterProps<TData> {
+  column: any;
+}
+
+function DataTableToolbarFilter<TData>({
+  column,
+}: DataTableToolbarFilterProps<TData>) {
+  const columnMeta = column.columnDef.meta;
+
+  if (!columnMeta?.variant) return null;
+
+  switch (columnMeta.variant) {
+    case "multiSelect":
+      return (
+        <DataTableFacetedFilter
+          column={column}
+          title={columnMeta.label ?? column.id}
+          options={columnMeta.options ?? []}
+          multiple={true}
+        />
+      );
+
+    default:
+      return null;
+  }
 }

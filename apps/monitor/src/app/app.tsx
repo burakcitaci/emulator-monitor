@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ContainerSidebar,
   TabNavigation,
@@ -13,12 +13,12 @@ import {
   SidebarTrigger,
 } from './components/ui/sidebar';
 import { Separator } from './components/ui/separator';
+import { MainContent } from './components/ui';
 import { MonitorProvider, useMonitor } from './hooks';
+import { useConnection } from './hooks/useConnection';
 import { Providers } from './providers';
 import { ThemeToggle } from './components/common/ThemeToggle';
-import { AlertCircle } from 'lucide-react';
 
-import { ConnectionForm } from '@e2e-monitor/entities';
 import { useServiceBusConfig } from './hooks/api/useServiceBusConfig';
 
 const ServiceBusMonitorView: React.FC = () => {
@@ -30,8 +30,6 @@ const ServiceBusMonitorView: React.FC = () => {
     messages,
     setMessages,
     dlqMessages,
-    connectionInfo,
-    setConnectionInfo,
     sendMessage,
     isLoading,
     error,
@@ -39,25 +37,14 @@ const ServiceBusMonitorView: React.FC = () => {
 
   const { config: serviceBusConfig } = useServiceBusConfig();
 
-  const [connectionForm, setConnectionForm] = useState<ConnectionForm>({
-    connectionString: '',
-    queues: 'test-queue,orders-queue',
-  });
-
-  const handleConnectionFormChange = (form: ConnectionForm) => {
-    setConnectionForm(form);
-    // Update connection info based on form
-    const endpoint = form.connectionString.trim() === ''
-      ? 'http://localhost:3000'
-      : form.connectionString.match(/Endpoint=([^;]+)/)?.[1] || 'Azure Service Bus';
-
-    setConnectionInfo({
-      isConnected: form.connectionString.trim() !== '' || serviceBusConfig !== null,
-      isLocal: form.connectionString.trim() === '',
-      endpoint: endpoint,
-      connectionString: form.connectionString,
-    });
-  };
+  const {
+    connectionForm,
+    connectionInfo,
+    setConnectionInfo,
+    handleConnectionFormChange,
+    updateConnectionInfo,
+    resetConnection,
+  } = useConnection(serviceBusConfig);
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -66,6 +53,7 @@ const ServiceBusMonitorView: React.FC = () => {
           <MessagesTab
             messages={messages}
             onMessagesUpdate={setMessages}
+            dlqMessages={dlqMessages.messages}
           />
         );
       case 'send':
@@ -76,7 +64,6 @@ const ServiceBusMonitorView: React.FC = () => {
             onSend={sendMessage}
           />
         );
-
       case 'configuration':
         return (
           <Configuration
@@ -84,17 +71,7 @@ const ServiceBusMonitorView: React.FC = () => {
             form={connectionForm}
             onFormChange={handleConnectionFormChange}
             onUpdate={() => {
-              // Update connection info when configuration is updated
-              const endpoint = connectionForm.connectionString.trim() === ''
-                ? 'http://localhost:3000'
-                : connectionForm.connectionString.match(/Endpoint=([^;]+)/)?.[1] || 'Azure Service Bus';
-
-              setConnectionInfo({
-                isConnected: connectionForm.connectionString.trim() !== '' || serviceBusConfig !== null,
-                isLocal: connectionForm.connectionString.trim() === '',
-                endpoint: endpoint,
-                connectionString: connectionForm.connectionString,
-              });
+              updateConnectionInfo(connectionForm);
               console.log('Configuration updated successfully');
             }}
             onTest={() => {
@@ -111,16 +88,7 @@ const ServiceBusMonitorView: React.FC = () => {
               });
             }}
             onReset={() => {
-              setConnectionInfo({
-                isConnected: false,
-                isLocal: true,
-                endpoint: 'http://localhost:3000',
-                connectionString: '',
-              });
-              setConnectionForm({
-                connectionString: '',
-                queues: 'test-queue,orders-queue',
-              });
+              resetConnection();
               console.log('Reset to local emulator defaults');
             }}
           />
@@ -144,7 +112,6 @@ const ServiceBusMonitorView: React.FC = () => {
               dlqMessages={dlqMessages.messages}
               serviceBusConfig={serviceBusConfig}
               onServiceBusInitialized={() => {
-                // Update connection info when Service Bus is initialized
                 console.log('Service Bus initialized successfully');
                 setConnectionInfo({
                   isConnected: true,
@@ -164,23 +131,11 @@ const ServiceBusMonitorView: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="p-4 sm:p-6 lg:p-8 max-w-full">
-            {isLoading && (
-              <div className="flex items-center justify-center p-12">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                <p className="ml-3 text-muted-foreground">Loading...</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-destructive" />
-                  <span className="text-destructive">{error}</span>
-                </div>
-              </div>
-            )}
-
-            {renderActiveTab()}
+            <MainContent
+              isLoading={isLoading}
+              error={error}
+              renderActiveTab={renderActiveTab}
+            />
           </div>
         </main>
       </SidebarInset>

@@ -78,23 +78,8 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
             this.senders.set(senderKey, sender);
             console.log(`✓ Topic sender created and stored for: ${senderKey}`);
 
-            // Create subscriptions for each topic
-            if (topic.Subscriptions && Array.isArray(topic.Subscriptions)) {
-              for (const subscription of topic.Subscriptions) {
-                const subscriptionPath = `${topic.Name}/Subscriptions/${subscription.Name}`;
-                console.log(`Creating subscription: ${subscriptionPath}`);
-                try {
-                  await client.createSubscription(topic.Name, subscription.Name, {
-                    maxDeliveryCount: subscription.MaxDeliveryCount || 10,
-                    deadLetteringOnMessageExpiration: subscription.DeadLetteringOnMessageExpiration || true,
-                  });
-                  console.log(`✓ Subscription created: ${subscriptionPath}`);
-                } catch (error) {
-                  // Subscription might already exist, that's okay
-                  console.log(`Subscription ${subscriptionPath} might already exist:`, error instanceof Error ? error.message : String(error));
-                }
-              }
-            }
+            // Note: Subscriptions are created by the Service Bus emulator based on the config file
+            // No need to create them programmatically
           }
         }
 
@@ -107,18 +92,8 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
             this.senders.set(senderKey, sender);
             console.log(`✓ Queue sender created and stored for: ${senderKey}`);
 
-            // Create the queue if it doesn't exist
-            try {
-              await client.createQueue(queue.Name, {
-                maxDeliveryCount: queue.Properties.MaxDeliveryCount || 10,
-                deadLetteringOnMessageExpiration: queue.Properties.DeadLetteringOnMessageExpiration || true,
-                defaultMessageTimeToLive: queue.Properties.DefaultMessageTimeToLive || 'PT1H',
-              });
-              console.log(`✓ Queue created: ${queue.Name}`);
-            } catch (error) {
-              // Queue might already exist, that's okay
-              console.log(`Queue ${queue.Name} might already exist:`, error instanceof Error ? error.message : String(error));
-            }
+            // Note: Queues are created by the Service Bus emulator based on the config file
+            // No need to create them programmatically
           }
         }
       } catch (error: any) {
@@ -225,13 +200,13 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         
         if (appProps.topic && appProps.subscription) {
           // For topics, store as "topic/subscription" to match monitoring format
-          mappedMessage.queue = `${appProps.topic}/${appProps.subscription}`;
+          mappedMessage.queue = `${String(appProps.topic)}/${String(appProps.subscription)}`;
         } else if (appProps.topic) {
           // If no subscription specified, just use topic name
-          mappedMessage.queue = appProps.topic;
+          mappedMessage.queue = String(appProps.topic);
         } else if (appProps.queue) {
           // For queues, use the queue name
-          mappedMessage.queue = appProps.queue;
+          mappedMessage.queue = String(appProps.queue);
         }
       }
       
@@ -462,7 +437,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       if (receiver) {
         try {
           await receiver.close();
-        } catch (error) {
+        } catch {
           // ignore
         }
       }
@@ -520,10 +495,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       return;
     }
 
-    // Skip initialization in development if SERVICE_BUS_AUTO_INIT is not set
+    // Enable auto-initialization in development mode
     if (process.env.NODE_ENV === 'development' && !process.env.SERVICE_BUS_AUTO_INIT) {
-      console.log('Skipping Service Bus auto-initialization in development mode');
-      return;
+      console.log('Auto-initializing Service Bus in development mode');
+      // Continue with initialization
     }
 
     try {

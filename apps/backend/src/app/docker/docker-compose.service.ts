@@ -63,8 +63,12 @@ export class DockerComposeService {
     filePath?: string;
     projectName?: string;
     services?: string[];
+    forceRecreate?: boolean;
+    build?: boolean;
+    removeOrphans?: boolean;
+    noDeps?: boolean;
   }) {
-    const { filePath, projectName, services } = options || {};
+    const { filePath, projectName, services, forceRecreate, build, removeOrphans, noDeps } = options || {};
 
     let command = 'docker compose'; // Note: newer syntax without hyphen
 
@@ -82,6 +86,20 @@ export class DockerComposeService {
     }
 
     command += ' up -d';
+
+    // Add docker-compose up options
+    if (forceRecreate) {
+      command += ' --force-recreate';
+    }
+    if (build) {
+      command += ' --build';
+    }
+    if (removeOrphans) {
+      command += ' --remove-orphans';
+    }
+    if (noDeps) {
+      command += ' --no-deps';
+    }
 
     // Add specific services
     if (services && services.length > 0) {

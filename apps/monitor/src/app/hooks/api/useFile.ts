@@ -25,70 +25,104 @@ export const useFile = <T = unknown>(): UseFileReturn<T> => {
     }
 
     try {
-      // Try backend API with versioning, then fallback to public directory
-      let response = await fetch(`http://localhost:3000/api/v1/file/${name}`);
-      
-      // If backend fails, try public directory (for production builds)
-      if (!response.ok) {
-        response = await fetch(`/${name}`);
-      }
+      let response: Response | null = null;
+      let lastError: Error | null = null;
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${name}: ${response.statusText}`);
-      }
-
-      const text = await response.text();
-      
-      // Handle HTML error responses
-      if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
-        throw new Error(`Backend returned HTML error. Backend may not be running on http://localhost:3000`);
-      }
-
-      // Parse the response
-      let parsed: T;
+      // Try fetching from public directory first (direct file access)
       try {
-        // First try to parse as JSON (API response format: {name, content})
-        const json = JSON.parse(text);
-        
-        if (json.content !== undefined) {
-          // Response from backend API with {name, content} structure
-          const rawContent = json.content;
+        response = await fetch(`/${name}`);
+        if (response.ok) {
+          const text = await response.text();
           
-          // Now parse the actual file content based on file type
-          if (name.endsWith('.json')) {
-            if (typeof rawContent === 'string') {
-              parsed = JSON.parse(rawContent) as T;
+          // Parse the response
+          let parsed: T;
+          try {
+            if (name.endsWith('.json')) {
+              parsed = JSON.parse(text) as T;
             } else {
-              parsed = rawContent as T;
+              // For YAML files
+              parsed = yaml.parse(text) as T;
             }
-          } else {
-            // For YAML or other formats
-            if (typeof rawContent === 'string') {
-              parsed = yaml.parse(rawContent) as T;
-            } else {
-              parsed = rawContent as T;
-            }
+          } catch (parseError) {
+            const msg = parseError instanceof Error ? parseError.message : 'Unknown parse error';
+            throw new Error(`Failed to parse ${name}: ${msg}`);
           }
-        } else {
-          // Direct file content (from public directory)
-          if (name.endsWith('.json')) {
-            parsed = json as T;
-          } else {
-            // This was already parsed as JSON, but it's supposed to be YAML
-            throw new Error(`Expected YAML file but got JSON: ${name}`);
-          }
+
+          setData({ name, content: parsed });
+          setError(null);
+          hasInitialLoad.current = true;
+          setLoading(false);
+          return;
         }
-      } catch (parseError) {
-        const msg = parseError instanceof Error ? parseError.message : 'Unknown parse error';
-        throw new Error(`Failed to parse ${name}: ${msg}`);
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Failed to fetch from public directory');
       }
 
-      setData({ name, content: parsed });
-      setError(null);
-      hasInitialLoad.current = true;
+      // Fallback to backend API with versioning
+      try {
+        response = await fetch(`http://localhost:3000/api/v1/file/${name}`);
+        
+        if (response.ok) {
+          const text = await response.text();
+          
+          // Handle HTML error responses
+          if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+            throw new Error(`Backend returned HTML error. Backend may not be running on http://localhost:3000`);
+          }
+
+          // Parse the response
+          let parsed: T;
+          try {
+            // First try to parse as JSON (API response format: {name, content})
+            const json = JSON.parse(text);
+            
+            if (json.content !== undefined) {
+              // Response from backend API with {name, content} structure
+              const rawContent = json.content;
+              
+              // Now parse the actual file content based on file type
+              if (name.endsWith('.json')) {
+                if (typeof rawContent === 'string') {
+                  parsed = JSON.parse(rawContent) as T;
+                } else {
+                  parsed = rawContent as T;
+                }
+              } else {
+                // For YAML or other formats
+                if (typeof rawContent === 'string') {
+                  parsed = yaml.parse(rawContent) as T;
+                } else {
+                  parsed = rawContent as T;
+                }
+              }
+            } else {
+              // Direct file content
+              if (name.endsWith('.json')) {
+                parsed = json as T;
+              } else {
+                throw new Error(`Expected YAML file but got JSON: ${name}`);
+              }
+            }
+          } catch (parseError) {
+            const msg = parseError instanceof Error ? parseError.message : 'Unknown parse error';
+            throw new Error(`Failed to parse ${name}: ${msg}`);
+          }
+
+          setData({ name, content: parsed });
+          setError(null);
+          hasInitialLoad.current = true;
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Failed to fetch from backend');
+      }
+
+      // If both methods failed, throw error
+      throw lastError || new Error(`Failed to fetch ${name}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching file';
-      console.error(`Error loading ${name}:`, errorMessage);
+      console.error(`Error loading file:`, errorMessage);
       setError(err instanceof Error ? err : new Error(errorMessage));
     } finally {
       setLoading(false);

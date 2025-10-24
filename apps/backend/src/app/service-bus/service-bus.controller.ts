@@ -74,6 +74,22 @@ export class ServiceBusController {
   }
 
   /**
+   * Health check for Service Bus
+   */
+  @Get('health')
+  getHealth() {
+    const config = this.serviceBusService.getConfig();
+    const isInitialized = !!config;
+
+    return {
+      status: isInitialized ? 'healthy' : 'unhealthy',
+      initialized: isInitialized,
+      timestamp: new Date().toISOString(),
+      service: 'servicebus',
+    };
+  }
+
+  /**
    * Manually initialize Service Bus (for debugging)
    */
   @Post('debug-init')

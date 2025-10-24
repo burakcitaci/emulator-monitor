@@ -130,7 +130,10 @@ export const useServiceBusConfig = () => {
       const data = (await response.json()) as BackendResponse;
 
       const configFromBackend = transformBackendToServiceBusConfig(data);
-      if (configFromBackend) return configFromBackend;
+      if (configFromBackend) {
+        console.log('✓ Loaded Service Bus config from backend');
+        return configFromBackend;
+      }
 
       throw new Error(data.message || 'Invalid backend response');
     } catch (err) {
@@ -147,6 +150,7 @@ export const useServiceBusConfig = () => {
       }
       const data = (await response.json()) as ServiceBusConfig;
       if (data.UserConfig?.Namespaces) {
+        console.log('⚠ Loaded Service Bus config from static file (backend unavailable)');
         return data;
       } else {
         throw new Error('Invalid static config format');

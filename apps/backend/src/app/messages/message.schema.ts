@@ -1,106 +1,145 @@
 // message.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
+import { Document } from 'mongoose';
 
-export type MessageDocument = HydratedDocument<Message>;
-
-/**
- * Azure Service Bus Message Status
- * Tracks the processing status of a message
- */
-export enum MessageStatus {
-  ACTIVE = 'active', // Message is available for processing
-  DEFERRED = 'deferred', // Message processing postponed
-  SCHEDULED = 'scheduled', // Message scheduled for future delivery
-  DEAD_LETTERED = 'dead-lettered', // Message moved to Dead Letter Queue
-  COMPLETED = 'completed', // Message successfully processed
-  ABANDONED = 'abandoned', // Message processing failed, returned to queue
-  RECEIVED = 'received', // Message received but not yet completed
-}
-
-/**
- * Azure Service Bus Message State
- * The actual state of the message in Service Bus
- */
 export enum MessageState {
   ACTIVE = 'active',
-  DEFERRED = 'deferred',
   SCHEDULED = 'scheduled',
-  DEAD_LETTERED = 'dead-lettered',
+  DEFERRED = 'deferred',
   COMPLETED = 'completed',
+  EXPIRED = 'expired',
+  DEAD_LETTERED = 'dead-lettered',
+  ABANDONED = 'abandoned',
+  RECEIVED = 'received',
 }
+
+export type MessageDocument = Message & Document;
 
 @Schema({ timestamps: true })
 export class Message {
-  // Arbitrary message body. Use Mixed for flexibility, 'unknown' for type-safety.
-  @Prop({ required: true, type: MongooseSchema.Types.Mixed })
-  body: any;
+  // ==================== Identifiers ====================
+  @Prop({ required: true, index: true })
+  messageId?: string;
 
-  // Message identifier, index for faster lookup.
-  @Prop({ type: MongooseSchema.Types.Mixed, index: true }) // ← allows string | number | anything
-  messageId?: string | number;
+  @Prop({ index: true })
+  queue?: string; // Storage path: "queueName" or "topicName/subscriptionName"
 
-  @Prop({ type: String })
+  @Prop({ index: true })
+  topic?: string; // Original topic name (for topic subscriptions)
+
+  @Prop({ index: true })
+  subscription?: string; // Original subscription name (for topic subscriptions)
+
+  // ==================== Message Content ====================
+  @Prop({ type: Object })
+  body?: any;
+
+  @Prop({ type: Object })
+  applicationProperties?: Record<string, any>;
+
+  @Prop()
   contentType?: string;
 
-  // Correlation identifier, index for faster correlation queries.
-  @Prop({ type: MongooseSchema.Types.Mixed, index: true })
-  correlationId?: string | number;
-
-  @Prop({ type: String })
-  partitionKey?: string;
-
-  @Prop({ type: String })
-  sessionId?: string;
-
-  @Prop({ type: String })
-  replyToSessionId?: string;
-
-  @Prop({ type: Number })
-  timeToLive?: number;
-
-  @Prop({ type: String })
+  @Prop()
   subject?: string;
 
-  @Prop({ type: String })
+  @Prop()
   to?: string;
 
-  @Prop({ type: String })
+  @Prop()
   replyTo?: string;
 
-  @Prop({ type: Date })
-  scheduledEnqueueTimeUtc?: Date;
+  @Prop()
+  correlationId?: string;
 
-  // Application properties as a Map with Mixed values.
-  @Prop({ type: Map, of: MongooseSchema.Types.Mixed })
-  applicationProperties?: Map<string, string | number | boolean | Date | null>;
+  @Prop()
+  sessionId?: string;
 
-  @Prop({
-    type: String,
-    enum: ['active', 'deferred', 'scheduled', 'dead-lettered', 'completed'],
-    index: true, // Index for faster queries on state
+  @Prop()
+  partitionKey?: string;
+
+  // ==================== State & Lifecycle ====================
+  @Prop({ 
+    type: String, 
+    enum: Object.values(MessageState), 
+    default: MessageState.ACTIVE,
+    index: true 
   })
-  state?: 'active' | 'deferred' | 'scheduled' | 'dead-lettered' | 'completed';
+  state?: MessageState;
 
-  @Prop({ type: Number })
-  sequenceNumber?: number;
+  @Prop()
+  enqueuedTimeUtc?: Date; // When message was enqueued in Service Bus
 
-  @Prop({ type: String })
-  queue?: string;
+  @Prop()
+  scheduledEnqueueTimeUtc?: Date; // For scheduled messages
 
-  @Prop({ type: Date })
-  enqueuedTimeUtc?: Date;
+  @Prop()
+  expiresAtUtc?: Date; // When message will expire
 
-  @Prop({ type: Date })
-  lastUpdated?: Date;
+  @Prop()
+  completedAt?: Date; // When marked as completed (no longer in Service Bus)
 
-  @Prop({ type: MongooseSchema.Types.Mixed })
-  rawAmqpMessage?: Record<string, unknown>;
+  @Prop()
+  expiredAt?: Date; // When message TTL expired
+
+  @Prop()
+  verifiedAt?: Date; // When immediately verified after send (for UI tracking)
+
+  // ==================== Service Bus Metadata ====================
+  @Prop()
+  sequenceNumber?: number; // Service Bus sequence number
+
+  @Prop()
+  deliveryCount?: number; // Current delivery attempt count
+
+  @Prop()
+  maxDeliveryCount?: number; // Max delivery count from config
+
+  @Prop()
+  timeToLive?: number; // Message-specific TTL in milliseconds
+
+  @Prop()
+  lockToken?: string; // Lock token for receiver
+
+  // ==================== Dead Letter Information ====================
+  @Prop()
+  deadLetterReason?: string; // Why message was dead-lettered
+
+  @Prop()
+  deadLetterErrorDescription?: string; // Detailed error description
+
+  @Prop()
+  deadLetteredAt?: Date; // When we detected message in DLQ
+
+  // ==================== Timestamps ====================
+  @Prop()
+  createdAt?: Date; // When record was created in MongoDB
+
+  @Prop()
+  lastUpdated?: Date; // Last time record was updated
+
+  @Prop()
+  lastSeenAt?: Date; // Last time message was seen in Service Bus
+
+  // ==================== Additional Metadata ====================
+  @Prop()
+  sentViaUI?: boolean; // Flag for messages sent through UI (for tracking)
+
+  @Prop({ type: [{ state: String, timestamp: Date, reason: String }] })
+  stateHistory?: Array<{
+    state: MessageState;
+    timestamp: Date;
+    reason?: string;
+  }>; // Track state transitions over time
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
 
-MessageSchema.index(
-  { enqueuedTimeUtc: 1 },
-  { expireAfterSeconds: 30 } // PT1H = 1 hour
-);
+// Add indexes for common queries
+MessageSchema.index({ messageId: 1 });
+MessageSchema.index({ queue: 1, state: 1 });
+MessageSchema.index({ state: 1, lastUpdated: 1 });
+MessageSchema.index({ enqueuedTimeUtc: 1 });
+MessageSchema.index({ createdAt: 1 });
+MessageSchema.index({ topic: 1, subscription: 1 });
+MessageSchema.index({ deliveryCount: 1, maxDeliveryCount: 1 });

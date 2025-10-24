@@ -1,17 +1,14 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
-import { getStatusColor, getDirectionColor } from '../../utils/messageUtils';
+import { getStatusColor } from '../../utils/messageUtils';
 import { Message } from '@e2e-monitor/entities';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../ui/table';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from './data-table/DataTable';
+import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
+import { Badge } from '../ui/badge';
+import type { Option } from '../../types/data-table';
 
 interface MessageTableProps {
   messages: Message[];
@@ -28,10 +25,130 @@ const formatBodyForDisplay = (body: string | Record<string, unknown>): string =>
   return String(body || '');
 };
 
+const createColumns = (
+  onMessageSelect: (message: Message) => void,
+): ColumnDef<Message>[] => [
+  {
+    accessorKey: 'timestamp',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Timestamp" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="text-sm text-gray-600">
+          {new Date(row.original.timestamp).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'queue',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Queue/Topic" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="text-sm font-medium">{row.original.queue}</div>
+      );
+    },
+  },
+  {
+    accessorKey: 'state',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <Badge variant="secondary" className={`text-xs ${getStatusColor(row.original.state)}`}>
+          {row.original.state}
+        </Badge>
+      );
+    },
+    enableColumnFilter: true,
+    filterFn: (row, id, value) => {
+      return value.includes(row.original.state);
+    },
+    meta: {
+      variant: 'multiSelect',
+      label: 'Status',
+      options: [
+        { label: 'Active', value: 'active' },
+        { label: 'Deferred', value: 'deferred' },
+        { label: 'Scheduled', value: 'scheduled' },
+        { label: 'Dead Lettered', value: 'dead-lettered' },
+        { label: 'Completed', value: 'completed' },
+        { label: 'Expired', value: 'expired' },
+        { label: 'Abandoned', value: 'abandoned' },
+        { label: 'Received', value: 'received' },
+      ] as Option[],
+    },
+  },
+  {
+    accessorKey: 'id',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Message ID" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="font-medium text-sm">
+          {row.original.id.substring(0, 12)}...
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'body',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Body Preview" />
+    ),
+    cell: ({ row }) => {
+      const bodyText = formatBodyForDisplay(row.original.body);
+      return (
+        <div className="max-w-md truncate text-xs">
+          {bodyText.length > 80 ? `${bodyText.substring(0, 80)}...` : bodyText}
+        </div>
+      );
+    },
+  },
+  {
+    id: 'actions',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Actions" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMessageSelect(row.original);
+            }}
+          >
+            View
+          </Button>
+        </div>
+      );
+    },
+  },
+];
+
 export const MessageTable: React.FC<MessageTableProps> = ({
   messages,
   onMessageSelect,
 }) => {
+  // Move useMemo before any conditional returns
+  const columns = React.useMemo(
+    () => createColumns(onMessageSelect),
+    [onMessageSelect],
+  );
+
   if (messages.length === 0) {
     return (
       <Card>
@@ -45,137 +162,12 @@ export const MessageTable: React.FC<MessageTableProps> = ({
 
   return (
     <div className="rounded-lg overflow-hidden">
-      {/* Desktop Table View */}
-      <div className="hidden lg:block">
-        <Table>
-          <TableHeader className="bg-gradient-to-r h-4 from-indigo-50 to-purple-50">
-            <TableRow>
-              <TableHead>Timestamp</TableHead>
-              <TableHead>Queue/Topic</TableHead>
-              <TableHead>Direction</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Message ID</TableHead>
-              <TableHead>Body Preview</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {messages.map((message, index) => (
-              <TableRow
-                key={message.id}
-                className={`hover:bg-indigo-50 transition-colors p-0 cursor-pointer ${
-                  index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                }`}
-                onClick={() => onMessageSelect(message)}
-              >
-                <TableCell className="text-sm text-gray-600">
-                  {new Date(message.timestamp).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm font-medium">{message.subject}</div>
-                </TableCell>
-
-                <TableCell>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                      message.state
-                    )}`}
-                  >
-                    {message.state}
-                  </span>
-                </TableCell>
-                <TableCell className="font-medium">
-                  {message.id.substring(0, 12)}...
-                </TableCell>
-                <TableCell>
-                  <div className="max-w-md truncate text-xs">
-                    {(() => {
-                      const bodyText = formatBodyForDisplay(message.body);
-                      return bodyText.length > 80 ? `${bodyText.substring(0, 80)}...` : bodyText;
-                    })()}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMessageSelect(message);
-                    }}
-                  >
-                    View
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mobile Card View */}
-      <div className="block lg:hidden">
-        <div className="space-y-2">
-          {messages.map((message) => (
-            <Card
-              key={message.id}
-              className="cursor-pointer hover:bg-indigo-50 transition-colors"
-              onClick={() => onMessageSelect(message)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{message.subject}</span>
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                          message.state
-                        )}`}
-                      >
-                        {message.state}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-gray-500">
-                      {new Date(message.timestamp).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-
-                    <div className="text-xs bg-gray-100 p-2 rounded">
-                      {(() => {
-                        const bodyText = formatBodyForDisplay(message.body);
-                        return bodyText.length > 60 ? `${bodyText.substring(0, 60)}...` : bodyText;
-                      })()}
-                    </div>
-
-                    <div className="text-xs text-gray-500">
-                      ID: {message.id.substring(0, 16)}...
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMessageSelect(message);
-                    }}
-                  >
-                    View
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={messages}
+        searchKey="body"
+        searchPlaceholder="Search message body..."
+      />
     </div>
   );
 };

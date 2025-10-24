@@ -12,9 +12,19 @@ export class DockerComposeController {
       filePath?: string;
       projectName?: string;
       services?: string[];
-    }
+    },
+    @Query('forceRecreate') forceRecreate?: string,
+    @Query('build') build?: string,
+    @Query('removeOrphans') removeOrphans?: string,
+    @Query('noDeps') noDeps?: string
   ) {
-    return this.composeService.up(body);
+    return this.composeService.up({
+      ...body,
+      forceRecreate: forceRecreate === 'true',
+      build: build === 'true',
+      removeOrphans: removeOrphans === 'true',
+      noDeps: noDeps === 'true',
+    });
   }
 
   @Post('down')

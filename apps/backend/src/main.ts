@@ -8,6 +8,7 @@ import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module.js';
 import { ConfigService } from './app/common/config.service.js';
+import { ServiceBusService } from './app/service-bus/service-bus.service.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -51,6 +52,10 @@ async function bootstrap() {
         },
       })
     );
+
+    // Initialize Service Bus on startup
+    const serviceBusService = app.get(ServiceBusService);
+    await serviceBusService.onModuleInit();
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {

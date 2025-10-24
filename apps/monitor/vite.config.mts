@@ -13,7 +13,7 @@ const copyConfigFilesPlugin = {
   transformIndexHtml: {
     order: 'pre' as const,
     async handler() {
-      const rootDir = path.resolve(__dirname, '../../..');
+      const rootDir = path.resolve(__dirname, '../..');
       const publicDir = path.resolve(__dirname, './public');
 
       // Files to copy from root to public
@@ -51,7 +51,7 @@ const copyConfigFilesPluginBuild = {
   name: 'copy-config-files-build',
   apply: 'build' as const,
   async closeBundle() {
-    const rootDir = path.resolve(__dirname, '../../..');
+    const rootDir = path.resolve(__dirname, '../..');
     const publicDir = path.resolve(__dirname, './public');
 
     const filesToCopy = [
