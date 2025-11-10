@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
-    "@e2e-monitor/entities": "0.0.1"
+    "@e2e-monitor/entities": "0.0.1",
+    "uuid": "^13.0.0"
   }
 }

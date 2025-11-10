@@ -58,6 +58,10 @@ export interface SendMessageDto {
     correlationId?: string;
     subject?: string;
     applicationProperties?: Record<string, any>;
+    sentBy?: string;
+    recievedBy?: string;
+    sentAt?: Date;
+    recievedAt?: Date;
   };
 }
 
@@ -217,6 +221,24 @@ export interface Message {
   timestamp: Date;
   createdAt: Date;
   state: MessageState;
+  _id?: string;
+  applicationProperties?: Record<string, unknown>;
+  contentType?: string;
+  subject?: string;
+  lastUpdated?: Date;
+  stateHistory?: unknown[];
+  updatedAt?: Date;
+  __v?: number;
+  deliveryCount?: number;
+  enqueuedTimeUtc?: Date;
+  lastSeenAt?: Date;
+  maxDeliveryCount?: number;
+  sequenceNumber?: number;
+  timeToLive?: number;
+  sentBy?: string;
+  recievedBy?: string;
+  sentAt?: Date;
+  recievedAt?: Date;
 }
 
 export interface ConnectionInfo {

@@ -6,6 +6,8 @@ import React, {
   useRef,
 } from 'react';
 import { MessagesDataTable } from './MessagesDataTable';
+import { SendMessageTab } from './SendMessageTab';
+import { Configuration } from '../Configuration';
 import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
 import { useServiceBus } from '../../hooks/api/useServiceBus';
 import {
@@ -15,10 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Message } from '@e2e-monitor/entities';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog';
+import { Message, SendForm, ConnectionInfo, ConnectionForm } from '@e2e-monitor/entities';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, Send, Settings } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { StatusIndicator } from '../common/StatusIndicator';
@@ -28,6 +37,15 @@ interface MessagesTabProps {
   messages: Message[];
   onMessagesUpdate: (messages: Message[]) => void;
   dlqMessages: any[];
+  sendForm: SendForm;
+  onSendFormChange: (form: SendForm) => void;
+  onSendMessage: () => void;
+  connectionInfo: ConnectionInfo;
+  connectionForm: ConnectionForm;
+  onConnectionFormChange: (form: ConnectionForm) => void;
+  onUpdateConnection: () => void;
+  onTestConnection: () => Promise<any>;
+  onResetConnection: () => void;
 }
 
 type PrimarySelection =
@@ -172,6 +190,15 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   messages,
   onMessagesUpdate,
   dlqMessages,
+  sendForm,
+  onSendFormChange,
+  onSendMessage,
+  connectionInfo,
+  connectionForm,
+  onConnectionFormChange,
+  onUpdateConnection,
+  onTestConnection,
+  onResetConnection,
 }) => {
   const {
     queuesAndTopics,
@@ -204,6 +231,8 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     boolean | null
   >(null);
   const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
   // Use ref to store current queuesAndTopics value for loadMessages
   const queuesAndTopicsRef = useRef(queuesAndTopics);
@@ -260,6 +289,7 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       } catch {
         setServiceBusInitialized(null);
       }
+
     };
 
     checkStatus();
@@ -580,19 +610,68 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     <div className="space-y-6 w-full">
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-2xl font-semibold">Service Bus Messages</h2>
-        <p className="text-muted-foreground">
-          Monitor and inspect messages flowing through your Service Bus
-          emulator.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold">Service Bus Messages</h2>
+            <p className="text-muted-foreground">
+              Monitor and inspect messages flowing through your Service Bus
+              emulator.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Message
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Send Test Message</DialogTitle>
+                </DialogHeader>
+                <SendMessageTab
+                  form={sendForm}
+                  onFormChange={onSendFormChange}
+                  onSend={() => {
+                    onSendMessage();
+                    setIsSendDialogOpen(false);
+                  }}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Configuration
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Service Bus Configuration</DialogTitle>
+                </DialogHeader>
+                <Configuration
+                  connectionInfo={connectionInfo}
+                  form={connectionForm}
+                  onFormChange={onConnectionFormChange}
+                  onUpdate={() => {
+                    onUpdateConnection();
+                    setIsConfigDialogOpen(false);
+                  }}
+                  onTest={onTestConnection}
+                  onReset={() => {
+                    onResetConnection();
+                    setIsConfigDialogOpen(false);
+                  }}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
       </div>
       <div className="flex items-center justify-start gap-2 bg-accent/30 px-4 py-2 rounded-sm border border-border/50 min-h-[60px]">
-        <StatusIndicator
-          label="Messages"
-          status="success"
-          count={messageCount}
-          animate={true}
-        />
         <StatusIndicator
           label={`Backend: ${backendStatus === 'running' ? 'Running' : 'Offline'}`}
           status={

@@ -1,4 +1,4 @@
-// message.mapper.ts
+/* // message.mapper.ts
 import {
   ServiceBusMessage,
   ServiceBusReceivedMessage,
@@ -7,7 +7,7 @@ import { Message, MessageState } from './message.schema';
 
 export function mapToMessage(msg: ServiceBusMessage): Partial<Message> {
   return {
-    messageId: normalizeValue(msg.messageId),
+    messageId: normalizeValue(msg.messageId) || undefined,
     body: msg.body,
     contentType: msg.contentType,
     correlationId: normalizeValue(msg.correlationId),
@@ -35,3 +35,4 @@ function normalizeValue(
   }
   return value;
 }
+ */

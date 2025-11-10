@@ -5,6 +5,7 @@ import {
   ServiceBusSender,
   ServiceBusMessage,
   ServiceBusReceiver,
+  ServiceBusReceivedMessage,
 } from '@azure/service-bus';
 import {
   SendMessageDto,
@@ -18,8 +19,17 @@ import {
 } from '@e2e-monitor/entities';
 
 import { ConfigService } from '../common/config.service';
-import { MessageService } from '../messages/messages.service';
-import { mapToMessage } from '../messages/messages.mapper';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { IServiceBusMessageDocument, MessageState } from '../common/servicebus.message.schema';
+import Long from 'long';
+import { Cron, CronExpression } from '@nestjs/schedule';
+
+// Constants
+const PEEK_BATCH_SIZE = 200;
+const MAX_PEEK_MESSAGES = 5000;
+const COMPLETION_GRACE_PERIOD_MS = 30 * 1000; // 30 seconds
+const MESSAGE_TTL_DEFAULT_MS = 60 * 60 * 1000; // 1 hour
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
@@ -27,11 +37,15 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   private readonly senders: Map<string, ServiceBusSender> = new Map();
   private readonly receivers: Map<string, ServiceBusReceiver> = new Map(); // 👈 New Map for receivers
   private config: ServiceBusConfig | null = null;
-
+  private readonly serviceBusClient: ServiceBusClient;
   constructor(
     private readonly configService: ConfigService,
-    private readonly messageService: MessageService
-  ) {}
+    @InjectModel('ServiceBusMessage') private readonly serviceBusMessageModel: Model<IServiceBusMessageDocument>
+  ) {
+     this.serviceBusClient = new ServiceBusClient(
+          this.configService.serviceBusConnectionString
+    );
+  }
 
   /**
    * Initialize Service Bus with configuration
@@ -45,66 +59,19 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
 
     this.config = config;
 
-    console.log(
-      'Initializing Service Bus with config:',
-      JSON.stringify(config, null, 2)
-    );
-    console.log('Using connection string (key masked):', connectionString.replace(/SharedAccessKey=[^;]+/, 'SharedAccessKey=***'));
-
-    // Create clients for each namespace
-    for (const namespace of config.UserConfig.Namespaces) {
-      try {
-        console.log(`Creating client for namespace: ${namespace.Name}`);
-        const client = new ServiceBusClient(connectionString);
-        this.clients.set(namespace.Name, client);
-
-        // Test the connection by trying to create a receiver for an existing queue
-        console.log(`Testing connection for namespace: ${namespace.Name}`);
-        try {
-          const testReceiver = client.createReceiver('orders-queue'); // Use a queue from config
-          await testReceiver.close();
-          console.log(`✓ Successfully connected to namespace: ${namespace.Name}`);
-        } catch (error) {
-          console.warn(`Could not test connection for namespace ${namespace.Name}:`, error instanceof Error ? error.message : String(error));
-          // Continue initialization even if test fails
-        }
-
-        // Create senders for each topic
-        if (namespace.Topics && Array.isArray(namespace.Topics)) {
-          for (const topic of namespace.Topics) {
-            const senderKey = `${namespace.Name}:${topic.Name}`;
-            console.log(`Creating topic sender with key: ${senderKey}`);
-            const sender = client.createSender(topic.Name);
-            this.senders.set(senderKey, sender);
-            console.log(`✓ Topic sender created and stored for: ${senderKey}`);
-
-            // Note: Subscriptions are created by the Service Bus emulator based on the config file
-            // No need to create them programmatically
-          }
-        }
-
-        // Create senders for each queue
-        if (namespace.Queues && Array.isArray(namespace.Queues)) {
-          for (const queue of namespace.Queues) {
-            const senderKey = `${namespace.Name}:${queue.Name}`;
-            console.log(`Creating queue sender with key: ${senderKey}`);
-            const sender = client.createSender(queue.Name);
-            this.senders.set(senderKey, sender);
-            console.log(`✓ Queue sender created and stored for: ${senderKey}`);
-
-            // Note: Queues are created by the Service Bus emulator based on the config file
-            // No need to create them programmatically
-          }
-        }
-      } catch (error: any) {
-        throw new Error(
-          `Failed to initialize Service Bus for namespace ${namespace.Name}: ${error.message}`
-        );
+    // Create senders for all configured topics and queues
+    for (const ns of config.UserConfig.Namespaces) {
+      for (const topic of ns.Topics ?? []) {
+        const senderKey = `${ns.Name}:${topic.Name}`;
+        const sender = this.serviceBusClient.createSender(topic.Name);
+        this.senders.set(senderKey, sender);
+      }
+      for (const queue of ns.Queues ?? []) {
+        const senderKey = `${ns.Name}:${queue.Name}`;
+        const sender = this.serviceBusClient.createSender(queue.Name);
+        this.senders.set(senderKey, sender);
       }
     }
-
-    console.log('All senders created. Total senders:', this.senders.size);
-    console.log('Sender keys:', Array.from(this.senders.keys()));
 
     return {
       success: true,
@@ -162,11 +129,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
    * Send a message to a topic
    */
   async sendMessage(dto: SendMessageDto): Promise<SendMessageResponse> {
-    console.log('Sending message to:', dto.topic);
     const senderKey = `${dto.namespace}:${dto.topic}`;
-    console.log(`Looking for sender with key: ${senderKey}`);
-    console.log(`Available senders:`, Array.from(this.senders.keys()));
-
     const sender = this.senders.get(senderKey);
 
     if (!sender) {
@@ -183,40 +146,32 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const message: ServiceBusMessage = {
         body: dto.message.body,
         contentType: dto.message.contentType || 'application/json',
-        messageId: dto.message.messageId || this.generateMessageId(),
+        messageId: dto.message.messageId,
         correlationId: dto.message.correlationId,
         subject: dto.message.subject,
         applicationProperties: dto.message.applicationProperties || {},
       };
 
-      const mappedMessage = mapToMessage(message);
-      
-      // Set the queue field based on the topic and subscription from applicationProperties
-      // This ensures proper tracking when messages are completed
-      if (mappedMessage.applicationProperties) {
-        const appProps = mappedMessage.applicationProperties instanceof Map 
-          ? Object.fromEntries(mappedMessage.applicationProperties) 
-          : mappedMessage.applicationProperties;
-        
-        if (appProps.topic && appProps.subscription) {
-          // For topics, store as "topic/subscription" to match monitoring format
-          mappedMessage.queue = `${String(appProps.topic)}/${String(appProps.subscription)}`;
-        } else if (appProps.topic) {
-          // If no subscription specified, just use topic name
-          mappedMessage.queue = String(appProps.topic);
-        } else if (appProps.queue) {
-          // For queues, use the queue name
-          mappedMessage.queue = String(appProps.queue);
-        }
-      }
-      
-      // Fallback: use the topic name if queue still not set
-      if (!mappedMessage.queue) {
-        mappedMessage.queue = dto.topic;
-      }
-      
-      await this.messageService.saveReceivedMessage(mappedMessage); // Save the message to MongoDB
+      // Send the message
       await sender.sendMessages(message);
+
+      await this.serviceBusMessageModel.create(message);
+    
+     /*  // Persist the sent message
+      const sentMessage: Partial<SentMessage> = {
+        messageId: message.messageId ? String(message.messageId) : undefined,
+        body: dto.message.body,
+        applicationProperties: dto.message.applicationProperties || {},
+        contentType: dto.message.contentType || 'application/json',
+        subject: dto.message.subject,
+        correlationId: dto.message.correlationId,
+        sentViaUI: true, // This is sent via UI
+        sentBy: dto.message.sentBy,
+        sentAt: dto.message.sentAt || new Date(),
+        state: SentMessageState.SENT,
+      };
+
+      await this.sentMessageModel.create(sentMessage); */
 
       return {
         success: true,
@@ -230,224 +185,55 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     }
   }
 
-  /**
-   * Send multiple messages in a batch
-   */
-  async sendMessageBatch(dto: SendBatchDto): Promise<SendBatchResponse> {
-    const senderKey = `${dto.namespace}:${dto.topic}`;
-    const sender = this.senders.get(senderKey);
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  async monitorMessages(): Promise<void> {
+    const startTime = Date.now();
+    console.log('[MonitorMessages] ========== Starting monitoring cycle ==========');
 
-    if (!sender) {
-      throw new Error(
-        `No sender found for namespace: ${dto.namespace}, topic: ${dto.topic}`
-      );
+    const config = this.configService.getServiceBusConfiguration();
+    const queues = config.UserConfig.Namespaces.flatMap(
+      (ns) => ns.Queues || []
+    );
+    const topics = config.UserConfig.Namespaces.flatMap(
+      (ns) => ns.Topics || []
+    );
+
+    if (queues.length === 0 && topics.length === 0) {
+      console.log('[MonitorMessages] No queues or topics configured, skipping monitoring');
+      return;
     }
 
-    try {
-      const batch = await sender.createMessageBatch();
-      const serviceBusMessages: ServiceBusMessage[] = dto.messages.map(
-        (msg: any) => ({
-          body: msg.body,
-          contentType: msg.contentType || 'application/json',
-          messageId: msg.messageId || this.generateMessageId(),
-          correlationId: msg.correlationId,
-          subject: msg.subject,
-          applicationProperties: msg.applicationProperties || {},
-        })
-      );
-
-      for (const message of serviceBusMessages) {
-        const added = batch.tryAddMessage(message);
-        if (!added) {
-          throw new Error('Message batch is full');
-        }
-      }
-
-      await sender.sendMessages(batch);
-
-      return {
-        success: true,
-        message: `Batch of ${dto.messages.length} messages sent successfully`,
-        messageCount: dto.messages.length,
-        namespace: dto.namespace,
-        topic: dto.topic,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to send message batch: ${error.message}`);
-    }
-  }
-
-  /**
-   * Gets messages from a Subscription's Dead Letter Queue.
-   * @param namespace The Service Bus namespace name.
-   * @param topic The topic name.
-   * @param subscription The subscription name whose DLQ is to be read.
-   * @param maxMessages The maximum number of messages to retrieve (default: 10).
-   * @param maxWaitTimeInSeconds The maximum time to wait for messages (default: 5).
-   */
-  public async receiveDeadLetterMessages(
-    namespace: string,
-    topic: string,
-    subscription: string,
-    maxMessages = 10,
-    maxWaitTimeInSeconds = 5
-  ): Promise<DeadLetterMessageResponse> {
-    console.log(`Looking for client with namespace: "${namespace}"`);
-    console.log(`Available clients:`, Array.from(this.clients.keys()));
-
-    const client = this.clients.get(namespace);
-    if (!client) {
-      throw new Error(
-        `Client for namespace "${namespace}" not found. Available namespaces: ${Array.from(
-          this.clients.keys()
-        ).join(', ')}`
-      );
+    if (!this.serviceBusClient) {
+      console.log('[MonitorMessages] Service Bus client not available, skipping monitoring');
+      return;
     }
 
-    // Dead Letter Queue path format: <topic_name>/Subscriptions/<subscription_name>/$DeadLetterQueue
-    const entityPath = `${topic}/Subscriptions/${subscription}/$DeadLetterQueue`;
-    const receiverKey = `${namespace}:${entityPath}`;
+    console.log(`[MonitorMessages] Monitoring ${queues.length} queues and ${topics.length} topics`);
 
-    // Check if receiver exists and close it to prevent "already receiving" error
-    const existingReceiver = this.receivers.get(receiverKey);
-    if (existingReceiver) {
-      try {
-        console.log(`Closing existing receiver for: ${receiverKey}`);
-        await existingReceiver.close();
-        this.receivers.delete(receiverKey);
-      } catch (error) {
-        console.error(`Error closing existing receiver: ${error}`);
+    // Monitor all queues
+    for (const queue of queues) {
+      await this.monitorDeadLetterQueue(queue.Name);
+      await this.monitorQueue(queue.Name, queue.Properties);
+    }
+
+    // Monitor all topic subscriptions
+    for (const topic of topics) {
+      for (const subscription of topic.Subscriptions || []) {
+        await this.monitorTopicDeadLetterQueue(topic.Name, subscription.Name);
+        await this.monitorTopicSubscription(
+          topic.Name,
+          subscription.Name,
+          topic.Properties,
+          subscription
+        );
       }
     }
 
-    // Create a fresh receiver for this request
-    let receiver: ServiceBusReceiver | null = null;
+    // Clean up old messages after monitoring
+    await this.cleanupOldMessages();
 
-    try {
-      console.log(`Creating new DLQ receiver for: ${receiverKey}`);
-      receiver = client.createReceiver(entityPath, { receiveMode: 'peekLock' });
-
-      console.log(
-        `Attempting to receive up to ${maxMessages} messages from DLQ...`
-      );
-
-      const messages = await receiver.receiveMessages(maxMessages, {
-        maxWaitTimeInMs: maxWaitTimeInSeconds * 1000,
-      });
-
-      console.log(`Received ${messages.length} messages from DLQ.`);
-
-      // Transform messages to plain objects to avoid circular reference errors
-      const serializedMessages = messages.map((msg) => ({
-        body: msg.body,
-        messageId: msg.messageId,
-        correlationId: msg.correlationId,
-        subject: msg.subject,
-        contentType: msg.contentType,
-        deliveryCount: msg.deliveryCount,
-        enqueuedTimeUtc: msg.enqueuedTimeUtc,
-        enqueuedSequenceNumber: msg.enqueuedSequenceNumber,
-        sequenceNumber: msg.sequenceNumber,
-        deadLetterReason: msg.deadLetterReason,
-        deadLetterErrorDescription: msg.deadLetterErrorDescription,
-        applicationProperties: msg.applicationProperties,
-        state: msg.state,
-      }));
-
-      return {
-        success: true,
-        messageCount: messages.length,
-        messages: serializedMessages,
-        entityPath: receiver.entityPath,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to receive DLQ messages: ${error.message}`);
-    } finally {
-      // Always close the receiver after use to prevent "already receiving" errors
-      if (receiver) {
-        try {
-          console.log(`Closing receiver after use: ${receiverKey}`);
-          await receiver.close();
-        } catch (error) {
-          console.error(`Error closing receiver in finally: ${error}`);
-        }
-      }
-    }
-  }
-
-  /**
-   * Peek active messages from a queue or topic/subscription (non-destructive)
-   */
-  public async receiveActiveMessages(
-    namespace: string,
-    entity: string,
-    subscription?: string,
-    maxMessages = 10
-  ): Promise<DeadLetterMessageResponse> {
-    const client = this.clients.get(namespace);
-    if (!client) {
-      throw new Error(`Client for namespace "${namespace}" not found.`);
-    }
-
-    const entityPath = subscription
-      ? `${entity}/Subscriptions/${subscription}`
-      : entity;
-
-    const receiverKey = `${namespace}:${entityPath}:peek`;
-    const existingReceiver = this.receivers.get(receiverKey);
-    if (existingReceiver) {
-      try {
-        await existingReceiver.close();
-        this.receivers.delete(receiverKey);
-      } catch (error) {
-        throw new Error(`Error closing existing receiver: ${error}`);
-      }
-    }
-
-    let receiver: ServiceBusReceiver | null = null;
-    try {
-      receiver = client.createReceiver(entityPath, { receiveMode: 'peekLock' });
-
-      // Use non-destructive peekMessages
-      const messages = await receiver.peekMessages(maxMessages);
-
-      const serializedMessages = messages.map((msg) => ({
-        body: msg.body,
-        messageId: msg.messageId,
-        correlationId: msg.correlationId,
-        subject: msg.subject,
-        contentType: msg.contentType,
-        deliveryCount: msg.deliveryCount,
-        enqueuedTimeUtc: msg.enqueuedTimeUtc,
-        enqueuedSequenceNumber: msg.enqueuedSequenceNumber,
-        sequenceNumber: msg.sequenceNumber,
-        applicationProperties: msg.applicationProperties,
-        state: msg.state,
-      }));
-
-      return {
-        success: true,
-        messageCount: messages.length,
-        messages: serializedMessages,
-        entityPath,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to peek messages: ${error.message}`);
-    } finally {
-      if (receiver) {
-        try {
-          await receiver.close();
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }
-  /**
-   * Generate a unique message ID
-   */
-  private generateMessageId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const duration = Date.now() - startTime;
+    console.log(`[MonitorMessages] ========== Monitoring cycle completed in ${duration}ms ==========`);
   }
 
   /**
@@ -483,6 +269,563 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     this.senders.clear();
     this.receivers.clear(); // 👈 Clear new map
     this.clients.clear();
+  }
+
+  /**
+   * Monitor a specific queue
+   */
+  private async monitorQueue(queueName: string, properties?: { MaxDeliveryCount?: number; DefaultMessageTimeToLive?: string }): Promise<void> {
+    let receiver: ServiceBusReceiver | null = null;
+
+    try {
+      receiver = this.serviceBusClient.createReceiver(queueName);
+
+      const maxDeliveryCount = properties?.MaxDeliveryCount || 10;
+      const timeToLiveMs = properties?.DefaultMessageTimeToLive ? this.parseISO8601Duration(properties.DefaultMessageTimeToLive) : MESSAGE_TTL_DEFAULT_MS;
+      console.log(`[MonitorQueue] Monitoring queue: ${queueName} (MaxDeliveryCount: ${maxDeliveryCount}, TTL: ${timeToLiveMs}ms)`);
+
+      // Collect all current message IDs using improved pagination
+      const currentIds = await this.collectCurrentIds(receiver);
+
+      if (currentIds.length > 0) {
+        console.log(`[MonitorQueue] Found ${currentIds.length} messages in ${queueName}`);
+      }
+
+      // Get detailed information for messages (peek in batches)
+      const messages = await this.peekAllMessages(receiver);
+
+      // Update or insert messages in database
+      if (messages.length > 0) {
+        for (const msg of messages) {
+          const messageState = this.mapServiceBusState(msg.state);
+
+          // Extract additional properties from message body if present
+          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
+          const sentBy = bodyObj.sentBy;
+          const recievedBy = bodyObj.recievedBy;
+          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
+          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
+
+          await this.serviceBusMessageModel.updateOne(
+            { messageId: msg.messageId },
+            {
+              $set: {
+                body: msg.body,
+                queue: queueName,
+                state: messageState,
+                applicationProperties: msg.applicationProperties || undefined,
+                sequenceNumber: msg.sequenceNumber?.toNumber(),
+                enqueuedTimeUtc: msg.enqueuedTimeUtc,
+                deliveryCount: msg.deliveryCount,
+                maxDeliveryCount: maxDeliveryCount,
+                timeToLive: timeToLiveMs,
+                lastUpdated: new Date(),
+                lastSeenAt: new Date(),
+                ...(sentBy && { sentBy }),
+                ...(recievedBy && { recievedBy }),
+                ...(sentAt && { sentAt }),
+                ...(recievedAt && { recievedAt }),
+              },
+            },
+            { upsert: true }
+          );
+        }
+        console.log(`[MonitorQueue] Updated ${messages.length} messages in ${queueName}`);
+      }
+
+      // Mark messages as completed with grace period
+      await this.markCompletedMessages(queueName, currentIds);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[MonitorQueue] Error monitoring queue ${queueName}:`, errorMessage);
+    } finally {
+      if (receiver) {
+        try {
+          await receiver.close();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[MonitorQueue] Error closing receiver for ${queueName}:`, errorMessage);
+        }
+      }
+    }
+  }
+
+  /**
+   * Monitor dead letter queue for a specific queue
+   */
+  private async monitorDeadLetterQueue(queueName: string): Promise<void> {
+    const deadLetterPath = `${queueName}/$DeadLetterQueue`;
+    let dlqReceiver: ServiceBusReceiver | null = null;
+
+    try {
+      dlqReceiver = this.serviceBusClient.createReceiver(deadLetterPath);
+
+      const dlqMessages = await this.peekAllMessages(dlqReceiver);
+
+      if (dlqMessages.length > 0) {
+        console.log(`[MonitorDLQ] Found ${dlqMessages.length} dead-lettered messages in ${deadLetterPath}`);
+
+        for (const msg of dlqMessages) {
+          // Determine the correct state based on dead letter reason
+          const state = this.getDeadLetterState(msg.deadLetterReason);
+
+          // Extract additional properties from message body if present
+          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
+          const sentBy = bodyObj.sentBy;
+          const recievedBy = bodyObj.recievedBy;
+          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
+          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
+
+          await this.serviceBusMessageModel.updateOne(
+            { messageId: msg.messageId },
+            {
+              $set: {
+                body: msg.body,
+                queue: queueName,
+                state: state,
+                applicationProperties: msg.applicationProperties || undefined,
+                sequenceNumber: msg.sequenceNumber?.toNumber(),
+                enqueuedTimeUtc: msg.enqueuedTimeUtc,
+                deliveryCount: msg.deliveryCount,
+                deadLetteredAt: new Date(),
+                deadLetterReason: msg.deadLetterReason,
+                deadLetterErrorDescription: msg.deadLetterErrorDescription,
+                lastUpdated: new Date(),
+                ...(sentBy && { sentBy }),
+                ...(recievedBy && { recievedBy }),
+                ...(sentAt && { sentAt }),
+                ...(recievedAt && { recievedAt }),
+              },
+            },
+            { upsert: true }
+          );
+        }
+
+        // Log summary
+        const abandonedCount = dlqMessages.filter(m => m.deadLetterReason === 'MaxDeliveryCountExceeded').length;
+        const otherDlqCount = dlqMessages.length - abandonedCount;
+
+        if (abandonedCount > 0) {
+          console.log(`[MonitorDLQ] ${abandonedCount} abandoned messages (MaxDeliveryCountExceeded) in ${deadLetterPath}`);
+        }
+        if (otherDlqCount > 0) {
+          console.log(`[MonitorDLQ] ${otherDlqCount} dead-lettered messages (other reasons) in ${deadLetterPath}`);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMessage.includes('NotFound') && !errorMessage.includes('does not exist')) {
+        console.error(`[MonitorDLQ] Error monitoring ${deadLetterPath}:`, errorMessage);
+      }
+    } finally {
+      if (dlqReceiver) {
+        try {
+          await dlqReceiver.close();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[MonitorDLQ] Error closing DLQ receiver for ${deadLetterPath}:`, errorMessage);
+        }
+      }
+    }
+  }
+
+  /**
+   * Monitor a topic subscription
+   */
+  private async monitorTopicSubscription(
+    topicName: string,
+    subscriptionName: string,
+    topicProperties?: { DefaultMessageTimeToLive?: string },
+    subscriptionProperties?: { MaxDeliveryCount?: number; DeadLetteringOnMessageExpiration?: boolean }
+  ): Promise<void> {
+    const receiverPath = `${topicName}/Subscriptions/${subscriptionName}`;
+    const storagePath = `${topicName}/${subscriptionName}`;
+    let receiver: ServiceBusReceiver | null = null;
+
+    try {
+      receiver = this.serviceBusClient.createReceiver(receiverPath);
+
+      const maxDeliveryCount = subscriptionProperties?.MaxDeliveryCount || 10;
+      const deadLetterOnExpiration = subscriptionProperties?.DeadLetteringOnMessageExpiration || false;
+      const timeToLiveMs = topicProperties?.DefaultMessageTimeToLive ? this.parseISO8601Duration(topicProperties.DefaultMessageTimeToLive) : MESSAGE_TTL_DEFAULT_MS;
+
+      console.log(
+        `[MonitorTopic] Monitoring: ${receiverPath} → storing as: ${storagePath} ` +
+        `(MaxDeliveryCount: ${maxDeliveryCount}, DLQ on expiration: ${deadLetterOnExpiration}, TTL: ${timeToLiveMs}ms)`
+      );
+
+      const currentIds = await this.collectCurrentIds(receiver);
+
+      if (currentIds.length > 0) {
+        console.log(`[MonitorTopic] Found ${currentIds.length} messages in ${storagePath}`);
+      }
+
+      const messages = await this.peekAllMessages(receiver);
+
+      if (messages.length > 0) {
+        for (const msg of messages) {
+          const messageState = this.mapServiceBusState(msg.state);
+
+          // Extract additional properties from message body if present
+          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
+          const sentBy = bodyObj.sentBy;
+          const recievedBy = bodyObj.recievedBy;
+          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
+          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
+
+          await this.serviceBusMessageModel.updateOne(
+            { messageId: msg.messageId },
+            {
+              $set: {
+                body: msg.body,
+                queue: storagePath,
+                topic: topicName,
+                subscription: subscriptionName,
+                state: messageState,
+                applicationProperties: msg.applicationProperties || undefined,
+                sequenceNumber: msg.sequenceNumber?.toNumber(),
+                enqueuedTimeUtc: msg.enqueuedTimeUtc,
+                deliveryCount: msg.deliveryCount,
+                maxDeliveryCount: maxDeliveryCount,
+                timeToLive: timeToLiveMs,
+                lastUpdated: new Date(),
+                lastSeenAt: new Date(),
+                ...(sentBy && { sentBy }),
+                ...(recievedBy && { recievedBy }),
+                ...(sentAt && { sentAt }),
+                ...(recievedAt && { recievedAt }),
+              },
+            },
+            { upsert: true }
+          );
+        }
+        console.log(`[MonitorTopic] Updated ${messages.length} messages in ${storagePath}`);
+      }
+
+      // Mark messages as completed with grace period
+      await this.markCompletedMessages(storagePath, currentIds);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[MonitorTopic] Error monitoring ${receiverPath}:`, errorMessage);
+    } finally {
+      if (receiver) {
+        try {
+          await receiver.close();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[MonitorTopic] Error closing receiver for ${receiverPath}:`, errorMessage);
+        }
+      }
+    }
+  }
+
+  /**
+   * Monitor dead letter queue for a topic subscription
+   */
+  private async monitorTopicDeadLetterQueue(topicName: string, subscriptionName: string): Promise<void> {
+    const dlqReceiverPath = `${topicName}/Subscriptions/${subscriptionName}/$DeadLetterQueue`;
+    const dlqStoragePath = `${topicName}/${subscriptionName}/$DeadLetterQueue`;
+    let dlqReceiver: ServiceBusReceiver | null = null;
+
+    try {
+      dlqReceiver = this.serviceBusClient.createReceiver(dlqReceiverPath);
+
+      const dlqMessages = await this.peekAllMessages(dlqReceiver);
+
+      if (dlqMessages.length > 0) {
+        console.log(`[MonitorTopicDLQ] Found ${dlqMessages.length} dead-lettered messages in ${dlqStoragePath}`);
+
+        for (const msg of dlqMessages) {
+          // Determine the correct state based on dead letter reason
+          const state = this.getDeadLetterState(msg.deadLetterReason);
+
+          // Extract additional properties from message body if present
+          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
+          const sentBy = bodyObj.sentBy;
+          const recievedBy = bodyObj.recievedBy;
+          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
+          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
+
+          await this.serviceBusMessageModel.updateOne(
+            { messageId: msg.messageId },
+            {
+              $set: {
+                body: msg.body,
+                queue: dlqStoragePath,
+                topic: topicName,
+                subscription: subscriptionName,
+                state: state,
+                applicationProperties: msg.applicationProperties || undefined,
+                sequenceNumber: msg.sequenceNumber?.toNumber(),
+                enqueuedTimeUtc: msg.enqueuedTimeUtc,
+                deliveryCount: msg.deliveryCount,
+                deadLetteredAt: new Date(),
+                deadLetterReason: msg.deadLetterReason,
+                deadLetterErrorDescription: msg.deadLetterErrorDescription,
+                lastUpdated: new Date(),
+                ...(sentBy && { sentBy }),
+                ...(recievedBy && { recievedBy }),
+                ...(sentAt && { sentAt }),
+                ...(recievedAt && { recievedAt }),
+              },
+            },
+            { upsert: true }
+          );
+        }
+
+        // Log summary
+        const abandonedCount = dlqMessages.filter(m => m.deadLetterReason === 'MaxDeliveryCountExceeded').length;
+        const otherDlqCount = dlqMessages.length - abandonedCount;
+
+        if (abandonedCount > 0) {
+          console.log(`[MonitorTopicDLQ] ${abandonedCount} abandoned messages (MaxDeliveryCountExceeded) in ${dlqStoragePath}`);
+        }
+        if (otherDlqCount > 0) {
+          console.log(`[MonitorTopicDLQ] ${otherDlqCount} dead-lettered messages (other reasons) in ${dlqStoragePath}`);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMessage.includes('NotFound') && !errorMessage.includes('does not exist')) {
+        console.error(`[MonitorTopicDLQ] Error monitoring ${dlqReceiverPath}:`, errorMessage);
+      }
+    } finally {
+      if (dlqReceiver) {
+        try {
+          await dlqReceiver.close();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[MonitorTopicDLQ] Error closing DLQ receiver for ${dlqReceiverPath}:`, errorMessage);
+        }
+      }
+    }
+  }
+
+  /**
+   * Mark messages as expired or completed based on TTL and grace period
+   */
+  private async markCompletedMessages(queuePath: string, currentServiceBusIds: string[]): Promise<void> {
+    try {
+      const now = new Date();
+      const graceThreshold = new Date(now.getTime() - COMPLETION_GRACE_PERIOD_MS);
+
+      const dlqIds = await this.collectDlqIds(queuePath);
+      const allCurrentIds = [...currentServiceBusIds, ...dlqIds];
+
+      const expiredResult = await this.serviceBusMessageModel.updateMany(
+        {
+          queue: queuePath,
+          messageId: { $nin: allCurrentIds },
+          state: MessageState.ACTIVE,
+          timeToLive: { $gt: 0 },
+          enqueuedTimeUtc: { $exists: true },
+          $expr: {
+            $lt: [{ $add: ['$enqueuedTimeUtc', '$timeToLive'] }, now],
+          },
+        },
+        {
+          $set: {
+            state: MessageState.EXPIRED,
+            expiredAt: now,
+            lastUpdated: now,
+          },
+        }
+      );
+
+      if (expiredResult.modifiedCount > 0) {
+        console.log(`[MarkExpired] Marked ${expiredResult.modifiedCount} messages as expired in ${queuePath}`);
+      }
+
+      const completedResult = await this.serviceBusMessageModel.updateMany(
+        {
+          queue: queuePath,
+          messageId: { $nin: allCurrentIds },
+          state: { $in: [MessageState.ACTIVE, MessageState.EXPIRED] },
+        },
+        {
+          $set: {
+            state: MessageState.COMPLETED,
+            completedAt: now,
+            lastUpdated: now,
+          },
+        }
+      );
+      if (completedResult.modifiedCount > 0) {
+        console.log(`[MarkCompleted] Marked ${completedResult.modifiedCount} messages as completed in ${queuePath}`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[MarkCompleted] Error marking completed messages for ${queuePath}:`, errorMessage);
+    }
+  }
+
+  /**
+   * Peek all messages from a receiver in batches
+   */
+  private async peekAllMessages(receiver: ServiceBusReceiver): Promise<ServiceBusReceivedMessage[]> {
+    const allMessages: ServiceBusReceivedMessage[] = [];
+    let fromSeq = Long.fromNumber(1);
+
+    while (allMessages.length < MAX_PEEK_MESSAGES) {
+      const batch = await receiver.peekMessages(PEEK_BATCH_SIZE, {
+        fromSequenceNumber: fromSeq,
+      });
+
+      if (batch.length === 0) break;
+
+      allMessages.push(...batch);
+
+      const lastSeq = batch[batch.length - 1]?.sequenceNumber;
+      if (!lastSeq) break;
+
+      fromSeq = lastSeq.add(1);
+
+      if (batch.length < PEEK_BATCH_SIZE) break;
+    }
+
+    return allMessages;
+  }
+
+  /**
+   * Collect all current messageIds in a receiver
+   */
+  private async collectCurrentIds(receiver: ServiceBusReceiver): Promise<string[]> {
+    const ids: string[] = [];
+    let fromSeq = Long.fromNumber(1);
+
+    while (ids.length < MAX_PEEK_MESSAGES) {
+      const batch = await receiver.peekMessages(PEEK_BATCH_SIZE, {
+        fromSequenceNumber: fromSeq,
+      });
+
+      if (batch.length === 0) break;
+
+      for (const m of batch) {
+        const bodyObj =
+          typeof m.body === 'object' && m.body !== null
+            ? (m.body as { id?: string | number })
+            : undefined;
+        const id = `${m.messageId ?? bodyObj?.id ?? 'unknown'}`;
+        ids.push(id);
+      }
+
+      const lastSeq = batch[batch.length - 1]?.sequenceNumber;
+      if (!lastSeq) break;
+
+      fromSeq = lastSeq.add(1);
+
+      if (batch.length < PEEK_BATCH_SIZE) break;
+    }
+
+    return ids;
+  }
+
+  /**
+   * Collect all messageIds from the dead letter queue
+   */
+  private async collectDlqIds(queuePath: string): Promise<string[]> {
+    let dlqPath: string;
+    if (queuePath.includes('/')) {
+      const [topic, subscription] = queuePath.split('/');
+      dlqPath = `${topic}/Subscriptions/${subscription}/$DeadLetterQueue`;
+    } else {
+      dlqPath = `${queuePath}/$DeadLetterQueue`;
+    }
+
+    let dlqReceiver: ServiceBusReceiver | null = null;
+
+    try {
+      dlqReceiver = this.serviceBusClient.createReceiver(dlqPath);
+      return await this.collectCurrentIds(dlqReceiver);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMessage.includes('NotFound') && !errorMessage.includes('does not exist')) {
+        console.error(`[CollectDlqIds] Error collecting DLQ IDs for ${dlqPath}:`, errorMessage);
+      }
+      return [];
+    } finally {
+      if (dlqReceiver) {
+        try {
+          await dlqReceiver.close();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[CollectDlqIds] Error closing DLQ receiver for ${dlqPath}:`, errorMessage);
+        }
+      }
+    }
+  }
+
+  /**
+   * Map Service Bus message state to internal MessageState enum
+   */
+  private mapServiceBusState(state: unknown): MessageState {
+    const serviceBusState = state?.toString().toLowerCase() || 'active';
+
+    switch (serviceBusState) {
+      case 'deferred':
+        return MessageState.DEFERRED;
+      case 'scheduled':
+        return MessageState.SCHEDULED;
+      case 'active':
+      default:
+        return MessageState.ACTIVE;
+    }
+  }
+
+  /**
+   * Determine message state based on dead letter reason
+   */
+  private getDeadLetterState(deadLetterReason?: string): MessageState {
+    if (deadLetterReason === 'MaxDeliveryCountExceeded') {
+      return MessageState.ABANDONED;
+    }
+    return MessageState.DEAD_LETTERED;
+  }
+
+  /**
+   * Clean up old messages based on TTL
+   */
+  private async cleanupOldMessages(): Promise<void> {
+    try {
+      const now = new Date();
+      const expiryThreshold = new Date(now.getTime() - MESSAGE_TTL_DEFAULT_MS);
+
+      const result = await this.serviceBusMessageModel.deleteMany({
+        state: { $nin: [MessageState.ACTIVE] },
+        lastUpdated: { $lt: expiryThreshold },
+      });
+
+      if (result.deletedCount && result.deletedCount > 0) {
+        console.log(`[Cleanup] Deleted ${result.deletedCount} old messages`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[Cleanup] Error cleaning up old messages:', errorMessage);
+    }
+  }
+
+  /**
+   * Parse ISO 8601 duration string to milliseconds
+   */
+  private parseISO8601Duration(duration: string): number | null {
+    try {
+      const match = duration.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+      if (!match) return null;
+
+      const days = parseInt(match[1] || '0', 10);
+      const hours = parseInt(match[2] || '0', 10);
+      const minutes = parseInt(match[3] || '0', 10);
+      const seconds = parseInt(match[4] || '0', 10);
+
+      const totalSeconds = days * 86400 + hours * 3600 + minutes * 60 + seconds;
+      return totalSeconds * 1000;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[CleanupExpired] Failed to parse duration "${duration}":`, errorMessage);
+      return null;
+    }
   }
 
   /**

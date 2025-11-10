@@ -1,6 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Message } from '@e2e-monitor/entities';
 import { useCallback, useState } from 'react';
+import { useServiceBusConfig } from './useServiceBusConfig';
+import { ImageOffIcon } from 'lucide-react';
+
+// Type for sent messages
+export interface SentMessage {
+  messageId?: string;
+  queue?: string;
+  topic?: string;
+  subscription?: string;
+  body?: any;
+  applicationProperties?: Record<string, any>;
+  contentType?: string;
+  subject?: string;
+  correlationId?: string;
+  state?: 'sent' | 'delivered' | 'failed';
+  timeToLive?: number;
+  sentViaUI?: boolean;
+  sentBy?: string;
+  sentAt?: Date;
+  deliveredAt?: Date;
+  failedAt?: Date;
+  errorMessage?: string;
+  sequenceNumber?: number;
+  enqueuedTimeUtc?: Date;
+  createdAt?: Date;
+  lastUpdated?: Date;
+}
 
 interface Namespace {
   name: string;
@@ -30,6 +57,10 @@ interface SendMessageOptions {
     subject?: string;
     timeToLive?: number;
     applicationProperties?: Record<string, any>;
+    sentBy?: string;
+    recievedBy?: string;
+    sentAt?: Date;
+    recievedAt?: Date;
   };
 }
 
@@ -62,6 +93,13 @@ interface MessageFetchOptions {
   maxMessages?: number;
 }
 
+interface SentMessageFetchOptions {
+  namespace?: string;
+  queue?: string;
+  topic?: string;
+  maxMessages?: number;
+}
+
 export interface DeadLetterMessage {
   body: any;
   messageId?: string;
@@ -91,6 +129,12 @@ export interface MessageResponse {
   entityPath: string;
 }
 
+export interface SentMessageResponse {
+  success: boolean;
+  messageCount: number;
+  messages: SentMessage[];
+}
+
 interface UseServiceBusReturn {
   namespaces: Namespace[];
   loading: boolean;
@@ -112,7 +156,8 @@ interface UseServiceBusReturn {
   getDeadLetterMessages: (
     options: DeadLetterMessageOptions
   ) => Promise<DeadLetterMessageResponse>;
-  getMessages: (options: MessageFetchOptions) => Promise<MessageResponse>;
+  getMessages: (options: MessageFetchOptions) => Promise<MessageResponse>; // Gets received messages from Service Bus monitoring
+  getSentMessages: (options?: SentMessageFetchOptions) => Promise<SentMessageResponse>; // Gets messages sent via UI
 }
 
 const API_BASE_URL = 'http://localhost:3000/api/v1';
@@ -129,6 +174,7 @@ export const useServiceBus = (): UseServiceBusReturn => {
   const [error, setError] = useState<Error | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  const {getQueueNames, queuesAndTopics}  = useServiceBusConfig();
   const fetchNamespaces = useCallback(async () => {
     setLoading(true);
     try {
@@ -152,10 +198,29 @@ export const useServiceBus = (): UseServiceBusReturn => {
     }
   }, []);
 
+  function iso8601DurationToSeconds(duration: any) {
+  // Remove 'P' prefix and split by 'T' to separate date and time parts
+  const matches = duration.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/);
+  
+  if (!matches) {
+    throw new Error('Invalid ISO 8601 duration format');
+  }
+
+  const days = parseInt(matches[1] || 0);
+  const hours = parseInt(matches[2] || 0);
+  const minutes = parseInt(matches[3] || 0);
+  const seconds = parseFloat(matches[4] || 0);
+
+  return (days * 86400) + (hours * 3600) + (minutes * 60) + seconds;
+}
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
     setLoading(true);
     try {
-      console.log('Sending message:', options);
+
+      console.log('Available queues/topics:', queuesAndTopics.find(qt => qt.name === options.topic));
+      const config = queuesAndTopics.find(qt => qt.name === options.topic);
+      options.message.timeToLive = config ? iso8601DurationToSeconds(config.properties.DefaultMessageTimeToLive) : undefined;
+      console.log('Sending message with options:', options);
       const data = await request(`/servicebus/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -254,7 +319,7 @@ export const useServiceBus = (): UseServiceBusReturn => {
         `/messages${params.toString() ? `?${params.toString()}` : ''}`
       );
 
-      console.log('Fetched messages:', result);
+      console.log('Fetched received messages:', result);
       const entityPath =
         options.queue ||
         (options.topic && options.subscription
@@ -276,6 +341,32 @@ export const useServiceBus = (): UseServiceBusReturn => {
     }
   }, []);
 
+  const getSentMessages = useCallback(async (options?: SentMessageFetchOptions) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (options?.namespace) params.append('namespace', options.namespace);
+      if (options?.queue) params.append('queue', options.queue);
+      if (options?.topic) params.append('topic', options.topic);
+      if (options?.maxMessages)
+        params.append('maxMessages', options.maxMessages.toString());
+
+      const result = await request<SentMessageResponse>(
+        `/servicebus/sent-messages${params.toString() ? `?${params.toString()}` : ''}`
+      );
+
+      console.log('Fetched sent messages:', result);
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     namespaces,
     loading,
@@ -286,5 +377,6 @@ export const useServiceBus = (): UseServiceBusReturn => {
     sendMessageBatch,
     getDeadLetterMessages,
     getMessages,
+    getSentMessages,
   };
 };

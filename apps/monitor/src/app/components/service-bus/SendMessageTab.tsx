@@ -22,6 +22,7 @@ import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
 import { useMonitor } from '../../hooks/context/useMonitor';
 import toast from 'react-hot-toast';
 import { FormSkeleton } from '../ui/skeleton';
+import { StatusIndicator } from '../common/StatusIndicator';
 
 interface SendMessageTabProps {
   form: SendForm;
@@ -43,6 +44,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   const { isLoading, isSendingMessage, error } = useMonitor();
 
   const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
+  const [serviceBusInitialized, setServiceBusInitialized] = useState<boolean | null>(null);
 
   const queues = getQueueNames();
   const topics = getTopicNames();
@@ -83,6 +85,33 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
       setIsInitializingServiceBus(false);
     }
   };
+
+  // Status check effect
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const statusResponse = await fetch(
+          'http://localhost:3000/api/v1/servicebus/status',
+          {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setServiceBusInitialized(statusData.initialized || false);
+        } else {
+          setServiceBusInitialized(false);
+        }
+      } catch {
+        setServiceBusInitialized(null);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Validation state - moved before any early returns
   const [validationErrors, setValidationErrors] = useState<{
@@ -238,6 +267,10 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
             Math.floor(Math.random() * 5)
           ],
         },
+        sentBy: 'test-user',
+        recievedBy: 'test-receiver',
+        sentAt: new Date().toISOString(),
+        recievedAt: new Date().toISOString(),
       };
 
       const formattedData = JSON.stringify(dummyData, null, 2);
@@ -276,41 +309,24 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   const renderConnectionStatus = () => {
     const isBackendUnavailable = !config && !configLoading;
 
-    let statusContent;
-    if (isBackendUnavailable) {
-      statusContent = (
-        <>
-          <AlertCircle className="w-5 h-5 text-red-500" />
-          <span className="font-medium text-red-700">
-            Service Bus Not Initialized
-          </span>
-        </>
-      );
-    } else if (isLoading) {
-      statusContent = (
-        <>
-          <AlertCircle className="w-5 h-5 text-yellow-500 animate-pulse" />
-          <span className="font-medium text-yellow-700">
-            Initializing Service Bus...
-          </span>
-        </>
-      );
-    } else {
-      statusContent = (
-        <>
-          <CheckCircle className="w-5 h-5 text-green-500" />
-          <span className="font-medium text-green-700">
-            Service Bus Connected
-          </span>
-        </>
-      );
-    }
-
     return (
       <div className="rounded-lg border p-4 mb-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">{statusContent}</div>
-          {isBackendUnavailable && (
+          <div className="flex items-center space-x-2">
+            <StatusIndicator
+              label={`Service Bus: ${serviceBusInitialized ? 'Initialized' : 'Not Initialized'}`}
+              status={
+                serviceBusInitialized === null
+                  ? 'warning'
+                  : serviceBusInitialized
+                    ? 'success'
+                    : 'error'
+              }
+              animate={serviceBusInitialized === null}
+              showCount={false}
+            />
+          </div>
+          {!serviceBusInitialized && (
             <Button
               onClick={handleInitializeServiceBus}
               disabled={isInitializingServiceBus}
@@ -332,7 +348,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
             </Button>
           )}
         </div>
-        {isBackendUnavailable && (
+        {!serviceBusInitialized && (
           <div className="mt-2 space-y-1">
             <p className="text-sm text-red-600">
               Service Bus emulator is not connected to the backend.
@@ -342,7 +358,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
             </p>
           </div>
         )}
-        {error && !isBackendUnavailable && (
+        {error && serviceBusInitialized && (
           <p className="text-sm text-red-600 mt-2">Error: {error}</p>
         )}
       </div>

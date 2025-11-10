@@ -2,16 +2,20 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MessageService } from './messages.service';
-import { Message, MessageSchema } from './message.schema';
-import { MessagesController } from './messages.controller';
+import { SentMessagesController } from './messages.sent.controller';
 import { CommonModule } from '../common/common.module';
+import { ServiceBusMessageSchema } from '../common/servicebus.message.schema';
+import { ReceivedMessagesController } from './messages.recieved.controller';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Message.name, schema: MessageSchema }]),
+    MongooseModule.forFeature([
+      { name: 'ServiceBusMessage', schema: ServiceBusMessageSchema },
+      { name: 'ServiceBusReceivedMessage', schema: ServiceBusMessageSchema }
+    ]),
     CommonModule,
   ],
-  controllers: [MessagesController],
+  controllers: [SentMessagesController, ReceivedMessagesController],
   providers: [MessageService],
   exports: [MessageService],
 })
