@@ -316,7 +316,7 @@ export const useServiceBus = (): UseServiceBusReturn => {
         params.append('maxMessages', options.maxMessages.toString());
 
       const result = await request<any[]>(
-        `/messages${params.toString() ? `?${params.toString()}` : ''}`
+        `/messages/received${params.toString() ? `?${params.toString()}` : ''}`
       );
 
       console.log('Fetched received messages:', result);

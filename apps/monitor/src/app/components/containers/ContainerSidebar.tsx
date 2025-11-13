@@ -131,7 +131,7 @@ export const ContainerSidebar = () => {
       <Sidebar collapsible="icon" className="h-screen overflow-hidden">
         <SidebarContent className="p-4 flex-1 min-h-0">
           <div className="space-y-4">
-            <div className="h-8 bg-muted rounded-md mb-4 animate-pulse"></div>
+            <div className="h-8 bg-muted rounded-sm mb-4 animate-pulse"></div>
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <ContainerSkeleton key={i} />
@@ -148,7 +148,7 @@ export const ContainerSidebar = () => {
   if (fileError && !fileData) {
     return (
       <Sidebar collapsible="icon" className="h-screen overflow-hidden">
-        <SidebarContent className="p-4 flex-1 min-h-0">
+        <SidebarContent className="p-1 flex-1 min-h-0">
           <Card className="border-destructive">
             <CardContent className="pt-6 space-y-3">
               <div className="flex items-center gap-2">
@@ -226,13 +226,13 @@ export const ContainerSidebar = () => {
         {/* Collapsible Settings Section */}
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="settings" className="border-none">
-            <AccordionTrigger className="hover:no-underline py-2 px-3 rounded-md hover:bg-muted/60 transition-colors">
+            <AccordionTrigger className="hover:no-underline py-2 px-3 rounded-sm hover:bg-muted/60 transition-colors">
               <div className="flex items-center gap-2">
                 <Settings className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">Docker Compose Options</span>
               </div>
             </AccordionTrigger>
-            <AccordionContent className="px-3 pb-3 py-2 bg-muted/30 mx-1 rounded-md overflow-hidden space-y-3">
+            <AccordionContent className="px-3 pb-3 py-2 bg-muted/30 mx-1 rounded-sm overflow-hidden space-y-3">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -302,7 +302,7 @@ export const ContainerSidebar = () => {
           </AccordionItem>
         </Accordion>
 
-        <SidebarGroup className="rounded-lg px-3 py-2">
+        <SidebarGroup className="rounded-lg px-2 py-1">
           <SidebarGroupLabel className="text-xs font-bold uppercase tracking-widest text-foreground/70 mb-4">
             {fileData?.content?.name || 'Containers'}
                <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
@@ -325,7 +325,7 @@ export const ContainerSidebar = () => {
                 variant="ghost"
                 disabled={!!dockerError || isComposing}
                 onClick={handleComposeUpWithOptions}
-                className="h-9 w-9 p-0 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                className="h-9 w-9 p-0 rounded-sm hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                 title={
                   dockerError
                     ? 'Backend server not available'
@@ -345,7 +345,7 @@ export const ContainerSidebar = () => {
                     }
                   });
                 }}
-                className="h-9 w-9 p-0 rounded-md hover:bg-red-50 dark:hover:bg-red-950/20"
+                className="h-9 w-9 p-0 rounded-sm hover:bg-red-50 dark:hover:bg-red-950/20"
                 title={
                   dockerError
                     ? 'Backend server not available'
@@ -371,7 +371,7 @@ export const ContainerSidebar = () => {
                         value={container.serviceName}
                         className="border-none"
                       >
-                        <AccordionTrigger className="hover:no-underline py-2 px-3 rounded-md hover:bg-muted/60 transition-colors">
+                        <AccordionTrigger className="hover:no-underline py-2 px-3 rounded-sm hover:bg-muted/60 transition-colors">
                           <SidebarMenuButton
                             asChild
                             tooltip={`${container.serviceConfig.container_name || container.serviceName}: ${statusDisplay.label}`}
@@ -389,7 +389,7 @@ export const ContainerSidebar = () => {
 
                                 <Badge
                                   variant="outline"
-                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md flex-shrink-0 text-xs font-medium border transition-colors ${
+                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-sm flex-shrink-0 text-xs font-medium border transition-colors ${
                                     dockerError || containers.length === 0
                                       ? 'bg-gray-50/50 dark:bg-gray-950/20 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800'
                                       : container.status === 'running'
@@ -413,7 +413,7 @@ export const ContainerSidebar = () => {
                             </div>
                           </SidebarMenuButton>
                         </AccordionTrigger>
-                        <AccordionContent className="px-3 pb-3 py-2 bg-muted/30 mx-1 rounded-md overflow-hidden space-y-3">
+                        <AccordionContent className="px-3 pb-3 py-2 bg-muted/30 mx-1 rounded-sm overflow-hidden space-y-3">
                           {/* Action buttons */}
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground/80">
@@ -437,7 +437,7 @@ export const ContainerSidebar = () => {
                                       ? 'Backend server not available'
                                       : 'Start container'
                                   }
-                                  className="h-7 px-2 py-0.5 rounded-md text-xs hover:bg-emerald-100/50 dark:hover:bg-emerald-900/30"
+                                  className="h-7 px-2 py-0.5 rounded-sm text-xs hover:bg-emerald-100/50 dark:hover:bg-emerald-900/30"
                                 >
                                   <PlayIcon className="w-3 h-3 mr-1 text-emerald-600 dark:text-emerald-500" />
                                   Start
@@ -458,7 +458,7 @@ export const ContainerSidebar = () => {
                                       ? 'Backend server not available'
                                       : 'Stop container'
                                   }
-                                  className="h-7 px-2 py-0.5 rounded-md text-xs hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                                  className="h-7 px-2 py-0.5 rounded-sm text-xs hover:bg-red-100/50 dark:hover:bg-red-900/30"
                                 >
                                   <PauseIcon className="w-3 h-3 mr-1 text-red-600 dark:text-red-500" />
                                   Stop
@@ -500,7 +500,7 @@ export const ContainerSidebar = () => {
                                             <Badge
                                               key={port}
                                               variant="secondary"
-                                              className="text-xs font-mono rounded-md"
+                                              className="text-xs font-mono rounded-sm"
                                             >
                                               {port}
                                             </Badge>
@@ -509,7 +509,7 @@ export const ContainerSidebar = () => {
                                           3 && (
                                           <Badge
                                             variant="secondary"
-                                            className="text-xs rounded-md"
+                                            className="text-xs rounded-sm"
                                           >
                                             +
                                             {container.serviceConfig.ports

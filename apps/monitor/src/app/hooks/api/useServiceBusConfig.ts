@@ -129,6 +129,11 @@ export const useServiceBusConfig = () => {
 
       const data = (await response.json()) as BackendResponse;
 
+      if (!data.success) {
+        console.warn('Service Bus not initialized in backend, using static config');
+        return null;
+      }
+
       const configFromBackend = transformBackendToServiceBusConfig(data);
       if (configFromBackend) {
         console.log('✓ Loaded Service Bus config from backend');

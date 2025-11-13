@@ -1,8 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
   Send,
-  CheckCircle,
-  AlertCircle,
   Info,
   Loader2,
   Sparkles,
@@ -41,7 +39,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     getTopicNames,
     loading: configLoading,
   } = useServiceBusConfig();
-  const { isLoading, isSendingMessage, error } = useMonitor();
+  const { isSendingMessage, error } = useMonitor();
 
   const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
   const [serviceBusInitialized, setServiceBusInitialized] = useState<boolean | null>(null);
@@ -306,67 +304,8 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     }
   };
 
-  const renderConnectionStatus = () => {
-    const isBackendUnavailable = !config && !configLoading;
-
-    return (
-      <div className="rounded-lg border p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <StatusIndicator
-              label={`Service Bus: ${serviceBusInitialized ? 'Initialized' : 'Not Initialized'}`}
-              status={
-                serviceBusInitialized === null
-                  ? 'warning'
-                  : serviceBusInitialized
-                    ? 'success'
-                    : 'error'
-              }
-              animate={serviceBusInitialized === null}
-              showCount={false}
-            />
-          </div>
-          {!serviceBusInitialized && (
-            <Button
-              onClick={handleInitializeServiceBus}
-              disabled={isInitializingServiceBus}
-              size="sm"
-              variant="outline"
-              className="ml-4"
-            >
-              {isInitializingServiceBus ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Initializing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Initialize Service Bus
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-        {!serviceBusInitialized && (
-          <div className="mt-2 space-y-1">
-            <p className="text-sm text-red-600">
-              Service Bus emulator is not connected to the backend.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Please ensure the Service Bus emulator is running and click "Initialize Service Bus" to connect it to the backend.
-            </p>
-          </div>
-        )}
-        {error && serviceBusInitialized && (
-          <p className="text-sm text-red-600 mt-2">Error: {error}</p>
-        )}
-      </div>
-    );
-  };
-
   const renderQueueTopicSelect = () => (
-    <div className="space-y-2">
+    <div className="space-y-1">
       <Label htmlFor="queueName" className="flex items-center gap-2">
         Queue/Topic Name
         <Info className="h-4 w-4 text-muted-foreground" />
@@ -402,28 +341,6 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
       </Select>
       {validationErrors.queueName && (
         <p className="text-sm text-destructive">{validationErrors.queueName}</p>
-      )}
-    </div>
-  );
-
-  const renderSubjectInput = () => (
-    <div className="space-y-2">
-      <Label htmlFor="subject" className="flex items-center gap-2">
-        Subject
-        <Info className="h-4 w-4 text-muted-foreground" />
-      </Label>
-      <input
-        id="subject"
-        type="text"
-        value={form.subject}
-        onChange={(e) => handleInputChange('subject', e.target.value)}
-        className={`w-full px-3 py-2 border rounded-md text-sm ${
-          validationErrors.subject ? 'border-destructive' : 'border-input'
-        }`}
-        placeholder="Enter message subject..."
-      />
-      {validationErrors.subject && (
-        <p className="text-sm text-destructive">{validationErrors.subject}</p>
       )}
     </div>
   );
@@ -552,22 +469,29 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-2">
-        <h2 className="text-2xl font-semibold">Send Test Message</h2>
-        <p className="text-muted-foreground">
-          Send a test message to your Service Bus emulator for testing purposes.
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground">
+            Send a test message to your Service Bus emulator for testing purposes.
+          </p>
+          {serviceBusInitialized === false && (
+            <Button
+              onClick={handleInitializeServiceBus}
+              disabled={isInitializingServiceBus}
+              variant="outline"
+              size="sm"
+            >
+              {isInitializingServiceBus ? 'Initializing...' : 'Initialize Service Bus'}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Connection Status */}
-      {renderConnectionStatus()}
-
       {/* Main Form */}
-      <div className="bg-card border rounded-lg p-8">
-        <div className="space-y-6">
+       <div className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-6">
               {renderQueueTopicSelect()}
-              {renderSubjectInput()}
+             {/*  {renderSubjectInput()} */}
               {renderMessageBodyInput()}
             </div>
             <div className="space-y-6">
@@ -576,7 +500,6 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 };

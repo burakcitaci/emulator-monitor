@@ -12,7 +12,10 @@
       "!{projectRoot}/tsconfig.spec.json",
       "!{projectRoot}/src/test-setup.[jt]s",
       "!{projectRoot}/jest.config.[jt]s",
-      "!{projectRoot}/test-setup.[jt]s"
+      "!{projectRoot}/test-setup.[jt]s",
+      "!{projectRoot}/**/*.Tests/**/*",
+      "!{projectRoot}/**/bin/**/*",
+      "!{projectRoot}/**/obj/**/*"
     ],
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
   },
@@ -86,7 +89,8 @@
         "targetName": "test"
       },
       "exclude": ["apps/backend-e2e/**/*"]
-    }
+    },
+    "@nx/dotnet"
   ],
   "targetDefaults": {
     "test": {

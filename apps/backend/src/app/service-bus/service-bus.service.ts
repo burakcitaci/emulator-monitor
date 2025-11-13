@@ -21,14 +21,21 @@ import {
 import { ConfigService } from '../common/config.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { IServiceBusMessageDocument, MessageState } from '../common/servicebus.message.schema';
+import {
+  convertServiceBusReceivedMessageToDocument,
+  convertServiceBusMessageToDocument,
+  IServiceBusReceivedMessageDocument,
+  IServiceBusMessageDocument,
+  ServiceBusMessageModel,
+  MessageState,
+} from '../common/servicebus.message.schema';
 import Long from 'long';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 // Constants
 const PEEK_BATCH_SIZE = 200;
 const MAX_PEEK_MESSAGES = 5000;
-const COMPLETION_GRACE_PERIOD_MS = 30 * 1000; // 30 seconds
+const COMPLETION_GRACE_PERIOD_MS = 300000; // 5 minutes
 const MESSAGE_TTL_DEFAULT_MS = 60 * 60 * 1000; // 1 hour
 
 @Injectable()
@@ -40,11 +47,114 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   private readonly serviceBusClient: ServiceBusClient;
   constructor(
     private readonly configService: ConfigService,
-    @InjectModel('ServiceBusMessage') private readonly serviceBusMessageModel: Model<IServiceBusMessageDocument>
+    @InjectModel('ServiceBusReceivedMessage')
+    private readonly serviceBusReceivedMessageModel: Model<IServiceBusReceivedMessageDocument>,
+    @InjectModel('ServiceBusMessage')
+    private readonly serviceBusMessageModel: Model<IServiceBusMessageDocument>,
   ) {
-     this.serviceBusClient = new ServiceBusClient(
-          this.configService.serviceBusConnectionString
+    this.serviceBusClient = new ServiceBusClient(
+      this.configService.serviceBusConnectionString,
     );
+  }
+
+  /**
+   * Helper method to persist received messages to database with upsert
+   * Consolidates duplicate bulkWrite logic across all monitoring methods
+   *
+   * @param mongoDocuments - Array of MongoDB documents to persist
+   * @returns BulkWrite result with counts of upserted and modified documents
+   */
+  private async persistReceivedMessages(
+    mongoDocuments: Partial<IServiceBusReceivedMessageDocument>[],
+  ): Promise<{
+    upsertedCount: number;
+    modifiedCount: number;
+    matchedCount: number;
+  }> {
+    const bulkOps = mongoDocuments.map((doc) => ({
+      updateOne: {
+        filter: {
+          sequenceNumber: doc.sequenceNumber,
+          queue: doc.queue, // Ensure uniqueness per queue
+        },
+        update: { $set: doc },
+        upsert: true,
+      },
+    }));
+
+    console.log(
+      `[PersistReceivedMessages] Executing bulk write with ${bulkOps.length} operations`,
+    );
+
+    try {
+      const result = await this.serviceBusReceivedMessageModel.bulkWrite(
+        bulkOps,
+        {
+          ordered: false,
+        },
+      );
+      console.log(
+        `[PersistReceivedMessages] Bulk write result: upserted=${result.upsertedCount}, modified=${result.modifiedCount}, matched=${result.matchedCount}`,
+      );
+      return result;
+    } catch (error: any) {
+      console.error(
+        `[PersistReceivedMessages] Bulk write error:`,
+        error.message,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to persist dead-letter messages
+   * Sets deadLetteredAt timestamp on first insertion
+   *
+   * @param mongoDocuments - Array of dead-lettered message documents
+   */
+  private async persistDeadLetterMessages(
+    mongoDocuments: Partial<IServiceBusReceivedMessageDocument>[],
+  ): Promise<{
+    upsertedCount: number;
+    modifiedCount: number;
+    matchedCount: number;
+  }> {
+    const bulkOps = mongoDocuments.map((doc) => ({
+      updateOne: {
+        filter: {
+          sequenceNumber: doc.sequenceNumber,
+          queue: doc.queue,
+        },
+        update: {
+          $set: doc,
+          $setOnInsert: { deadLetteredAt: new Date() },
+        },
+        upsert: true,
+      },
+    }));
+
+    console.log(
+      `[PersistDeadLetterMessages] Executing bulk write with ${bulkOps.length} operations`,
+    );
+
+    try {
+      const result = await this.serviceBusReceivedMessageModel.bulkWrite(
+        bulkOps,
+        {
+          ordered: false,
+        },
+      );
+      console.log(
+        `[PersistDeadLetterMessages] Bulk write result: upserted=${result.upsertedCount}, modified=${result.modifiedCount}`,
+      );
+      return result;
+    } catch (error: any) {
+      console.error(
+        `[PersistDeadLetterMessages] Bulk write error:`,
+        error.message,
+      );
+      throw error;
+    }
   }
 
   /**
@@ -52,7 +162,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
    */
   async initialize(
     config: ServiceBusConfig,
-    connectionString: string
+    connectionString: string,
   ): Promise<InitializeResponse> {
     // Close existing connections before reinitializing
     await this.cleanup();
@@ -135,10 +245,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     if (!sender) {
       console.error(`Sender not found! Looking for: ${senderKey}`);
       console.error(
-        `Available senders: ${Array.from(this.senders.keys()).join(', ')}`
+        `Available senders: ${Array.from(this.senders.keys()).join(', ')}`,
       );
       throw new Error(
-        `No sender found for namespace: ${dto.namespace}, topic: ${dto.topic}. Make sure Service Bus is initialized.`
+        `No sender found for namespace: ${dto.namespace}, topic: ${dto.topic}. Make sure Service Bus is initialized.`,
       );
     }
 
@@ -155,23 +265,12 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       // Send the message
       await sender.sendMessages(message);
 
-      await this.serviceBusMessageModel.create(message);
-    
-     /*  // Persist the sent message
-      const sentMessage: Partial<SentMessage> = {
-        messageId: message.messageId ? String(message.messageId) : undefined,
-        body: dto.message.body,
-        applicationProperties: dto.message.applicationProperties || {},
-        contentType: dto.message.contentType || 'application/json',
-        subject: dto.message.subject,
-        correlationId: dto.message.correlationId,
-        sentViaUI: true, // This is sent via UI
-        sentBy: dto.message.sentBy,
-        sentAt: dto.message.sentAt || new Date(),
-        state: SentMessageState.SENT,
-      };
+      // Persist the sent message
+      const sentMessageDocument = convertServiceBusMessageToDocument(message);
+      sentMessageDocument.sentBy = dto.message.sentBy;
+      sentMessageDocument.sentAt = dto.message.sentAt || new Date();
 
-      await this.sentMessageModel.create(sentMessage); */
+      await this.serviceBusMessageModel.create(sentMessageDocument);
 
       return {
         success: true,
@@ -185,30 +284,38 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     }
   }
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+/*   @Cron(CronExpression.EVERY_30_SECONDS) */
   async monitorMessages(): Promise<void> {
     const startTime = Date.now();
-    console.log('[MonitorMessages] ========== Starting monitoring cycle ==========');
+    console.log(
+      '[MonitorMessages] ========== Starting monitoring cycle ==========',
+    );
 
     const config = this.configService.getServiceBusConfiguration();
     const queues = config.UserConfig.Namespaces.flatMap(
-      (ns) => ns.Queues || []
+      (ns) => ns.Queues || [],
     );
     const topics = config.UserConfig.Namespaces.flatMap(
-      (ns) => ns.Topics || []
+      (ns) => ns.Topics || [],
     );
 
     if (queues.length === 0 && topics.length === 0) {
-      console.log('[MonitorMessages] No queues or topics configured, skipping monitoring');
+      console.log(
+        '[MonitorMessages] No queues or topics configured, skipping monitoring',
+      );
       return;
     }
 
     if (!this.serviceBusClient) {
-      console.log('[MonitorMessages] Service Bus client not available, skipping monitoring');
+      console.log(
+        '[MonitorMessages] Service Bus client not available, skipping monitoring',
+      );
       return;
     }
 
-    console.log(`[MonitorMessages] Monitoring ${queues.length} queues and ${topics.length} topics`);
+    console.log(
+      `[MonitorMessages] Monitoring ${queues.length} queues and ${topics.length} topics`,
+    );
 
     // Monitor all queues
     for (const queue of queues) {
@@ -224,7 +331,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
           topic.Name,
           subscription.Name,
           topic.Properties,
-          subscription
+          subscription,
         );
       }
     }
@@ -233,7 +340,9 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     await this.cleanupOldMessages();
 
     const duration = Date.now() - startTime;
-    console.log(`[MonitorMessages] ========== Monitoring cycle completed in ${duration}ms ==========`);
+    console.log(
+      `[MonitorMessages] ========== Monitoring cycle completed in ${duration}ms ==========`,
+    );
   }
 
   /**
@@ -274,78 +383,80 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   /**
    * Monitor a specific queue
    */
-  private async monitorQueue(queueName: string, properties?: { MaxDeliveryCount?: number; DefaultMessageTimeToLive?: string }): Promise<void> {
+  private async monitorQueue(
+    queueName: string,
+    properties?: {
+      MaxDeliveryCount?: number;
+      DefaultMessageTimeToLive?: string;
+    },
+  ): Promise<void> {
     let receiver: ServiceBusReceiver | null = null;
 
     try {
       receiver = this.serviceBusClient.createReceiver(queueName);
 
       const maxDeliveryCount = properties?.MaxDeliveryCount || 10;
-      const timeToLiveMs = properties?.DefaultMessageTimeToLive ? this.parseISO8601Duration(properties.DefaultMessageTimeToLive) : MESSAGE_TTL_DEFAULT_MS;
-      console.log(`[MonitorQueue] Monitoring queue: ${queueName} (MaxDeliveryCount: ${maxDeliveryCount}, TTL: ${timeToLiveMs}ms)`);
+      const timeToLiveMs = properties?.DefaultMessageTimeToLive
+        ? this.parseISO8601Duration(properties.DefaultMessageTimeToLive) ||
+          MESSAGE_TTL_DEFAULT_MS
+        : MESSAGE_TTL_DEFAULT_MS;
+      console.log(
+        `[MonitorQueue] Monitoring queue: ${queueName} (MaxDeliveryCount: ${maxDeliveryCount}, TTL: ${timeToLiveMs}ms)`,
+      );
 
       // Collect all current message IDs using improved pagination
       const currentIds = await this.collectCurrentIds(receiver);
 
       if (currentIds.length > 0) {
-        console.log(`[MonitorQueue] Found ${currentIds.length} messages in ${queueName}`);
+        console.log(
+          `[MonitorQueue] Found ${currentIds.length} messages in ${queueName}`,
+        );
       }
 
       // Get detailed information for messages (peek in batches)
       const messages = await this.peekAllMessages(receiver);
 
+      console.log(
+        `[MonitorQueue] Peeked ${messages.length} messages from ${queueName}`,
+      );
+
       // Update or insert messages in database
       if (messages.length > 0) {
-        for (const msg of messages) {
-          const messageState = this.mapServiceBusState(msg.state);
+        const mongoDocuments = messages.map((msg) =>
+          convertServiceBusReceivedMessageToDocument(msg, {
+            queue: queueName,
+            maxDeliveryCount: maxDeliveryCount,
+            timeToLive: timeToLiveMs,
+          }),
+        );
 
-          // Extract additional properties from message body if present
-          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
-          const sentBy = bodyObj.sentBy;
-          const recievedBy = bodyObj.recievedBy;
-          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
-          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
+        await this.persistReceivedMessages(mongoDocuments);
 
-          await this.serviceBusMessageModel.updateOne(
-            { messageId: msg.messageId },
-            {
-              $set: {
-                body: msg.body,
-                queue: queueName,
-                state: messageState,
-                applicationProperties: msg.applicationProperties || undefined,
-                sequenceNumber: msg.sequenceNumber?.toNumber(),
-                enqueuedTimeUtc: msg.enqueuedTimeUtc,
-                deliveryCount: msg.deliveryCount,
-                maxDeliveryCount: maxDeliveryCount,
-                timeToLive: timeToLiveMs,
-                lastUpdated: new Date(),
-                lastSeenAt: new Date(),
-                ...(sentBy && { sentBy }),
-                ...(recievedBy && { recievedBy }),
-                ...(sentAt && { sentAt }),
-                ...(recievedAt && { recievedAt }),
-              },
-            },
-            { upsert: true }
-          );
-        }
-        console.log(`[MonitorQueue] Updated ${messages.length} messages in ${queueName}`);
+        console.log(
+          `[MonitorQueue] Updated ${messages.length} messages in ${queueName}`,
+        );
       }
 
       // Mark messages as completed with grace period
       await this.markCompletedMessages(queueName, currentIds);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[MonitorQueue] Error monitoring queue ${queueName}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.error(
+        `[MonitorQueue] Error monitoring queue ${queueName}:`,
+        errorMessage,
+      );
     } finally {
       if (receiver) {
         try {
           await receiver.close();
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`[MonitorQueue] Error closing receiver for ${queueName}:`, errorMessage);
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `[MonitorQueue] Error closing receiver for ${queueName}:`,
+            errorMessage,
+          );
         }
       }
     }
@@ -364,67 +475,59 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const dlqMessages = await this.peekAllMessages(dlqReceiver);
 
       if (dlqMessages.length > 0) {
-        console.log(`[MonitorDLQ] Found ${dlqMessages.length} dead-lettered messages in ${deadLetterPath}`);
+        console.log(
+          `[MonitorDLQ] Found ${dlqMessages.length} dead-lettered messages in ${deadLetterPath}`,
+        );
 
-        for (const msg of dlqMessages) {
-          // Determine the correct state based on dead letter reason
-          const state = this.getDeadLetterState(msg.deadLetterReason);
+        const mongoDocuments = dlqMessages.map((msg) =>
+          convertServiceBusReceivedMessageToDocument(msg, {
+            queue: queueName,
+            deadLetteredAt: new Date(),
+          }),
+        );
 
-          // Extract additional properties from message body if present
-          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
-          const sentBy = bodyObj.sentBy;
-          const recievedBy = bodyObj.recievedBy;
-          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
-          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
-
-          await this.serviceBusMessageModel.updateOne(
-            { messageId: msg.messageId },
-            {
-              $set: {
-                body: msg.body,
-                queue: queueName,
-                state: state,
-                applicationProperties: msg.applicationProperties || undefined,
-                sequenceNumber: msg.sequenceNumber?.toNumber(),
-                enqueuedTimeUtc: msg.enqueuedTimeUtc,
-                deliveryCount: msg.deliveryCount,
-                deadLetteredAt: new Date(),
-                deadLetterReason: msg.deadLetterReason,
-                deadLetterErrorDescription: msg.deadLetterErrorDescription,
-                lastUpdated: new Date(),
-                ...(sentBy && { sentBy }),
-                ...(recievedBy && { recievedBy }),
-                ...(sentAt && { sentAt }),
-                ...(recievedAt && { recievedAt }),
-              },
-            },
-            { upsert: true }
-          );
-        }
+        await this.persistDeadLetterMessages(mongoDocuments);
 
         // Log summary
-        const abandonedCount = dlqMessages.filter(m => m.deadLetterReason === 'MaxDeliveryCountExceeded').length;
+        const abandonedCount = dlqMessages.filter(
+          (m) => m.deadLetterReason === 'MaxDeliveryCountExceeded',
+        ).length;
         const otherDlqCount = dlqMessages.length - abandonedCount;
 
         if (abandonedCount > 0) {
-          console.log(`[MonitorDLQ] ${abandonedCount} abandoned messages (MaxDeliveryCountExceeded) in ${deadLetterPath}`);
+          console.log(
+            `[MonitorDLQ] ${abandonedCount} abandoned messages (MaxDeliveryCountExceeded) in ${deadLetterPath}`,
+          );
         }
         if (otherDlqCount > 0) {
-          console.log(`[MonitorDLQ] ${otherDlqCount} dead-lettered messages (other reasons) in ${deadLetterPath}`);
+          console.log(
+            `[MonitorDLQ] ${otherDlqCount} dead-lettered messages (other reasons) in ${deadLetterPath}`,
+          );
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (!errorMessage.includes('NotFound') && !errorMessage.includes('does not exist')) {
-        console.error(`[MonitorDLQ] Error monitoring ${deadLetterPath}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      if (
+        !errorMessage.includes('NotFound') &&
+        !errorMessage.includes('does not exist')
+      ) {
+        console.error(
+          `[MonitorDLQ] Error monitoring ${deadLetterPath}:`,
+          errorMessage,
+        );
       }
     } finally {
       if (dlqReceiver) {
         try {
           await dlqReceiver.close();
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`[MonitorDLQ] Error closing DLQ receiver for ${deadLetterPath}:`, errorMessage);
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `[MonitorDLQ] Error closing DLQ receiver for ${deadLetterPath}:`,
+            errorMessage,
+          );
         }
       }
     }
@@ -437,7 +540,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     topicName: string,
     subscriptionName: string,
     topicProperties?: { DefaultMessageTimeToLive?: string },
-    subscriptionProperties?: { MaxDeliveryCount?: number; DeadLetteringOnMessageExpiration?: boolean }
+    subscriptionProperties?: {
+      MaxDeliveryCount?: number;
+      DeadLetteringOnMessageExpiration?: boolean;
+    },
   ): Promise<void> {
     const receiverPath = `${topicName}/Subscriptions/${subscriptionName}`;
     const storagePath = `${topicName}/${subscriptionName}`;
@@ -447,75 +553,70 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       receiver = this.serviceBusClient.createReceiver(receiverPath);
 
       const maxDeliveryCount = subscriptionProperties?.MaxDeliveryCount || 10;
-      const deadLetterOnExpiration = subscriptionProperties?.DeadLetteringOnMessageExpiration || false;
-      const timeToLiveMs = topicProperties?.DefaultMessageTimeToLive ? this.parseISO8601Duration(topicProperties.DefaultMessageTimeToLive) : MESSAGE_TTL_DEFAULT_MS;
+      const deadLetterOnExpiration =
+        subscriptionProperties?.DeadLetteringOnMessageExpiration || false;
+      const timeToLiveMs = topicProperties?.DefaultMessageTimeToLive
+        ? this.parseISO8601Duration(topicProperties.DefaultMessageTimeToLive) ||
+          MESSAGE_TTL_DEFAULT_MS
+        : MESSAGE_TTL_DEFAULT_MS;
 
       console.log(
         `[MonitorTopic] Monitoring: ${receiverPath} → storing as: ${storagePath} ` +
-        `(MaxDeliveryCount: ${maxDeliveryCount}, DLQ on expiration: ${deadLetterOnExpiration}, TTL: ${timeToLiveMs}ms)`
+          `(MaxDeliveryCount: ${maxDeliveryCount}, DLQ on expiration: ${deadLetterOnExpiration}, TTL: ${timeToLiveMs}ms)`,
       );
 
       const currentIds = await this.collectCurrentIds(receiver);
 
       if (currentIds.length > 0) {
-        console.log(`[MonitorTopic] Found ${currentIds.length} messages in ${storagePath}`);
+        console.log(
+          `[MonitorTopic] Found ${currentIds.length} messages in ${storagePath}`,
+        );
       }
 
       const messages = await this.peekAllMessages(receiver);
 
+      console.log(
+        `[MonitorTopic] Peeked ${messages.length} messages from ${storagePath}`,
+      );
+
       if (messages.length > 0) {
-        for (const msg of messages) {
-          const messageState = this.mapServiceBusState(msg.state);
+        const mongoDocuments = messages.map((msg) =>
+          convertServiceBusReceivedMessageToDocument(msg, {
+            queue: storagePath,
+            topic: topicName,
+            subscription: subscriptionName,
+            maxDeliveryCount: maxDeliveryCount,
+            timeToLive: timeToLiveMs,
+          }),
+        );
 
-          // Extract additional properties from message body if present
-          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
-          const sentBy = bodyObj.sentBy;
-          const recievedBy = bodyObj.recievedBy;
-          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
-          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
+        await this.persistReceivedMessages(mongoDocuments);
 
-          await this.serviceBusMessageModel.updateOne(
-            { messageId: msg.messageId },
-            {
-              $set: {
-                body: msg.body,
-                queue: storagePath,
-                topic: topicName,
-                subscription: subscriptionName,
-                state: messageState,
-                applicationProperties: msg.applicationProperties || undefined,
-                sequenceNumber: msg.sequenceNumber?.toNumber(),
-                enqueuedTimeUtc: msg.enqueuedTimeUtc,
-                deliveryCount: msg.deliveryCount,
-                maxDeliveryCount: maxDeliveryCount,
-                timeToLive: timeToLiveMs,
-                lastUpdated: new Date(),
-                lastSeenAt: new Date(),
-                ...(sentBy && { sentBy }),
-                ...(recievedBy && { recievedBy }),
-                ...(sentAt && { sentAt }),
-                ...(recievedAt && { recievedAt }),
-              },
-            },
-            { upsert: true }
-          );
-        }
-        console.log(`[MonitorTopic] Updated ${messages.length} messages in ${storagePath}`);
+        console.log(
+          `[MonitorTopic] Updated ${messages.length} messages in ${storagePath}`,
+        );
       }
 
       // Mark messages as completed with grace period
       await this.markCompletedMessages(storagePath, currentIds);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[MonitorTopic] Error monitoring ${receiverPath}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.error(
+        `[MonitorTopic] Error monitoring ${receiverPath}:`,
+        errorMessage,
+      );
     } finally {
       if (receiver) {
         try {
           await receiver.close();
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`[MonitorTopic] Error closing receiver for ${receiverPath}:`, errorMessage);
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `[MonitorTopic] Error closing receiver for ${receiverPath}:`,
+            errorMessage,
+          );
         }
       }
     }
@@ -524,7 +625,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   /**
    * Monitor dead letter queue for a topic subscription
    */
-  private async monitorTopicDeadLetterQueue(topicName: string, subscriptionName: string): Promise<void> {
+  private async monitorTopicDeadLetterQueue(
+    topicName: string,
+    subscriptionName: string,
+  ): Promise<void> {
     const dlqReceiverPath = `${topicName}/Subscriptions/${subscriptionName}/$DeadLetterQueue`;
     const dlqStoragePath = `${topicName}/${subscriptionName}/$DeadLetterQueue`;
     let dlqReceiver: ServiceBusReceiver | null = null;
@@ -535,69 +639,61 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const dlqMessages = await this.peekAllMessages(dlqReceiver);
 
       if (dlqMessages.length > 0) {
-        console.log(`[MonitorTopicDLQ] Found ${dlqMessages.length} dead-lettered messages in ${dlqStoragePath}`);
+        console.log(
+          `[MonitorTopicDLQ] Found ${dlqMessages.length} dead-lettered messages in ${dlqStoragePath}`,
+        );
 
-        for (const msg of dlqMessages) {
-          // Determine the correct state based on dead letter reason
-          const state = this.getDeadLetterState(msg.deadLetterReason);
+        const mongoDocuments = dlqMessages.map((msg) =>
+          convertServiceBusReceivedMessageToDocument(msg, {
+            queue: dlqStoragePath,
+            topic: topicName,
+            subscription: subscriptionName,
+            deadLetteredAt: new Date(),
+          }),
+        );
 
-          // Extract additional properties from message body if present
-          const bodyObj = typeof msg.body === 'object' && msg.body !== null ? msg.body as any : {};
-          const sentBy = bodyObj.sentBy;
-          const recievedBy = bodyObj.recievedBy;
-          const sentAt = bodyObj.sentAt ? new Date(bodyObj.sentAt) : undefined;
-          const recievedAt = bodyObj.recievedAt ? new Date(bodyObj.recievedAt) : undefined;
-
-          await this.serviceBusMessageModel.updateOne(
-            { messageId: msg.messageId },
-            {
-              $set: {
-                body: msg.body,
-                queue: dlqStoragePath,
-                topic: topicName,
-                subscription: subscriptionName,
-                state: state,
-                applicationProperties: msg.applicationProperties || undefined,
-                sequenceNumber: msg.sequenceNumber?.toNumber(),
-                enqueuedTimeUtc: msg.enqueuedTimeUtc,
-                deliveryCount: msg.deliveryCount,
-                deadLetteredAt: new Date(),
-                deadLetterReason: msg.deadLetterReason,
-                deadLetterErrorDescription: msg.deadLetterErrorDescription,
-                lastUpdated: new Date(),
-                ...(sentBy && { sentBy }),
-                ...(recievedBy && { recievedBy }),
-                ...(sentAt && { sentAt }),
-                ...(recievedAt && { recievedAt }),
-              },
-            },
-            { upsert: true }
-          );
-        }
+        await this.persistDeadLetterMessages(mongoDocuments);
 
         // Log summary
-        const abandonedCount = dlqMessages.filter(m => m.deadLetterReason === 'MaxDeliveryCountExceeded').length;
+        const abandonedCount = dlqMessages.filter(
+          (m) => m.deadLetterReason === 'MaxDeliveryCountExceeded',
+        ).length;
         const otherDlqCount = dlqMessages.length - abandonedCount;
 
         if (abandonedCount > 0) {
-          console.log(`[MonitorTopicDLQ] ${abandonedCount} abandoned messages (MaxDeliveryCountExceeded) in ${dlqStoragePath}`);
+          console.log(
+            `[MonitorTopicDLQ] ${abandonedCount} abandoned messages (MaxDeliveryCountExceeded) in ${dlqStoragePath}`,
+          );
         }
         if (otherDlqCount > 0) {
-          console.log(`[MonitorTopicDLQ] ${otherDlqCount} dead-lettered messages (other reasons) in ${dlqStoragePath}`);
+          console.log(
+            `[MonitorTopicDLQ] ${otherDlqCount} dead-lettered messages (other reasons) in ${dlqStoragePath}`,
+          );
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (!errorMessage.includes('NotFound') && !errorMessage.includes('does not exist')) {
-        console.error(`[MonitorTopicDLQ] Error monitoring ${dlqReceiverPath}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      if (
+        !errorMessage.includes('NotFound') &&
+        !errorMessage.includes('does not exist')
+      ) {
+        console.error(
+          `[MonitorTopicDLQ] Error monitoring ${dlqReceiverPath}:`,
+          errorMessage,
+        );
       }
     } finally {
       if (dlqReceiver) {
         try {
           await dlqReceiver.close();
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`[MonitorTopicDLQ] Error closing DLQ receiver for ${dlqReceiverPath}:`, errorMessage);
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `[MonitorTopicDLQ] Error closing DLQ receiver for ${dlqReceiverPath}:`,
+            errorMessage,
+          );
         }
       }
     }
@@ -606,65 +702,94 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   /**
    * Mark messages as expired or completed based on TTL and grace period
    */
-  private async markCompletedMessages(queuePath: string, currentServiceBusIds: string[]): Promise<void> {
+  private async markCompletedMessages(
+    queuePath: string,
+    currentServiceBusIds: string[],
+  ): Promise<void> {
     try {
       const now = new Date();
-      const graceThreshold = new Date(now.getTime() - COMPLETION_GRACE_PERIOD_MS);
 
+      console.log(
+        `[MarkCompleted] Marking completed messages for ${queuePath} at ${now.toISOString()}`,
+      );
       const dlqIds = await this.collectDlqIds(queuePath);
       const allCurrentIds = [...currentServiceBusIds, ...dlqIds];
 
-      const expiredResult = await this.serviceBusMessageModel.updateMany(
-        {
-          queue: queuePath,
-          messageId: { $nin: allCurrentIds },
-          state: MessageState.ACTIVE,
-          timeToLive: { $gt: 0 },
-          enqueuedTimeUtc: { $exists: true },
-          $expr: {
-            $lt: [{ $add: ['$enqueuedTimeUtc', '$timeToLive'] }, now],
+      const expiredResult =
+        await this.serviceBusReceivedMessageModel.updateMany(
+          {
+            queue: queuePath,
+            messageId: { $nin: allCurrentIds },
+            state: MessageState.ACTIVE,
+            timeToLive: { $gt: 0 },
+            enqueuedTimeUtc: { $exists: true },
+            $expr: {
+              $lt: [{ $add: ['$enqueuedTimeUtc', '$timeToLive'] }, now],
+            },
           },
-        },
-        {
-          $set: {
-            state: MessageState.EXPIRED,
-            expiredAt: now,
-            lastUpdated: now,
+          {
+            $set: {
+              state: MessageState.EXPIRED,
+              expiredAt: now,
+              lastUpdated: now,
+            },
           },
-        }
-      );
+        );
 
       if (expiredResult.modifiedCount > 0) {
-        console.log(`[MarkExpired] Marked ${expiredResult.modifiedCount} messages as expired in ${queuePath}`);
+        console.log(
+          `[MarkExpired] Marked ${expiredResult.modifiedCount} messages as expired in ${queuePath}`,
+        );
       }
 
-      const completedResult = await this.serviceBusMessageModel.updateMany(
-        {
-          queue: queuePath,
-          messageId: { $nin: allCurrentIds },
-          state: { $in: [MessageState.ACTIVE, MessageState.EXPIRED] },
-        },
-        {
-          $set: {
-            state: MessageState.COMPLETED,
-            completedAt: now,
-            lastUpdated: now,
+      const completedResult =
+        await this.serviceBusReceivedMessageModel.updateMany(
+          {
+            queue: queuePath,
+            messageId: { $nin: allCurrentIds },
+            state: { $in: [MessageState.ACTIVE, MessageState.EXPIRED] },
+            $expr: {
+              $lt: [
+                {
+                  $add: [
+                    '$enqueuedTimeUtc',
+                    '$timeToLive',
+                    COMPLETION_GRACE_PERIOD_MS,
+                  ],
+                },
+                now,
+              ],
+            },
           },
-        }
-      );
+          {
+            $set: {
+              state: MessageState.COMPLETED,
+              completedAt: now,
+              lastUpdated: now,
+            },
+          },
+        );
       if (completedResult.modifiedCount > 0) {
-        console.log(`[MarkCompleted] Marked ${completedResult.modifiedCount} messages as completed in ${queuePath}`);
+        console.log(
+          `[MarkCompleted] Marked ${completedResult.modifiedCount} messages as completed in ${queuePath}`,
+        );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[MarkCompleted] Error marking completed messages for ${queuePath}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.error(
+        `[MarkCompleted] Error marking completed messages for ${queuePath}:`,
+        errorMessage,
+      );
     }
   }
 
   /**
    * Peek all messages from a receiver in batches
    */
-  private async peekAllMessages(receiver: ServiceBusReceiver): Promise<ServiceBusReceivedMessage[]> {
+  private async peekAllMessages(
+    receiver: ServiceBusReceiver,
+  ): Promise<ServiceBusReceivedMessage[]> {
     const allMessages: ServiceBusReceivedMessage[] = [];
     let fromSeq = Long.fromNumber(1);
 
@@ -691,7 +816,9 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   /**
    * Collect all current messageIds in a receiver
    */
-  private async collectCurrentIds(receiver: ServiceBusReceiver): Promise<string[]> {
+  private async collectCurrentIds(
+    receiver: ServiceBusReceiver,
+  ): Promise<string[]> {
     const ids: string[] = [];
     let fromSeq = Long.fromNumber(1);
 
@@ -740,9 +867,16 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       dlqReceiver = this.serviceBusClient.createReceiver(dlqPath);
       return await this.collectCurrentIds(dlqReceiver);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (!errorMessage.includes('NotFound') && !errorMessage.includes('does not exist')) {
-        console.error(`[CollectDlqIds] Error collecting DLQ IDs for ${dlqPath}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      if (
+        !errorMessage.includes('NotFound') &&
+        !errorMessage.includes('does not exist')
+      ) {
+        console.error(
+          `[CollectDlqIds] Error collecting DLQ IDs for ${dlqPath}:`,
+          errorMessage,
+        );
       }
       return [];
     } finally {
@@ -750,38 +884,15 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         try {
           await dlqReceiver.close();
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`[CollectDlqIds] Error closing DLQ receiver for ${dlqPath}:`, errorMessage);
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          console.error(
+            `[CollectDlqIds] Error closing DLQ receiver for ${dlqPath}:`,
+            errorMessage,
+          );
         }
       }
     }
-  }
-
-  /**
-   * Map Service Bus message state to internal MessageState enum
-   */
-  private mapServiceBusState(state: unknown): MessageState {
-    const serviceBusState = state?.toString().toLowerCase() || 'active';
-
-    switch (serviceBusState) {
-      case 'deferred':
-        return MessageState.DEFERRED;
-      case 'scheduled':
-        return MessageState.SCHEDULED;
-      case 'active':
-      default:
-        return MessageState.ACTIVE;
-    }
-  }
-
-  /**
-   * Determine message state based on dead letter reason
-   */
-  private getDeadLetterState(deadLetterReason?: string): MessageState {
-    if (deadLetterReason === 'MaxDeliveryCountExceeded') {
-      return MessageState.ABANDONED;
-    }
-    return MessageState.DEAD_LETTERED;
   }
 
   /**
@@ -792,16 +903,20 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const now = new Date();
       const expiryThreshold = new Date(now.getTime() - MESSAGE_TTL_DEFAULT_MS);
 
-      const result = await this.serviceBusMessageModel.deleteMany({
-        state: { $nin: [MessageState.ACTIVE] },
-        lastUpdated: { $lt: expiryThreshold },
+      console.log(
+        'Cleanup Started: Deleting messages older than',
+        expiryThreshold.toISOString(),
+      );
+      const result = await this.serviceBusReceivedMessageModel.deleteMany({
+        createdAt: { $lt: expiryThreshold },
       });
 
-      if (result.deletedCount && result.deletedCount > 0) {
+     if (result.deletedCount && result.deletedCount > 0) {
         console.log(`[Cleanup] Deleted ${result.deletedCount} old messages`);
-      }
+      }//#endregion
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       console.error('[Cleanup] Error cleaning up old messages:', errorMessage);
     }
   }
@@ -811,7 +926,9 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
    */
   private parseISO8601Duration(duration: string): number | null {
     try {
-      const match = duration.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+      const match = duration.match(
+        /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
+      );
       if (!match) return null;
 
       const days = parseInt(match[1] || '0', 10);
@@ -822,8 +939,12 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const totalSeconds = days * 86400 + hours * 3600 + minutes * 60 + seconds;
       return totalSeconds * 1000;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[CleanupExpired] Failed to parse duration "${duration}":`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.error(
+        `[CleanupExpired] Failed to parse duration "${duration}":`,
+        errorMessage,
+      );
       return null;
     }
   }
@@ -834,12 +955,17 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   async onModuleInit() {
     // Skip initialization if SERVICE_BUS_AUTO_INIT is explicitly disabled
     if (process.env.SERVICE_BUS_AUTO_INIT === 'false') {
-      console.log('Service Bus auto-initialization disabled (SERVICE_BUS_AUTO_INIT=false)');
+      console.log(
+        'Service Bus auto-initialization disabled (SERVICE_BUS_AUTO_INIT=false)',
+      );
       return;
     }
 
     // Enable auto-initialization in development mode
-    if (process.env.NODE_ENV === 'development' && !process.env.SERVICE_BUS_AUTO_INIT) {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      !process.env.SERVICE_BUS_AUTO_INIT
+    ) {
       console.log('Auto-initializing Service Bus in development mode');
       // Continue with initialization
     }
@@ -850,13 +976,21 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const connectionString = this.configService.serviceBusConnectionString;
 
       console.log('Auto-initializing Service Bus on module start...');
-      console.log('Connection string:', connectionString.replace(/SharedAccessKey=[^;]+/, 'SharedAccessKey=***'));
+      console.log(
+        'Connection string:',
+        connectionString.replace(
+          /SharedAccessKey=[^;]+/,
+          'SharedAccessKey=***',
+        ),
+      );
       console.log('Environment:', process.env.NODE_ENV || 'production');
 
       // Check if Service Bus emulator is accessible first
       console.log('Checking Service Bus emulator connectivity...');
-      if (!await this.checkEmulatorConnectivity(connectionString)) {
-        console.warn('Service Bus emulator is not accessible. Skipping initialization.');
+      if (!(await this.checkEmulatorConnectivity(connectionString))) {
+        console.warn(
+          'Service Bus emulator is not accessible. Skipping initialization.',
+        );
         console.warn('Please ensure:');
         console.warn('1. Service Bus emulator is running (docker-compose up)');
         console.warn('2. Connection string is correct');
@@ -868,9 +1002,15 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       console.log('Service Bus auto-initialization completed');
     } catch (error) {
       console.error('Failed to auto-initialize Service Bus:', error);
-      console.error('This is non-fatal - the service will remain uninitialized');
-      console.error('To disable auto-initialization, set SERVICE_BUS_AUTO_INIT=false');
-      console.error('To check emulator status, run: docker-compose ps | grep emulator');
+      console.error(
+        'This is non-fatal - the service will remain uninitialized',
+      );
+      console.error(
+        'To disable auto-initialization, set SERVICE_BUS_AUTO_INIT=false',
+      );
+      console.error(
+        'To check emulator status, run: docker-compose ps | grep emulator',
+      );
       // Don't throw error here as it might prevent the app from starting
       // The service will remain uninitialized and endpoints will handle this gracefully
     }
@@ -879,7 +1019,9 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
   /**
    * Check if Service Bus emulator is accessible
    */
-  private async checkEmulatorConnectivity(connectionString: string): Promise<boolean> {
+  private async checkEmulatorConnectivity(
+    connectionString: string,
+  ): Promise<boolean> {
     try {
       const client = new ServiceBusClient(connectionString);
       const testReceiver = client.createReceiver('test-queue');
@@ -889,8 +1031,13 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
         await testReceiver.peekMessages(1);
       } catch (peekError) {
         // Entity not found is okay - it means connection works but queue doesn't exist
-        if (peekError instanceof Error && peekError.message.includes('not found')) {
-          console.log('Service Bus emulator connection successful (entity not found is expected)');
+        if (
+          peekError instanceof Error &&
+          peekError.message.includes('not found')
+        ) {
+          console.log(
+            'Service Bus emulator connection successful (entity not found is expected)',
+          );
         } else {
           throw peekError;
         }
@@ -900,7 +1047,10 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       await client.close();
       return true;
     } catch (error) {
-      console.error('Service Bus emulator connectivity check failed:', error instanceof Error ? error.message : String(error));
+      console.error(
+        'Service Bus emulator connectivity check failed:',
+        error instanceof Error ? error.message : String(error),
+      );
       return false;
     }
   }

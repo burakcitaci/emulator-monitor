@@ -9,14 +9,7 @@ import { MessagesDataTable } from './MessagesDataTable';
 import { SendMessageTab } from './SendMessageTab';
 import { Configuration } from '../Configuration';
 import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
-import { useServiceBus } from '../../hooks/api/useServiceBus';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { useMessages } from '../../hooks/api/useMessages';
 import {
   Dialog,
   DialogContent,
@@ -24,19 +17,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../ui/dialog';
-import { Message, SendForm, ConnectionInfo, ConnectionForm } from '@e2e-monitor/entities';
-import { Badge } from '../ui/badge';
+import {
+  Message,
+  SendForm,
+  ConnectionInfo,
+  ConnectionForm,
+} from '@e2e-monitor/entities';
 import { Button } from '../ui/button';
-import { RefreshCcw, Send, Settings } from 'lucide-react';
+import { Send, Settings } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
-import { Sparkles, Loader2 } from 'lucide-react';
+
 import { StatusIndicator } from '../common/StatusIndicator';
 import toast from 'react-hot-toast';
 
 interface MessagesTabProps {
   messages: Message[];
   onMessagesUpdate: (messages: Message[]) => void;
-  dlqMessages: any[];
+  dlqMessages: Message[];
   sendForm: SendForm;
   onSendFormChange: (form: SendForm) => void;
   onSendMessage: () => void;
@@ -44,7 +41,7 @@ interface MessagesTabProps {
   connectionForm: ConnectionForm;
   onConnectionFormChange: (form: ConnectionForm) => void;
   onUpdateConnection: () => void;
-  onTestConnection: () => Promise<any>;
+  onTestConnection: () => Promise<void>;
   onResetConnection: () => void;
 }
 
@@ -58,110 +55,6 @@ interface GetMessagesParams {
   queue?: string;
   topic?: string;
   subscription?: string;
-}
-
-function PrimarySelector({
-  primary,
-  queues,
-  topics,
-  handlePrimaryChange,
-  configLoading,
-  isTopicSelected,
-  subscription,
-  setSubscription,
-  topicSubscriptions,
-}: {
-  primary: PrimarySelection;
-  queues: string[];
-  topics: string[];
-  handlePrimaryChange: (value: string) => void;
-  configLoading: boolean;
-  isTopicSelected: boolean;
-  subscription: string;
-  setSubscription: (v: string) => void;
-  topicSubscriptions: string[];
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="text-xs font-medium text-muted-foreground">
-        Filter Messages
-      </label>
-      <div className="flex flex-col gap-2">
-        <Select
-          value={primary ? `${primary.kind}::${primary.name}` : 'all'}
-          onValueChange={handlePrimaryChange}
-          disabled={configLoading}
-        >
-          <SelectTrigger
-            className="h-10 w-full rounded-sm"
-            disabled={configLoading}
-          >
-            <SelectValue placeholder="Show all messages..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">
-              <div className="flex items-center space-x-2">
-                <span aria-hidden="true">🔄</span>
-                <span>Show All Messages</span>
-              </div>
-            </SelectItem>
-
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-              Queues
-            </div>
-            {queues.map((q) => (
-              <SelectItem key={`queue::${q}`} value={`queue::${q}`}>
-                <div className="flex items-center space-x-2">
-                  <span aria-hidden="true">📦</span>
-                  <span>{q}</span>
-                </div>
-              </SelectItem>
-            ))}
-
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-              Topics
-            </div>
-            {topics.map((t) => (
-              <SelectItem key={`topic::${t}`} value={`topic::${t}`}>
-                <div className="flex items-center space-x-2">
-                  <span aria-hidden="true">📡</span>
-                  <span>{t}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {isTopicSelected && (
-          <Select
-            value={subscription}
-            onValueChange={setSubscription}
-            disabled={configLoading || topicSubscriptions.length === 0}
-          >
-            <SelectTrigger
-              className="h-10 w-full rounded-sm"
-              disabled={configLoading || topicSubscriptions.length === 0}
-            >
-              <SelectValue placeholder="Select subscription..." />
-            </SelectTrigger>
-            <SelectContent>
-              {topicSubscriptions.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                  No subscriptions
-                </div>
-              ) : (
-                topicSubscriptions.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-    </div>
-  );
 }
 
 function ErrorMessage({
@@ -200,37 +93,20 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   onTestConnection,
   onResetConnection,
 }) => {
-  const {
-    queuesAndTopics,
-    getQueueNames,
-    getTopicNames,
-    getSubscriptionsByTopic,
-    loading: configLoading,
-    error: configError,
-  } = useServiceBusConfig();
-  const { getMessages } = useServiceBus();
+  const { queuesAndTopics, error: configError } = useServiceBusConfig();
+  const { deleteMessage, fetchMessages } = useMessages();
 
-  const queues = useMemo(() => getQueueNames(), [getQueueNames]);
-  const topics = useMemo(() => getTopicNames(), [getTopicNames]);
-
-  const [primary, setPrimary] = useState<PrimarySelection>(null);
-  const [namespace, setNamespace] = useState<string>('');
-  const [subscription, setSubscription] = useState<string>('');
+  const [primary] = useState<PrimarySelection>(null);
+  const [namespace] = useState<string>('');
+  const [subscription] = useState<string>('');
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [queuesAndTopicsVersion, setQueuesAndTopicsVersion] = useState(0);
-  const [backendStatus, setBackendStatus] = useState<
-    'checking' | 'running' | 'offline'
-  >('checking');
-  const [emulatorStatus, setEmulatorStatus] = useState<
-    'checking' | 'connected' | 'offline'
-  >('checking');
-  const [serviceBusInitialized, setServiceBusInitialized] = useState<
-    boolean | null
-  >(null);
+  const backendStatus = 'running';
+  const [serviceBusInitialized, setServiceBusInitialized] = useState<boolean | null>(null);
   const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
+
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
@@ -238,40 +114,9 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
   const queuesAndTopicsRef = useRef(queuesAndTopics);
   queuesAndTopicsRef.current = queuesAndTopics;
 
-  // Update version when queuesAndTopics changes
-  useEffect(() => {
-    setQueuesAndTopicsVersion((v) => v + 1);
-  }, [queuesAndTopics]);
-
   // Status check effect
-  useEffect(() => {
+  React.useEffect(() => {
     const checkStatus = async () => {
-      try {
-        const backendResponse = await fetch(
-          'http://localhost:3000/api/v1/health',
-          {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000),
-          },
-        );
-        setBackendStatus(backendResponse.ok ? 'running' : 'offline');
-      } catch {
-        setBackendStatus('offline');
-      }
-
-      try {
-        const emulatorResponse = await fetch(
-          'http://localhost:3000/api/v1/servicebus/health',
-          {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000),
-          },
-        );
-        setEmulatorStatus(emulatorResponse.ok ? 'connected' : 'offline');
-      } catch {
-        setEmulatorStatus('offline');
-      }
-
       try {
         const statusResponse = await fetch(
           'http://localhost:3000/api/v1/servicebus/status',
@@ -289,90 +134,11 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       } catch {
         setServiceBusInitialized(null);
       }
-
     };
 
     checkStatus();
     const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
-  }, []);
-
-  const resolveNamespace = useCallback(() => {
-    const currentQueuesAndTopics = queuesAndTopicsRef.current;
-
-    if (!primary) {
-      // For no selection, use the first available namespace
-      const defaultNamespace =
-        currentQueuesAndTopics.length > 0
-          ? currentQueuesAndTopics[0]?.namespace
-          : '';
-      console.log('Resolving default namespace:', {
-        defaultNamespace,
-        queuesAndTopicsLength: currentQueuesAndTopics.length,
-      });
-      return defaultNamespace;
-    }
-
-    const item = currentQueuesAndTopics.find(
-      (i) => i.type === primary.kind && i.name === primary.name,
-    );
-    const namespace = item?.namespace ?? '';
-    console.log('Resolving namespace for:', {
-      primary,
-      item,
-      namespace,
-      queuesAndTopicsLength: currentQueuesAndTopics.length,
-    });
-    return namespace;
-  }, [primary, queuesAndTopicsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const newNamespace = resolveNamespace();
-    console.log('Setting namespace:', newNamespace, 'current:', namespace);
-    if (newNamespace !== namespace) {
-      setNamespace(newNamespace);
-    }
-  }, [resolveNamespace, namespace]);
-
-  const topicSubscriptions = useMemo(() => {
-    if (primary?.kind !== 'topic') return [];
-    return getSubscriptionsByTopic(primary.name);
-  }, [primary, getSubscriptionsByTopic]);
-
-  useEffect(() => {
-    if (primary?.kind !== 'topic') {
-      setSubscription('');
-      return;
-    }
-
-    const subs = topicSubscriptions;
-    if (!subs?.length) {
-      setSubscription('');
-      return;
-    }
-
-    setSubscription(subs.includes('default') ? 'default' : subs[0]);
-  }, [primary, topicSubscriptions]);
-
-  const handlePrimaryChange = useCallback((value: string) => {
-    if (value === 'all' || value === '') {
-      setPrimary(null);
-    } else {
-      const [kind, name] = value.split('::');
-
-      if (kind === 'queue') {
-        setPrimary({ kind: 'queue', name });
-      } else if (kind === 'topic') {
-        setPrimary({ kind: 'topic', name });
-      } else {
-        setPrimary(null);
-      }
-    }
-
-    // Reset loading state when selection changes
-    setLocalMessages([]);
-    setHasLoaded(false);
-    setFetchError(null);
   }, []);
 
   const buildMessagesParams = useCallback((): GetMessagesParams | null => {
@@ -400,45 +166,9 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
       topic: primary.kind === 'topic' ? primary.name : undefined,
       subscription: primary.kind === 'topic' ? subscription : undefined,
     };
-  }, [primary, namespace, subscription]);
+  }, [namespace, primary, subscription]);
 
   const loadMessages = useCallback(async () => {
-    console.log('loadMessages called with:', {
-      primary,
-      namespace,
-      subscription,
-    });
-
-    // For topics, we need namespace and subscription
-    if (primary?.kind === 'topic') {
-      if (!namespace || !subscription) {
-        console.log('Missing required parameters for topic:', {
-          namespace,
-          subscription,
-        });
-        return;
-      }
-    } else if (primary?.kind === 'queue') {
-      // For queues, we only need namespace
-      if (!namespace) {
-        console.log('Missing namespace for queue');
-        return;
-      }
-    } else if (!primary) {
-      // For no selection, we need at least a default namespace
-      const currentQueuesAndTopics = queuesAndTopicsRef.current;
-      const defaultNamespace =
-        namespace ||
-        (currentQueuesAndTopics.length > 0
-          ? currentQueuesAndTopics[0]?.namespace
-          : '');
-      if (!defaultNamespace) {
-        console.log('No namespace available for loading all messages');
-        return;
-      }
-    }
-
-    console.log('Loading messages for:', { primary, namespace, subscription });
     setIsFetching(true);
 
     try {
@@ -448,11 +178,8 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
         return;
       }
 
-      console.log('Making API call with params:', params);
-      const res = await getMessages(params);
-      console.log('API response:', res);
-
-      const loadedMessages = res.messages || [];
+      const res = await fetchMessages('received', params);
+      const loadedMessages = res || [];
       setLocalMessages(loadedMessages);
       setHasLoaded(true);
       setFetchError(null);
@@ -470,75 +197,31 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     } finally {
       setIsFetching(false);
     }
-  }, [
-    primary,
-    namespace,
-    subscription,
-    getMessages,
-    buildMessagesParams,
-    onMessagesUpdate,
-  ]);
+  }, [fetchMessages, buildMessagesParams, onMessagesUpdate]);
 
   const canLoad = useMemo(() => {
     // If no primary selection, we need at least a namespace
     if (!primary) {
-      const currentQueuesAndTopics = queuesAndTopicsRef.current;
       const defaultNamespace =
         namespace ||
-        (currentQueuesAndTopics.length > 0
-          ? currentQueuesAndTopics[0]?.namespace
-          : '');
+        (queuesAndTopics.length > 0 ? queuesAndTopics[0]?.namespace : '');
       return !!defaultNamespace;
     }
 
     if (!namespace) return false; // We need namespace for both queues and topics
     if (primary.kind === 'topic' && !subscription) return false; // Topics need subscription
     return true;
-  }, [primary, namespace, subscription]);
+  }, [primary, namespace, subscription, queuesAndTopics]);
 
   // Load messages when parameters become available
   useEffect(() => {
     // Prevent infinite loops by checking if already fetching or if there is an error
     if (isFetching || fetchError || configError) return;
 
-    console.log('Auto-load effect triggered:', {
-      primary,
-      namespace,
-      subscription,
-      hasLoaded,
-      canLoad: canLoad,
-    });
-
     if (canLoad && !hasLoaded) {
-      console.log('Loading messages for:', {
-        primary,
-        namespace,
-        subscription,
-      });
       void loadMessages();
-    } else if (primary && !namespace && queuesAndTopicsRef.current.length > 0) {
-      // If we have primary but no namespace yet, try to resolve namespace
-      console.log(
-        'Primary set but namespace not resolved yet, trying again...',
-      );
-      const newNamespace = resolveNamespace();
-      if (newNamespace) {
-        console.log('Namespace resolved:', newNamespace);
-        setNamespace(newNamespace);
-      }
     }
-  }, [
-    primary,
-    namespace,
-    subscription,
-    hasLoaded,
-    loadMessages,
-    resolveNamespace,
-    isFetching,
-    canLoad,
-    fetchError,
-    configError,
-  ]);
+  }, [hasLoaded, loadMessages, isFetching, canLoad, fetchError, configError]);
 
   // Auto-refresh messages every 30 seconds
   useEffect(() => {
@@ -602,126 +285,111 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
     }
   };
 
-  const displayedMessages = hasLoaded ? localMessages : messages;
-  const messageCount = displayedMessages?.length || 0;
-  const isTopicSelected = primary?.kind === 'topic';
+  const displayedMessages = localMessages;
 
   return (
     <div className="space-y-6 w-full">
       {/* Header */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">Service Bus Messages</h2>
-            <p className="text-muted-foreground">
-              Monitor and inspect messages flowing through your Service Bus
-              emulator.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Message
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Send Test Message</DialogTitle>
-                </DialogHeader>
-                <SendMessageTab
-                  form={sendForm}
-                  onFormChange={onSendFormChange}
-                  onSend={() => {
-                    onSendMessage();
-                    setIsSendDialogOpen(false);
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
+        <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-start gap-2 bg-accent/30 px-4 py-2 rounded-sm border border-border/50">
+              <StatusIndicator
+                label={`Backend: ${backendStatus === 'running' ? 'Running' : 'Offline'}`}
+                status={
+                  backendStatus === 'running'
+                    ? 'success'
+                    : backendStatus === 'offline'
+                      ? 'error'
+                      : 'warning'
+                }
+                animate={false}
+                showCount={false}
+              />
 
-            <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configuration
+              <StatusIndicator
+                label={`Service Bus: ${serviceBusInitialized === null ? 'Checking...' : serviceBusInitialized ? 'Initialized' : 'Not Initialized'}`}
+                status={
+                  serviceBusInitialized === null
+                    ? 'checking'
+                    : serviceBusInitialized
+                      ? 'success'
+                      : 'error'
+                }
+                animate={serviceBusInitialized === null}
+                showCount={false}
+              />
+              {serviceBusInitialized === false && (
+                <Button
+                  onClick={handleInitializeServiceBus}
+                  disabled={isInitializingServiceBus}
+                  variant="outline"
+                  size="sm"
+                >
+                  {isInitializingServiceBus ? 'Initializing...' : 'Initialize Service Bus'}
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Service Bus Configuration</DialogTitle>
-                </DialogHeader>
-                <Configuration
-                  connectionInfo={connectionInfo}
-                  form={connectionForm}
-                  onFormChange={onConnectionFormChange}
-                  onUpdate={() => {
-                    onUpdateConnection();
-                    setIsConfigDialogOpen(false);
-                  }}
-                  onTest={onTestConnection}
-                  onReset={() => {
-                    onResetConnection();
-                    setIsConfigDialogOpen(false);
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-start gap-2 bg-accent/30 px-4 py-2 rounded-sm border border-border/50 min-h-[60px]">
-        <StatusIndicator
-          label={`Backend: ${backendStatus === 'running' ? 'Running' : 'Offline'}`}
-          status={
-            backendStatus === 'running'
-              ? 'success'
-              : backendStatus === 'offline'
-                ? 'error'
-                : 'warning'
-          }
-          animate={backendStatus === 'checking'}
-          showCount={false}
-        />
+              )}
+            </div>
+            <div className='space-x-4'>
+              <Dialog
+                open={isSendDialogOpen}
+                onOpenChange={setIsSendDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={serviceBusInitialized === false || (configError !== null)}>
+                    <Send className="mr-2" />
+                    Send Message
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Send Test Message</DialogTitle>
+                  </DialogHeader>
+                  <SendMessageTab
+                    form={sendForm}
+                    onFormChange={onSendFormChange}
+                    onSend={() => {
+                      onSendMessage();
+                      setIsSendDialogOpen(false);
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
 
-        <StatusIndicator
-          label={`Service Bus: ${serviceBusInitialized ? 'Initialized' : 'Not Initialized'}`}
-          status={
-            serviceBusInitialized === null
-              ? 'warning'
-              : serviceBusInitialized
-                ? 'success'
-                : 'error'
-          }
-          animate={serviceBusInitialized === null}
-          showCount={false}
-        />
-        {!serviceBusInitialized && (
-          <Button
-            onClick={handleInitializeServiceBus}
-            disabled={isInitializingServiceBus}
-            size="sm"
-            variant="outline"
-            className="ml-2"
-          >
-            {isInitializingServiceBus ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Initializing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 mr-2" />
-                Initialize Service Bus
-              </>
-            )}
-          </Button>
-        )}
+              <Dialog
+                open={isConfigDialogOpen}
+                onOpenChange={setIsConfigDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configuration
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Service Bus Configuration</DialogTitle>
+                  </DialogHeader>
+                  <Configuration
+                    connectionInfo={connectionInfo}
+                    form={connectionForm}
+                    onFormChange={onConnectionFormChange}
+                    onUpdate={() => {
+                      onUpdateConnection();
+                      setIsConfigDialogOpen(false);
+                    }}
+                    onTest={onTestConnection}
+                    onReset={() => {
+                      onResetConnection();
+                      setIsConfigDialogOpen(false);
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
       </div>
       {/* Filters */}
       <div className="flex flex-col gap-4 w-full">
-      
         {/* Error Messages */}
         {configError && (
           <ErrorMessage
@@ -758,15 +426,37 @@ export const MessagesTab: React.FC<MessagesTabProps> = ({
             onMessageReplay={(messageId: string) =>
               console.log('Replay message', messageId)
             }
-            onMessageDelete={(messageId: string) =>
-              console.log('Delete message', messageId)
-            }
+            onMessageDelete={async (messageId: string) => {
+              try {
+                // Assuming messages are received, but could be sent; for now, use 'received'
+                await deleteMessage('received', messageId);
+                // Refresh messages after delete
+                if (canLoad) {
+                  await loadMessages();
+                }
+                toast.success('Message deleted successfully');
+              } catch (error) {
+                console.error('Failed to delete message:', error);
+                toast.error('Failed to delete message');
+              }
+            }}
             queueOptions={queuesAndTopics
-              .filter(item => item.type === 'queue' || item.type === 'topic')
-              .map(item => ({
+              .filter((item) => item.type === 'queue' || item.type === 'topic')
+              .map((item) => ({
                 label: item.name,
                 value: item.name,
-                icon: item.type === 'queue' ? () => <span>📦</span> : () => <span>📡</span>,
+                icon:
+                  item.type === 'queue'
+                    ? () => (
+                        <span role="img" aria-label="queue">
+                          📦
+                        </span>
+                      )
+                    : () => (
+                        <span role="img" aria-label="topic">
+                          📡
+                        </span>
+                      ),
               }))}
           />
         </div>

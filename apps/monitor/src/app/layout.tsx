@@ -201,7 +201,7 @@ export function NewHeader() {
         </div>
         <div className="flex items-center gap-4">
           {/* Add your header actions here */}
-          <button className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
+          <button className="px-4 py-2 text-sm font-medium rounded-sm bg-primary text-primary-foreground hover:bg-primary/90">
             Action
           </button>
         </div>

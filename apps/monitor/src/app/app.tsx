@@ -2,7 +2,6 @@ import React from 'react';
 import {
   ContainerSidebar,
   Header,
-  MessagesTab,
 } from './components';
 import {
   SidebarInset,
@@ -16,28 +15,19 @@ import { Providers } from './providers';
 import { ThemeToggle } from './components/common/ThemeToggle';
 
 import { useServiceBusConfig } from './hooks/api/useServiceBusConfig';
+import { Messages } from './components/service-bus/Messages';
 
 const ServiceBusMonitorView: React.FC = () => {
   const {
-    sendForm,
-    setSendForm,
     messages,
-    setMessages,
     dlqMessages,
-    sendMessage,
-    isLoading,
-    error,
   } = useMonitor();
 
   const { config: serviceBusConfig } = useServiceBusConfig();
 
   const {
-    connectionForm,
     connectionInfo,
     setConnectionInfo,
-    handleConnectionFormChange,
-    updateConnectionInfo,
-    resetConnection,
   } = useConnection(serviceBusConfig);
 
   return (
@@ -71,38 +61,7 @@ const ServiceBusMonitorView: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="p-4 sm:p-6 lg:p-8 max-w-full">
-            <MessagesTab
-              messages={messages}
-              onMessagesUpdate={setMessages}
-              dlqMessages={dlqMessages.messages}
-              sendForm={sendForm}
-              onSendFormChange={setSendForm}
-              onSendMessage={sendMessage}
-              connectionInfo={connectionInfo}
-              connectionForm={connectionForm}
-              onConnectionFormChange={handleConnectionFormChange}
-              onUpdateConnection={() => {
-                updateConnectionInfo(connectionForm);
-                console.log('Configuration updated successfully');
-              }}
-              onTestConnection={() => {
-                // Simulate connection test
-                return new Promise((resolve, reject) => {
-                  setTimeout(() => {
-                    // Simulate success/failure (80% success rate)
-                    if (Math.random() > 0.2) {
-                      resolve('Connection successful');
-                    } else {
-                      reject(new Error('Connection failed'));
-                    }
-                  }, 2000);
-                });
-              }}
-              onResetConnection={() => {
-                resetConnection();
-                console.log('Reset to local emulator defaults');
-              }}
-            />
+            <Messages />    
           </div>
         </main>
       </SidebarInset>

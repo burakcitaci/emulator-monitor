@@ -94,14 +94,20 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Queue/Topic" />
     ),
     cell: ({ row }) => {
-      const queue = row.original.queue;
-      if (!queue) return <span className="text-muted-foreground text-xs">-</span>;
+      const queue =
+        (row.original.applicationProperties?.queue as string | undefined) ||
+        (row.original.applicationProperties?.topic as string | undefined) ||
+        '';
+
+      if (!queue)
+        return <span className="text-muted-foreground text-xs">-</span>;
+
       return <div className="text-xs truncate max-w-32">{queue}</div>;
     },
     enableColumnFilter: true,
     filterFn: (row, id, value) => {
       if (!value || !Array.isArray(value)) return true;
-      return value.includes(row.original.queue);
+      return value.includes(row.original.queue || row.original.subject);
     },
     meta: {
       variant: 'multiSelect',
@@ -118,7 +124,10 @@ const createColumns = (
     cell: ({ row }) => {
       const status = row.original.state || MessageState.ACTIVE;
       return (
-        <Badge variant={getStatusBadgeVariant(status)} className="text-xs px-2 py-0.5 h-5">
+        <Badge
+          variant={getStatusBadgeVariant(status)}
+          className="text-xs px-2 py-0.5 h-5"
+        >
           {formatStatus(status)}
         </Badge>
       );
@@ -161,14 +170,16 @@ const createColumns = (
       }
 
       return (
-        <div className="max-w-48 truncate text-xs leading-tight">{bodyText}</div>
+        <div className="max-w-48 truncate text-xs leading-tight">
+          {bodyText}
+        </div>
       );
     },
   },
   {
     accessorKey: 'enqueuedTimeUtc',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Timestamp" />
+      <DataTableColumnHeader column={column} title="Enqueued Time" />
     ),
     cell: ({ row }) => {
       const timestamp = row.original.createdAt;
@@ -241,7 +252,13 @@ export const MessagesDataTable: React.FC<MessagesDataTableProps> = ({
   };
 
   const columns = React.useMemo(
-    () => createColumns(onMessageReplay, onMessageDelete, handleMessageSelect, queueOptions),
+    () =>
+      createColumns(
+        onMessageReplay,
+        onMessageDelete,
+        handleMessageSelect,
+        queueOptions,
+      ),
     [onMessageReplay, onMessageDelete, queueOptions],
   );
 

@@ -1,3 +1,12 @@
+/**
+ * Service Bus Controller
+ *
+ * REST API endpoints for Service Bus management including:
+ * - Initialization and configuration
+ * - Message sending
+ * - Namespace and topology querying
+ * - Health checks and debugging
+ */
 import {
   Controller,
   Post,
@@ -10,17 +19,11 @@ import {
 import { ServiceBusService } from './service-bus.service';
 import { ConfigService } from '../common/config.service';
 import * as types from '@e2e-monitor/entities';
-import { DeadLetterMessageResponse } from '@e2e-monitor/entities';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { SentMessage, SentMessageDocument } from '../messages/message.schema';
-
 @Controller('servicebus')
 export class ServiceBusController {
   constructor(
     private readonly serviceBusService: ServiceBusService,
-    private readonly configService: ConfigService,
-    @InjectModel(SentMessage.name) private readonly sentMessageModel: Model<SentMessageDocument>
+    private readonly configService: ConfigService
   ) {}
 
   /**

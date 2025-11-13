@@ -10,12 +10,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = () => {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4">
-      <div className="flex items-center space-x-3">
-        <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">
-          Emulator Monitor
-        </h1>
-      </div>
+    <div>
+      <h2 className="text-2xl font-semibold">Service Bus Message Monitor</h2>
     </div>
   );
 };

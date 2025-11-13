@@ -76,7 +76,7 @@ export function DataTable<TData, TValue>({
         searchKey={searchKey}
         searchPlaceholder={searchPlaceholder}
       />
-      <div className="rounded-md border overflow-x-auto">
+      <div className="rounded-sm border overflow-x-auto">
         <Table className="w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

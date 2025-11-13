@@ -266,3 +266,14 @@ export interface DeadLetterMessageResponse {
   messages: ServiceBusMessage[];
   entityPath: string;
 }
+
+export interface TrackingMessage {
+  _id: string;
+  messageId: string;
+  body: string;
+  sentBy: string;
+  sentAt: Date;
+  status: 'sent' | 'received';
+  receivedAt?: Date;
+  receivedBy?: string;
+}

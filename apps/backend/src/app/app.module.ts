@@ -12,12 +12,20 @@ import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     CommonModule,
+    MongooseModule.forRoot('mongodb://testuser:testpass@localhost:27017/'),
+    MongooseModule.forRoot(
+      'mongodb://testuser:testpass@localhost:27017/MessageTrackingDb?authSource=admin',
+      {
+        connectionName: 'MessageTrackingDb', // Give it a name!
+      }
+    ),
+    ScheduleModule.forRoot(),
+    // MessageModule must be imported BEFORE ServiceBusModule
+    // so that models are registered before ServiceBusService tries to inject them
+    MessageModule,
     FileModule,
     DockerModule,
     ServiceBusModule,
-    MongooseModule.forRoot('mongodb://testuser:testpass@localhost:27017/'),
-    ScheduleModule.forRoot(),
-    MessageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
