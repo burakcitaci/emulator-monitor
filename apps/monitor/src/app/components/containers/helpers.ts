@@ -1,5 +1,4 @@
 import { DockerService } from '@e2e-monitor/entities';
-import { useDocker } from '../../hooks/api/useDocker';
 import Docker from 'dockerode';
 import { PlayIcon, Square, PauseIcon, AlertCircle } from 'lucide-react';
 interface ContainerWithStatus {

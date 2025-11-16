@@ -6,7 +6,6 @@ import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,

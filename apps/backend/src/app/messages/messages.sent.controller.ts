@@ -10,7 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MessageService } from './messages.service';
-import { IServiceBusMessageDocument, IServiceBusReceivedMessageDocument } from '../common/servicebus.message.schema';
+import { IServiceBusMessageDocument } from '../common/servicebus.message.schema';
 
 // Controller for SENT messages
 @Controller('messages/sent')

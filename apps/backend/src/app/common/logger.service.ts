@@ -9,24 +9,30 @@ export class AppLogger extends Logger {
     this.context = context;
   }
 
-  log(message: string, data?: any) {
+  override log(message: string, data?: any) {
     const msg = data ? `${message} | ${JSON.stringify(data)}` : message;
     super.log(msg, this.context);
   }
 
-  error(message: string, error?: Error, data?: any) {
-    const msg = error
-      ? `${message} | ${error.message}${data ? ` | ${JSON.stringify(data)}` : ''}`
-      : `${message}${data ? ` | ${JSON.stringify(data)}` : ''}`;
-    super.error(msg, error?.stack, this.context);
+  override error(message: any, ...optionalParams: any[]) {
+    // Handle custom error logging with Error object and data
+    if (optionalParams.length >= 1 && optionalParams[0] instanceof Error) {
+      const error = optionalParams[0] as Error;
+      const data = optionalParams[1];
+      const msg = data ? `${message} | ${error.message} | ${JSON.stringify(data)}` : `${message} | ${error.message}`;
+      super.error(msg, error.stack, this.context);
+    } else {
+      // Fallback to standard Logger behavior
+      super.error(message, ...optionalParams);
+    }
   }
 
-  warn(message: string, data?: any) {
+  override warn(message: string, data?: any) {
     const msg = data ? `${message} | ${JSON.stringify(data)}` : message;
     super.warn(msg, this.context);
   }
 
-  debug(message: string, data?: any) {
+  override debug(message: string, data?: any) {
     const msg = data ? `${message} | ${JSON.stringify(data)}` : message;
     super.debug(msg, this.context);
   }

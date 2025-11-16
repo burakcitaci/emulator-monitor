@@ -14,7 +14,6 @@ import {
   Body,
   HttpException,
   HttpStatus,
-  Query,
 } from '@nestjs/common';
 import { ServiceBusService } from './service-bus.service';
 import { ConfigService } from '../common/config.service';

@@ -18,7 +18,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
-  SidebarTrigger,
   useSidebar,
 } from '../ui/sidebar';
 
@@ -30,7 +29,7 @@ interface DockerImage {
 }
 
 export const DockerImagesSidebar = () => {
-  const { state, isMobile, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const {
     data: fileData,
     loading: fileLoading,

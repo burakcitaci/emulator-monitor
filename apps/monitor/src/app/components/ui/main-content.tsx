@@ -1,6 +1,4 @@
 import React from 'react';
-import { LoadingSpinner } from './loading-spinner';
-import { ErrorAlert } from './error-alert';
 
 interface MainContentProps {
   isLoading: boolean;
@@ -13,7 +11,7 @@ export function MainContent({
   error,
   renderActiveTab,
 }: MainContentProps) {
-  if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorAlert error={error} />;
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
   return <>{renderActiveTab()}</>;
 }

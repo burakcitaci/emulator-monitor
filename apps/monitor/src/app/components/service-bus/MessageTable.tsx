@@ -1,6 +1,5 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
-import { getStatusColor } from '../../utils/messageUtils';
 import { Message } from '@e2e-monitor/entities';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
@@ -64,7 +63,7 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       return (
-        <Badge variant="secondary" className={`text-xs ${getStatusColor(row.original.state)}`}>
+        <Badge variant="secondary" className={`text-xs`}>
           {row.original.state}
         </Badge>
       );

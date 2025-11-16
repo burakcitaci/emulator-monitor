@@ -31,7 +31,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     }
   };
 
-  const { color, icon: Icon, textColor } = getStatusInfo();
+  const { color, icon: Icon } = getStatusInfo();
 
   return (
     <div className="flex items-center space-x-2">

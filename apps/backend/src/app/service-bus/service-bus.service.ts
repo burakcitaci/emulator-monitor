@@ -9,13 +9,10 @@ import {
 } from '@azure/service-bus';
 import {
   SendMessageDto,
-  SendBatchDto,
   InitializeResponse,
   GetNamespacesResponse,
   SendMessageResponse,
-  SendBatchResponse,
   ServiceBusConfig,
-  DeadLetterMessageResponse,
 } from '@e2e-monitor/entities';
 
 import { ConfigService } from '../common/config.service';
@@ -26,11 +23,9 @@ import {
   convertServiceBusMessageToDocument,
   IServiceBusReceivedMessageDocument,
   IServiceBusMessageDocument,
-  ServiceBusMessageModel,
   MessageState,
 } from '../common/servicebus.message.schema';
 import Long from 'long';
-import { Cron, CronExpression } from '@nestjs/schedule';
 
 // Constants
 const PEEK_BATCH_SIZE = 200;
@@ -164,6 +159,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     config: ServiceBusConfig,
     connectionString: string,
   ): Promise<InitializeResponse> {
+    // connectionString is used for logging but not directly in this method
     // Close existing connections before reinitializing
     await this.cleanup();
 
@@ -396,10 +392,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       receiver = this.serviceBusClient.createReceiver(queueName);
 
       const maxDeliveryCount = properties?.MaxDeliveryCount || 10;
-      const timeToLiveMs = properties?.DefaultMessageTimeToLive
-        ? this.parseISO8601Duration(properties.DefaultMessageTimeToLive) ||
-          MESSAGE_TTL_DEFAULT_MS
-        : MESSAGE_TTL_DEFAULT_MS;
+      const timeToLiveMs = MESSAGE_TTL_DEFAULT_MS;
       console.log(
         `[MonitorQueue] Monitoring queue: ${queueName} (MaxDeliveryCount: ${maxDeliveryCount}, TTL: ${timeToLiveMs}ms)`,
       );
@@ -555,10 +548,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
       const maxDeliveryCount = subscriptionProperties?.MaxDeliveryCount || 10;
       const deadLetterOnExpiration =
         subscriptionProperties?.DeadLetteringOnMessageExpiration || false;
-      const timeToLiveMs = topicProperties?.DefaultMessageTimeToLive
-        ? this.parseISO8601Duration(topicProperties.DefaultMessageTimeToLive) ||
-          MESSAGE_TTL_DEFAULT_MS
-        : MESSAGE_TTL_DEFAULT_MS;
+      const timeToLiveMs = MESSAGE_TTL_DEFAULT_MS;
 
       console.log(
         `[MonitorTopic] Monitoring: ${receiverPath} → storing as: ${storagePath} ` +
@@ -921,33 +911,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     }
   }
 
-  /**
-   * Parse ISO 8601 duration string to milliseconds
-   */
-  private parseISO8601Duration(duration: string): number | null {
-    try {
-      const match = duration.match(
-        /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
-      );
-      if (!match) return null;
 
-      const days = parseInt(match[1] || '0', 10);
-      const hours = parseInt(match[2] || '0', 10);
-      const minutes = parseInt(match[3] || '0', 10);
-      const seconds = parseInt(match[4] || '0', 10);
-
-      const totalSeconds = days * 86400 + hours * 3600 + minutes * 60 + seconds;
-      return totalSeconds * 1000;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      console.error(
-        `[CleanupExpired] Failed to parse duration "${duration}":`,
-        errorMessage,
-      );
-      return null;
-    }
-  }
 
   /**
    * Auto-initialize Service Bus when module starts

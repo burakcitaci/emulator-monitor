@@ -1,9 +1,6 @@
-import React from 'react';
-import { Menu } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -11,20 +8,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
   SidebarRail,
   SidebarTrigger,
-  useSidebar,
 } from './components/ui/sidebar';
-
-// Sample Docker images data
-const dockerImages = [
-  { id: 1, name: 'nginx', tag: 'latest' },
-  { id: 2, name: 'node', tag: '18-alpine' },
-  { id: 3, name: 'postgres', tag: '15' },
-  { id: 4, name: 'redis', tag: '7-alpine' },
-  { id: 5, name: 'mongodb', tag: '6.0' },
-];
 const data = {
     versions: ["1.0.1", "1.1.0-alpha", "2.0.0-beta1"],
     navMain: [

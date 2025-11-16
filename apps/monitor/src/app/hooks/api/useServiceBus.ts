@@ -2,7 +2,7 @@
 import { Message } from '@e2e-monitor/entities';
 import { useCallback, useState } from 'react';
 import { useServiceBusConfig } from './useServiceBusConfig';
-import { ImageOffIcon } from 'lucide-react';
+
 
 // Type for sent messages
 export interface SentMessage {
@@ -174,7 +174,7 @@ export const useServiceBus = (): UseServiceBusReturn => {
   const [error, setError] = useState<Error | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const {getQueueNames, queuesAndTopics}  = useServiceBusConfig();
+  const { queuesAndTopics}  = useServiceBusConfig();
   const fetchNamespaces = useCallback(async () => {
     setLoading(true);
     try {

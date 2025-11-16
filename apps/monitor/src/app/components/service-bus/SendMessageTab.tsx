@@ -20,7 +20,7 @@ import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
 import { useMonitor } from '../../hooks/context/useMonitor';
 import toast from 'react-hot-toast';
 import { FormSkeleton } from '../ui/skeleton';
-import { StatusIndicator } from '../common/StatusIndicator';
+
 
 interface SendMessageTabProps {
   form: SendForm;
@@ -39,7 +39,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     getTopicNames,
     loading: configLoading,
   } = useServiceBusConfig();
-  const { isSendingMessage, error } = useMonitor();
+  const { isSendingMessage } = useMonitor();
 
   const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
   const [serviceBusInitialized, setServiceBusInitialized] = useState<boolean | null>(null);
