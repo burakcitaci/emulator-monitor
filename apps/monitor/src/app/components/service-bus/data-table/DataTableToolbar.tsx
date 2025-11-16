@@ -57,7 +57,7 @@ export function DataTableToolbar<TData>({
 }
 
 interface DataTableToolbarFilterProps<TData> {
-  column: any;
+  column: ReturnType<Table<TData>['getAllColumns']>[0];
 }
 
 function DataTableToolbarFilter<TData>({

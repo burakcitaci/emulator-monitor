@@ -363,6 +363,7 @@ export const MonitorProvider: React.FC<MonitorProviderProps> = ({
     }),
     [
       state, // the full state object
+      setMessages,
       sendMessage,
       loadDlqMessages,
       replayMessage,

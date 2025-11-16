@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ConnectionForm, ConnectionInfo } from '@e2e-monitor/entities';
+import { ConnectionForm, ConnectionInfo, ServiceBusConfig } from '@e2e-monitor/entities';
 
-export const useConnection = (serviceBusConfig: any) => {
+export const useConnection = (serviceBusConfig: ServiceBusConfig | null) => {
   const [connectionForm, setConnectionForm] = useState<ConnectionForm>({
     connectionString: '',
     queues: 'test-queue,orders-queue',

@@ -239,7 +239,7 @@ export const useServiceBus = (): UseServiceBusReturn => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queuesAndTopics]);
 
   const sendMessageBatch = useCallback(async (options: SendBatchOptions) => {
     setLoading(true);
