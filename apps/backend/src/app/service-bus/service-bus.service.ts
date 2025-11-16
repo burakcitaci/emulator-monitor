@@ -164,7 +164,7 @@ export class ServiceBusService implements OnModuleDestroy, OnModuleInit {
     await this.cleanup();
 
     this.config = config;
-
+    console.log(connectionString);
     // Create senders for all configured topics and queues
     for (const ns of config.UserConfig.Namespaces) {
       for (const topic of ns.Topics ?? []) {
