@@ -1,9 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
 import { useMessages } from '../../hooks/api/useMessages';
+import { useMonitor } from '../../hooks/context/useMonitor';
 import { TrackingMessage } from '@e2e-monitor/entities';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { SendMessageTab } from './SendMessageTab';
 
 function ErrorMessage({
   icon,
@@ -29,10 +39,12 @@ function ErrorMessage({
 
 export const Messages: React.FC = () => {
   const { fetchTrackingMessages, deleteTrackingMessage } = useMessages();
+  const { sendForm, setSendForm, sendMessage } = useMonitor();
   const [messages, setMessages] = useState<TrackingMessage[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
 
   const loadMessages = useCallback(async () => {
     setIsFetching(true);
@@ -94,8 +106,28 @@ export const Messages: React.FC = () => {
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Tracking Messages</h2>
+          <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Send className="mr-2 h-4 w-4" />
+                Send Message
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Send Test Message</DialogTitle>
+              </DialogHeader>
+              <SendMessageTab
+                form={sendForm}
+                onFormChange={setSendForm}
+                onSend={() => {
+                  sendMessage();
+                  setIsSendDialogOpen(false);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
-      </div>
 
       {/* Filters */}
       <div className="flex flex-col gap-4 w-full">

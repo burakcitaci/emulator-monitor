@@ -19,19 +19,6 @@ const createColumns = (
   onMessageSelect: (message: TrackingMessage) => void,
 ): ColumnDef<TrackingMessage>[] => [
   {
-    accessorKey: 'messageId',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Message ID" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <div className="text-xs font-medium truncate">
-          {row.original.messageId || '-'}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: 'sentBy',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Sent By" />

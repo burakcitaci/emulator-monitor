@@ -88,19 +88,6 @@ const createColumns = (
     },
   },
   {
-    accessorKey: 'id',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Message ID" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <div className="font-medium text-sm">
-          {row.original.id.substring(0, 12)}...
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: 'body',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Body Preview" />
