@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react';
 import {
   Send,
   Info,
-  Loader2,
   Sparkles,
 } from 'lucide-react';
 import { SendForm } from '@e2e-monitor/entities';
@@ -16,11 +15,55 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useServiceBusConfig } from '../../hooks/api/useServiceBusConfig';
-import { useMonitor } from '../../hooks/context/useMonitor';
 import toast from 'react-hot-toast';
-import { FormSkeleton } from '../ui/skeleton';
 
+
+// Root config
+export interface UserConfig {
+  UserConfig: {
+    Namespaces: NamespaceConfig[];
+    Logging: LoggingConfig;
+  };
+}
+
+export interface NamespaceConfig {
+  Name: string;
+  Topics: TopicConfig[];
+  Queues: QueueConfig[];
+}
+
+export interface TopicConfig {
+  Name: string;
+  Properties: TopicProperties;
+  Subscriptions: SubscriptionConfig[];
+}
+
+export interface TopicProperties {
+  DefaultMessageTimeToLive: string;
+  DuplicateDetectionHistoryTimeWindow: string;
+  RequiresDuplicateDetection: boolean;
+}
+
+export interface SubscriptionConfig {
+  Name: string;
+  DeadLetteringOnMessageExpiration: boolean;
+  MaxDeliveryCount: number;
+}
+
+export interface QueueConfig {
+  Name: string;
+  Properties: QueueProperties;
+}
+
+export interface QueueProperties {
+  DefaultMessageTimeToLive: string;
+  MaxDeliveryCount: number;
+  DeadLetteringOnMessageExpiration: boolean;
+}
+
+export interface LoggingConfig {
+  Type: string;
+}
 
 interface SendMessageTabProps {
   form: SendForm;
@@ -33,20 +76,85 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   onFormChange,
   onSend,
 }) => {
-  const {
-    config,
-    getQueueNames,
-    getTopicNames,
-    loading: configLoading,
-  } = useServiceBusConfig();
-  const { isSendingMessage } = useMonitor();
+
+  const config: UserConfig = {
+  UserConfig: {
+    Namespaces: [
+      {
+        Name: "sbemulatorns",
+        Topics: [
+          {
+            Name: "system-messages",
+            Properties: {
+              DefaultMessageTimeToLive: "PT1H",
+              DuplicateDetectionHistoryTimeWindow: "PT20S",
+              RequiresDuplicateDetection: false
+            },
+            Subscriptions: [
+              {
+                Name: "funcapp-processor-dev",
+                DeadLetteringOnMessageExpiration: true,
+                MaxDeliveryCount: 10
+              }
+            ]
+          },
+          {
+            Name: "application-events",
+            Properties: {
+              DefaultMessageTimeToLive: "PT1H",
+              DuplicateDetectionHistoryTimeWindow: "PT30S",
+              RequiresDuplicateDetection: true
+            },
+            Subscriptions: [
+              {
+                Name: "analytics-processor",
+                DeadLetteringOnMessageExpiration: true,
+                MaxDeliveryCount: 5
+              },
+              {
+                Name: "logging-service",
+                DeadLetteringOnMessageExpiration: false,
+                MaxDeliveryCount: 3
+              }
+            ]
+          }
+        ],
+        Queues: [
+          {
+            Name: "orders-queue",
+            Properties: {
+              DefaultMessageTimeToLive: "PT1H",
+              MaxDeliveryCount: 10,
+              DeadLetteringOnMessageExpiration: true
+            }
+          },
+          {
+            Name: "notifications-queue",
+            Properties: {
+              DefaultMessageTimeToLive: "PT1H",
+              MaxDeliveryCount: 5,
+              DeadLetteringOnMessageExpiration: true
+            }
+          },
+          {
+            Name: "errm-policy-triggered",
+            Properties: {
+              DefaultMessageTimeToLive: "PT1H",
+              MaxDeliveryCount: 3,
+              DeadLetteringOnMessageExpiration: true
+            }
+          }
+        ]
+      }
+    ],
+    Logging: {
+      Type: "File"
+    }
+  }
+};
 
   const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
   const [serviceBusInitialized, setServiceBusInitialized] = useState<boolean | null>(null);
-
-  const queues = getQueueNames();
-  const topics = getTopicNames();
-
   const handleInitializeServiceBus = async () => {
     setIsInitializingServiceBus(true);
     try {
@@ -277,11 +385,6 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
     [handleInputChange, form.subject, form.queueName]
   );
 
-  // Show loading state only during initial loading, not when backend is unavailable
-  if (configLoading) {
-    return <FormSkeleton />;
-  }
-
   const handleSendTestMessage = async () => {
     if (!validateForm()) {
       toast.error('Please fix validation errors before sending');
@@ -324,17 +427,17 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
             Queues
           </div>
-          {queues.map((queue) => (
-            <SelectItem key={queue} value={queue}>
-              <span aria-hidden="true">📦</span> {queue}
+          {config.UserConfig.Namespaces[0].Queues.map((queue) => (
+            <SelectItem key={queue.Name} value={queue.Name}>
+              <span aria-hidden="true">📦</span> {queue.Name}
             </SelectItem>
           ))}
           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
             Topics
           </div>
-          {topics.map((topic) => (
-            <SelectItem key={topic} value={topic}>
-              <span aria-hidden="true">📡</span> {topic}
+          {config.UserConfig.Namespaces[0].Topics.map((topic) => (
+            <SelectItem key={topic.Name} value={topic.Name}>
+              <span aria-hidden="true">📡</span> {topic.Name}
             </SelectItem>
           ))}
         </SelectContent>
@@ -414,7 +517,7 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
   );
 
   const renderSendButton = () => {
-    const isBackendUnavailable = !config && !configLoading;
+    const isBackendUnavailable = !config;
 
     // Check if form is valid based on validationErrors state (no state updates during render)
     const isFormValid =
@@ -422,27 +525,19 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
       form.queueName.trim() !== '' &&
       form.subject.trim() !== '' &&
       form.body.trim() !== '';
-    const canSend = !isSendingMessage && isFormValid && !isBackendUnavailable;
+    const canSend = !isFormValid && !isBackendUnavailable;
 
     return (
       <div className="space-y-3">
         <Button
           onClick={handleSendTestMessage}
-          disabled={!canSend || isSendingMessage}
+          disabled={!canSend}
           className="w-full"
           size="lg"
-        >
-          {isSendingMessage ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            <>
+        ><>
               <Send className="w-5 h-5 mr-2" />
               Send Test Message
             </>
-          )}
         </Button>
         {isBackendUnavailable && (
           <div className="text-center space-y-2">

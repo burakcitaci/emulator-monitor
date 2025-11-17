@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
 import { useMessages } from '../../hooks/api/useMessages';
-import { useMonitor } from '../../hooks/context/useMonitor';
-import { TrackingMessage } from '@e2e-monitor/entities';
+import { TrackingMessage, SendForm } from '@e2e-monitor/entities';
 import { AlertCircle, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -39,19 +38,23 @@ function ErrorMessage({
 
 export const Messages: React.FC = () => {
   const { fetchTrackingMessages, deleteTrackingMessage } = useMessages();
-  const { sendForm, setSendForm, sendMessage } = useMonitor();
   const [messages, setMessages] = useState<TrackingMessage[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [sendForm, setSendForm] = useState<SendForm>({
+    queueName: '',
+    body: '',
+    properties: '',
+    subject: '',
+  });
 
   const loadMessages = useCallback(async () => {
     setIsFetching(true);
     try {
       const loadedMessages = await fetchTrackingMessages();
       setMessages(loadedMessages);
-      setHasLoaded(true);
       setFetchError(null);
       console.log('Tracking messages loaded successfully');
     } catch (error) {
@@ -61,6 +64,7 @@ export const Messages: React.FC = () => {
       setFetchError(errorMessage);
       setMessages([]);
     } finally {
+      setHasLoaded(true);
       setIsFetching(false);
     }
   }, [fetchTrackingMessages]);
@@ -73,7 +77,7 @@ export const Messages: React.FC = () => {
   }, [hasLoaded, loadMessages, isFetching]);
 
   // Auto-refresh messages every 30 seconds
-  useEffect(() => {
+/*   useEffect(() => {
     if (!hasLoaded || fetchError) return;
 
     const intervalId = setInterval(async () => {
@@ -85,7 +89,7 @@ export const Messages: React.FC = () => {
     }, 30000); // 30 seconds
 
     return () => clearInterval(intervalId);
-  }, [hasLoaded, loadMessages, fetchError]);
+  }, [hasLoaded, loadMessages, fetchError]); */
 
   const handleMessageDelete = async (messageId: string) => {
     try {
@@ -100,12 +104,60 @@ export const Messages: React.FC = () => {
     }
   };
 
+  const sendMessage = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/v1/servicebus/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          namespace: 'sbemulatorns',
+          topic: sendForm.queueName,
+          message: {
+            body: JSON.parse(sendForm.body),
+            subject: sendForm.subject,
+            applicationProperties: sendForm.properties ? JSON.parse(sendForm.properties) : {},
+            sentBy: 'test-user',
+            sentAt: new Date().toISOString(),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        toast.success('Message sent successfully!');
+        // Reset form
+        setSendForm({
+          queueName: '',
+          body: '',
+          properties: '',
+          subject: '',
+        });
+      } else {
+        toast.error(result.message || 'Failed to send message');
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Failed to send message. Please try again.',
+        { duration: 5000 }
+      );
+    }
+  };
+
   return (
-    <div className="space-y-6 w-full">
+    <div className="p-2">
       {/* Header */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Tracking Messages</h2>
           <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">

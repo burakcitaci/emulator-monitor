@@ -103,7 +103,7 @@ export default defineConfig(() => ({
     },
   },
   optimizeDeps: {
-    exclude: ['ssh2', 'cpu-features'],
+    exclude: ['ssh2', 'cpu-features', '@tabler/icons-react'],
   },
   test: {
     projects: [{ extends: './vitest.config.mts' }],
