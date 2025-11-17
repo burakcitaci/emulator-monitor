@@ -155,5 +155,6 @@ export const Messages: React.FC = () => {
         </div>
       </div>
     </div>
+    </div>
   );
 };
