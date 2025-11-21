@@ -3,80 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
-import * as fs from 'fs';
-import * as path from 'path';
 
-// Plugin to copy config files from root to public
-const copyConfigFilesPlugin = {
-  name: 'copy-config-files',
-  apply: 'serve' as const,
-  transformIndexHtml: {
-    order: 'pre' as const,
-    async handler() {
-      const rootDir = path.resolve(__dirname, '../..');
-      const publicDir = path.resolve(__dirname, './public');
-
-      // Files to copy from root to public
-      const filesToCopy = [
-        'docker-compose.yml',
-        'config/servicebus-config.json',
-      ];
-
-      for (const file of filesToCopy) {
-        const srcPath = path.join(rootDir, file);
-        const destPath = path.join(publicDir, path.basename(file));
-
-        try {
-          // Ensure directory exists
-          const destDir = path.dirname(destPath);
-          if (!fs.existsSync(destDir)) {
-            fs.mkdirSync(destDir, { recursive: true });
-          }
-
-          // Copy file
-          fs.copyFileSync(srcPath, destPath);
-          console.log(`✓ Copied ${file} to public/`);
-        } catch (error) {
-          console.warn(`⚠ Could not copy ${file}:`, error instanceof Error ? error.message : error);
-        }
-      }
-
-      return undefined;
-    },
-  },
-};
-
-// Plugin for build process
-const copyConfigFilesPluginBuild = {
-  name: 'copy-config-files-build',
-  apply: 'build' as const,
-  async closeBundle() {
-    const rootDir = path.resolve(__dirname, '../..');
-    const publicDir = path.resolve(__dirname, './public');
-
-    const filesToCopy = [
-      'docker-compose.yml',
-      'config/servicebus-config.json',
-    ];
-
-    for (const file of filesToCopy) {
-      const srcPath = path.join(rootDir, file);
-      const destPath = path.join(publicDir, path.basename(file));
-
-      try {
-        const destDir = path.dirname(destPath);
-        if (!fs.existsSync(destDir)) {
-          fs.mkdirSync(destDir, { recursive: true });
-        }
-
-        fs.copyFileSync(srcPath, destPath);
-        console.log(`✓ Copied ${file} to public/`);
-      } catch (error) {
-        console.warn(`⚠ Could not copy ${file}:`, error instanceof Error ? error.message : error);
-      }
-    }
-  },
-};
 
 export default defineConfig(() => ({
   root: __dirname,
@@ -89,7 +16,7 @@ export default defineConfig(() => ({
     port: 4200,
     host: 'localhost',
   },
-  plugins: [react(), tailwindcss(), nxViteTsPaths(), copyConfigFilesPlugin, copyConfigFilesPluginBuild],
+  plugins: [react(), tailwindcss(), nxViteTsPaths()],
   // Uncomment this if you are using workers.
   // worker: {
   //  plugins: [ nxViteTsPaths() ],

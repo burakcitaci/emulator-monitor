@@ -7,7 +7,7 @@ import {
 import { Messages } from './components/service-bus/Messages';
 import { AppSidebar } from './components/containers/ContainerSidebar';
 import { SiteHeader } from './components/common/SiteHeader';
-import { Toaster } from 'react-hot-toast';
+
 
 export function App() {
   const cookieStore = document.cookie
@@ -31,12 +31,12 @@ export function App() {
         } as React.CSSProperties
       }
     >
+
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <Messages />
-          <Toaster />
         </div>
       </SidebarInset>
     </SidebarProvider>

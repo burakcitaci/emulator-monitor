@@ -3,7 +3,7 @@ import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
 import { useMessages } from '../../hooks/api/useMessages';
 import { TrackingMessage, SendForm } from '@e2e-monitor/entities';
 import { AlertCircle, Send } from 'lucide-react';
-import toast from 'react-hot-toast';
+
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,9 @@ import {
 } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { SendMessageTab } from './SendMessageTab';
+
+import { ToastAction } from '../ui/toast';
+import { toast } from 'sonner';
 
 function ErrorMessage({
   icon,
@@ -76,20 +79,6 @@ export const Messages: React.FC = () => {
     }
   }, [hasLoaded, loadMessages, isFetching]);
 
-  // Auto-refresh messages every 30 seconds
-/*   useEffect(() => {
-    if (!hasLoaded || fetchError) return;
-
-    const intervalId = setInterval(async () => {
-      try {
-        await loadMessages();
-      } catch {
-        // Error already handled in loadMessages
-      }
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(intervalId);
-  }, [hasLoaded, loadMessages, fetchError]); */
 
   const handleMessageDelete = async (messageId: string) => {
     try {
@@ -97,10 +86,18 @@ export const Messages: React.FC = () => {
       await deleteTrackingMessage(messageId);
       // Refresh messages after delete
       await loadMessages();
-      toast.success('Message deleted successfully');
+      toast.success("Your message has been sent.", {
+          description: "Your message has been sent.",
+        })
     } catch (error) {
       console.error('Failed to delete message:', error);
-      toast.error('Failed to delete message');
+      toast.error("Failed to delete message", {
+          description: "Your message has been sent.",
+        })
+      toast.error("Failed to delete message", {
+          description: "Failed to delete message",
+          action: <ToastAction altText="Try again">Try again</ToastAction>,
+        })
     }
   };
 
@@ -132,7 +129,10 @@ export const Messages: React.FC = () => {
 
       const result = await response.json();
       if (result.success) {
-        toast.success('Message sent successfully!');
+        toast.success('Message sent successfully!', {
+          description: 'Message sent successfully!',
+          action: <ToastAction variant={"destructive"} altText="View message">View message</ToastAction>,
+        });
         // Reset form
         setSendForm({
           queueName: '',
@@ -141,24 +141,26 @@ export const Messages: React.FC = () => {
           subject: '',
         });
       } else {
-        toast.error(result.message || 'Failed to send message');
+        toast(result.message || 'Failed to send message');
       }
     } catch (err) {
       console.error('Failed to send message:', err);
-      toast.error(
-        err instanceof Error
+      toast.error("Failed to send message", {
+         
+          
+          description: err instanceof Error
           ? err.message
           : 'Failed to send message. Please try again.',
-        { duration: 5000 }
-      );
+          action: <ToastAction altText="Try again">Try again</ToastAction>,
+        })
     }
   };
 
   return (
     <div className="p-2">
       {/* Header */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
+      <div className="space-y-6">
+        <div className="flex items-center justify-start mt-4 gap-2">
           <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
