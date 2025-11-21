@@ -1,14 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/**
- * Service Bus Emulator Monitor Backend
- * A comprehensive API for Docker container management and Service Bus operations
- */
 
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module.js';
 import { ConfigService } from './app/common/config.service.js';
-import { ServiceBusService } from './app/service-bus/service-bus.service.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -52,23 +46,6 @@ async function bootstrap() {
         },
       })
     );
-
-    // Initialize Service Bus on startup
-    const serviceBusService = app.get(ServiceBusService);
-    await serviceBusService.onModuleInit();
-
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      logger.log('SIGTERM received, shutting down gracefully');
-      await app.close();
-      process.exit(0);
-    });
-
-    process.on('SIGINT', async () => {
-      logger.log('SIGINT received, shutting down gracefully');
-      await app.close();
-      process.exit(0);
-    });
 
     await app.listen(port);
 
