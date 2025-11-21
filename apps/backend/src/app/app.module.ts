@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { FileModule } from './file/file.module';
-import { DockerModule } from './docker/docker.module';
 import { ServiceBusModule } from './service-bus/service-bus.module';
 import { CommonModule } from './common/common.module';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -24,7 +23,6 @@ import { ScheduleModule } from '@nestjs/schedule';
     // so that models are registered before ServiceBusService tries to inject them
     MessageModule,
     FileModule,
-    DockerModule,
     ServiceBusModule,
   ],
   controllers: [AppController],
