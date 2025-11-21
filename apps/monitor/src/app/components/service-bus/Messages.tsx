@@ -106,6 +106,7 @@ export const Messages: React.FC = () => {
 
   const sendMessage = async () => {
     try {
+      console.log('Sending message with form data:', sendForm);
       const response = await fetch('http://localhost:3000/api/v1/servicebus/send', {
         method: 'POST',
         headers: {

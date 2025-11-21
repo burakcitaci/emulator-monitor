@@ -1,83 +1,17 @@
-import React, { useState, useCallback } from 'react';
-import {
-  Send,
-  Info,
-  Sparkles,
-} from 'lucide-react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { Send, Info, Sparkles } from 'lucide-react';
 import { SendForm } from '@e2e-monitor/entities';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import toast from 'react-hot-toast';
 
-
-// Root config
-export interface UserConfig {
-  UserConfig: {
-    Namespaces: NamespaceConfig[];
-    Logging: LoggingConfig;
-  };
-}
-
-export interface NamespaceConfig {
-  Name: string;
-  Topics: TopicConfig[];
-  Queues: QueueConfig[];
-}
-
-export interface TopicConfig {
-  Name: string;
-  Properties: TopicProperties;
-  Subscriptions: SubscriptionConfig[];
-}
-
-export interface TopicProperties {
-  DefaultMessageTimeToLive: string;
-  DuplicateDetectionHistoryTimeWindow: string;
-  RequiresDuplicateDetection: boolean;
-}
-
-export interface SubscriptionConfig {
-  Name: string;
-  DeadLetteringOnMessageExpiration: boolean;
-  MaxDeliveryCount: number;
-}
-
-export interface QueueConfig {
-  Name: string;
-  Properties: QueueProperties;
-}
-
-export interface QueueProperties {
-  DefaultMessageTimeToLive: string;
-  MaxDeliveryCount: number;
-  DeadLetteringOnMessageExpiration: boolean;
-}
-
-export interface LoggingConfig {
-  Type: string;
-}
-
-interface SendMessageTabProps {
-  form: SendForm;
-  onFormChange: (form: SendForm) => void;
-  onSend: () => void;
-}
-
-export const SendMessageTab: React.FC<SendMessageTabProps> = ({
-  form,
-  onFormChange,
-  onSend,
-}) => {
-
-  const config: UserConfig = {
+// ---------------------------
+// STATIC CONFIG
+// ---------------------------
+const CONFIG = {
   UserConfig: {
     Namespaces: [
       {
@@ -88,36 +22,36 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
             Properties: {
               DefaultMessageTimeToLive: "PT1H",
               DuplicateDetectionHistoryTimeWindow: "PT20S",
-              RequiresDuplicateDetection: false
+              RequiresDuplicateDetection: false,
             },
             Subscriptions: [
               {
                 Name: "funcapp-processor-dev",
                 DeadLetteringOnMessageExpiration: true,
-                MaxDeliveryCount: 10
-              }
-            ]
+                MaxDeliveryCount: 10,
+              },
+            ],
           },
           {
             Name: "application-events",
             Properties: {
               DefaultMessageTimeToLive: "PT1H",
               DuplicateDetectionHistoryTimeWindow: "PT30S",
-              RequiresDuplicateDetection: true
+              RequiresDuplicateDetection: true,
             },
             Subscriptions: [
               {
                 Name: "analytics-processor",
                 DeadLetteringOnMessageExpiration: true,
-                MaxDeliveryCount: 5
+                MaxDeliveryCount: 5,
               },
               {
                 Name: "logging-service",
                 DeadLetteringOnMessageExpiration: false,
-                MaxDeliveryCount: 3
-              }
-            ]
-          }
+                MaxDeliveryCount: 3,
+              },
+            ],
+          },
         ],
         Queues: [
           {
@@ -125,87 +59,62 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
             Properties: {
               DefaultMessageTimeToLive: "PT1H",
               MaxDeliveryCount: 10,
-              DeadLetteringOnMessageExpiration: true
-            }
+              DeadLetteringOnMessageExpiration: true,
+            },
           },
           {
             Name: "notifications-queue",
             Properties: {
               DefaultMessageTimeToLive: "PT1H",
               MaxDeliveryCount: 5,
-              DeadLetteringOnMessageExpiration: true
-            }
+              DeadLetteringOnMessageExpiration: true,
+            },
           },
           {
             Name: "errm-policy-triggered",
             Properties: {
               DefaultMessageTimeToLive: "PT1H",
               MaxDeliveryCount: 3,
-              DeadLetteringOnMessageExpiration: true
-            }
-          }
-        ]
-      }
+              DeadLetteringOnMessageExpiration: true,
+            },
+          },
+        ],
+      },
     ],
-    Logging: {
-      Type: "File"
-    }
-  }
+    Logging: { Type: "File" },
+  },
 };
 
-  const [isInitializingServiceBus, setIsInitializingServiceBus] = useState(false);
+// ---------------------------
+// MAIN COMPONENT
+// ---------------------------
+
+interface Props {
+  form: SendForm;
+  onFormChange: (form: SendForm) => void;
+  onSend: () => void;
+}
+
+export const SendMessageTab: React.FC<Props> = ({ form, onFormChange, onSend }) => {
+  const [isInitLoading, setIsInitLoading] = useState(false);
   const [serviceBusInitialized, setServiceBusInitialized] = useState<boolean | null>(null);
-  const handleInitializeServiceBus = async () => {
-    setIsInitializingServiceBus(true);
-    try {
-      const response = await fetch('http://localhost:3000/api/v1/servicebus/debug-init', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-      }
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success('Service Bus initialized successfully!');
-        // Refresh the page or reload the configuration
-        window.location.reload();
-      } else {
-        toast.error(result.message || 'Failed to initialize Service Bus');
-      }
-    } catch (err) {
-      console.error('Service Bus initialization failed:', err);
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Failed to initialize Service Bus. Please check the backend logs.',
-        { duration: 5000 }
-      );
-    } finally {
-      setIsInitializingServiceBus(false);
-    }
-  };
-
-  // Status check effect
-  React.useEffect(() => {
-    const checkStatus = async () => {
+  // ---------------------------
+  // SERVICE BUS STATUS CHECK
+  // ---------------------------
+  useEffect(() => {
+    const check = async () => {
       try {
-        const statusResponse = await fetch(
-          'http://localhost:3000/api/v1/servicebus/status',
-          {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000),
-          },
-        );
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
-          setServiceBusInitialized(statusData.initialized || false);
+        const res = await fetch('http://localhost:3000/api/v1/servicebus/status', {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setServiceBusInitialized(data.initialized || false);
         } else {
           setServiceBusInitialized(false);
         }
@@ -214,49 +123,34 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
       }
     };
 
-    checkStatus();
-    const interval = setInterval(checkStatus, 10000);
+    check();
+    const interval = setInterval(check, 10_000);
     return () => clearInterval(interval);
   }, []);
 
-  // Validation state - moved before any early returns
-  const [validationErrors, setValidationErrors] = useState<{
-    queueName?: string;
-    body?: string;
-    properties?: string;
-    subject?: string;
-  }>({});
-
-  // Memoize validation functions to prevent infinite re-renders
+  // ---------------------------
+  // FORM VALIDATION
+  // ---------------------------
   const validateForm = useCallback(() => {
-    const errors: typeof validationErrors = {};
+    const errors: Record<string, string> = {};
 
-    if (!form.queueName.trim()) {
-      errors.queueName = 'Queue/Topic name is required';
-    }
+    const requiredFields = ['queueName', 'subject', 'body'] as const;
+    requiredFields.forEach((field) => {
+      if (!form[field].trim()) errors[field] = `${field} is required`;
+    });
 
-    if (!form.subject.trim()) {
-      errors.subject = 'Subject is required';
-    }
-
-    if (!form.body.trim()) {
-      errors.body = 'Message body is required';
-    } else {
+    // body JSON validation
+    if (form.body.trim()) {
       try {
         const parsed = JSON.parse(form.body);
-        // Check if the parsed JSON is an empty object
-        if (
-          parsed &&
-          typeof parsed === 'object' &&
-          Object.keys(parsed).length === 0
-        ) {
+        if (typeof parsed === 'object' && Object.keys(parsed).length === 0)
           errors.body = 'Message body cannot be empty JSON object {}';
-        }
       } catch {
         errors.body = 'Message body must be valid JSON';
       }
     }
 
+    // properties JSON validation
     if (form.properties.trim()) {
       try {
         JSON.parse(form.properties);
@@ -267,334 +161,243 @@ export const SendMessageTab: React.FC<SendMessageTabProps> = ({
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [form.queueName, form.subject, form.body, form.properties]);
+  }, [form]);
 
-  // Validation is now inlined in handleInputChange to avoid dependency issues
-
-  const handleInputChange = useCallback(
+  // ---------------------------
+  // INPUT CHANGE HANDLER
+  // ---------------------------
+  const handleChange = useCallback(
     (field: keyof SendForm, value: string) => {
-      const updatedForm = { ...form, [field]: value };
+      const updated = { ...form, [field]: value };
 
-      // If queueName is being changed, also update the subject to match
+      // auto-set subject = queueName
       if (field === 'queueName' && value.trim()) {
-        updatedForm.subject = value;
+        updated.subject = value;
       }
 
-      onFormChange(updatedForm);
-
-      // Inline validation to avoid dependency issues
-      const errors = { ...validationErrors };
-
-      if (field === 'queueName' || field === 'subject') {
-        if (!value.trim()) {
-          if (field === 'queueName') {
-            errors.queueName = 'Queue/Topic name is required';
-          } else {
-            errors.subject = 'Subject is required';
-          }
-        } else {
-          if (field === 'queueName') {
-            delete errors.queueName;
-          } else {
-            delete errors.subject;
-          }
-        }
-      } else if (field === 'body') {
-        if (!value.trim()) {
-          errors.body = 'Message body is required';
-        } else {
-          try {
-            const parsed = JSON.parse(value);
-            // Check if the parsed JSON is an empty object
-            if (
-              parsed &&
-              typeof parsed === 'object' &&
-              Object.keys(parsed).length === 0
-            ) {
-              errors.body = 'Message body cannot be empty JSON object {}';
-            } else {
-              delete errors.body;
-            }
-          } catch {
-            errors.body = 'Message body must be valid JSON';
-          }
-        }
-      } else if (field === 'properties') {
-        if (value.trim()) {
-          try {
-            JSON.parse(value);
-            delete errors.properties;
-          } catch {
-            errors.properties = 'Properties must be valid JSON';
-          }
-        } else {
-          delete errors.properties;
-        }
-      }
-
-      setValidationErrors(errors);
+      onFormChange(updated);
     },
-    [form, onFormChange, validationErrors]
+    [form, onFormChange],
   );
 
-  const generateDummyData = useCallback(
-    (queueName?: string) => {
-      const dummyData = {
-        subject: form.subject || queueName || form.queueName || 'test-queue',
-        policyId: `P${Math.floor(Math.random() * 1000)
-          .toString()
-          .padStart(3, '0')}`,
-        violation: ['speed', 'parking', 'red_light', 'no_entry', 'wrong_way'][
-          Math.floor(Math.random() * 5)
-        ],
-        location: {
-          street: ['Main St', 'Oak Ave', 'Elm St', 'Park Rd', 'First Ave'][
-            Math.floor(Math.random() * 5)
-          ],
-          city: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][
-            Math.floor(Math.random() * 5)
-          ],
-          state: ['NY', 'CA', 'IL', 'TX', 'AZ'][Math.floor(Math.random() * 5)],
-        },
-        timestamp: new Date().toISOString(),
-        severity: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
-        officerId: `OFF${Math.floor(Math.random() * 100)
-          .toString()
-          .padStart(3, '0')}`,
-        vehicleInfo: {
-          licensePlate: `ABC${Math.floor(Math.random() * 900) + 100}`,
-          make: ['Toyota', 'Honda', 'Ford', 'Chevrolet', 'BMW'][
-            Math.floor(Math.random() * 5)
-          ],
-          model: ['Camry', 'Civic', 'F-150', 'Silverado', 'X3'][
-            Math.floor(Math.random() * 5)
-          ],
-          color: ['White', 'Black', 'Silver', 'Blue', 'Red'][
-            Math.floor(Math.random() * 5)
-          ],
-        },
-        sentBy: 'test-user',
-        recievedBy: 'test-receiver',
-        sentAt: new Date().toISOString(),
-        recievedAt: new Date().toISOString(),
-      };
+  // ---------------------------
+  // DUMMY JSON GENERATION
+  // ---------------------------
+  const generateDummyData = useCallback(() => {
+    const dummy = {
+      subject: form.subject || form.queueName,
+      policyId: `P${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+      violation: ['speed', 'parking', 'red_light'][Math.floor(Math.random() * 3)],
+      location: {
+        street: ['Main St', 'Oak Ave', 'Elm St'][Math.floor(Math.random() * 3)],
+        city: ['New York', 'Los Angeles', 'Chicago'][Math.floor(Math.random() * 3)],
+      },
+      timestamp: new Date().toISOString(),
+    };
 
-      const formattedData = JSON.stringify(dummyData, null, 2);
-      handleInputChange('body', formattedData);
-    },
-    [handleInputChange, form.subject, form.queueName]
-  );
+    handleChange('body', JSON.stringify(dummy, null, 2));
+  }, [form.subject, form.queueName, handleChange]);
 
-  const handleSendTestMessage = async () => {
+  // ---------------------------
+  // SEND MESSAGE
+  // ---------------------------
+  const handleSend = async () => {
     if (!validateForm()) {
       toast.error('Please fix validation errors before sending');
       return;
     }
 
     try {
-      // Call the parent's send handler (which uses useMonitor's sendMessage)
-      onSend();
+      await onSend();
     } catch (err) {
-      console.error('Failed to send message:', err);
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Failed to send message. Please try again.',
-        {
-          duration: 5000,
-        }
-      );
+      toast.error('Failed to send message');
     }
   };
 
-  const renderQueueTopicSelect = () => (
-    <div className="space-y-1">
-      <Label htmlFor="queueName" className="flex items-center gap-2">
-        Queue/Topic Name
-        <Info className="h-4 w-4 text-muted-foreground" />
-      </Label>
-      <Select
-        value={form.queueName}
-        onValueChange={(value) => handleInputChange('queueName', value)}
-      >
-        <SelectTrigger
-          id="queueName"
-          className={validationErrors.queueName ? 'border-destructive' : ''}
-        >
-          <SelectValue placeholder="Select queue or topic..." />
-        </SelectTrigger>
-        <SelectContent>
-          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-            Queues
-          </div>
-          {config.UserConfig.Namespaces[0].Queues.map((queue) => (
-            <SelectItem key={queue.Name} value={queue.Name}>
-              <span aria-hidden="true">📦</span> {queue.Name}
-            </SelectItem>
-          ))}
-          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-            Topics
-          </div>
-          {config.UserConfig.Namespaces[0].Topics.map((topic) => (
-            <SelectItem key={topic.Name} value={topic.Name}>
-              <span aria-hidden="true">📡</span> {topic.Name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {validationErrors.queueName && (
-        <p className="text-sm text-destructive">{validationErrors.queueName}</p>
-      )}
-    </div>
-  );
+  // ---------------------------
+  // SERVICE BUS INIT
+  // ---------------------------
+  const initServiceBus = async () => {
+    setIsInitLoading(true);
 
-  const renderMessageBodyInput = () => (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label htmlFor="messageBody" className="flex items-center gap-2">
-          Message Body (JSON)
-          <Info className="h-4 w-4 text-muted-foreground" />
-        </Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => generateDummyData(form.queueName)}
-          className="h-7 px-2 text-xs"
-        >
-          <Sparkles className="h-3 w-3 mr-1" />
-          Fill
-        </Button>
-      </div>
-      <Textarea
-        id="messageBody"
-        value={form.body}
-        onChange={(e) => handleInputChange('body', e.target.value)}
-        rows={8}
-        className={`text-sm ${
-          validationErrors.body ? 'border-destructive' : ''
-        }`}
-        placeholder='{"policyId": "P001", "violation": "speed"}'
-      />
-      {validationErrors.body && (
-        <p className="text-sm text-destructive">{validationErrors.body}</p>
-      )}
-      <p className="text-xs text-muted-foreground">
-        Enter valid JSON. Example:{' '}
-        <span aria-label="opening curly brace">{'{'}</span>"policyId": "P001",
-        "violation": "speed"<span aria-label="closing curly brace">{'}'}</span>
-      </p>
-    </div>
-  );
+    try {
+      const res = await fetch('http://localhost:3000/api/v1/servicebus/debug-init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-  const renderPropertiesInput = () => (
-    <div className="space-y-2">
-      <Label htmlFor="properties" className="flex items-center gap-2">
-        Properties (JSON, Optional)
-        <Info className="h-4 w-4 text-muted-foreground" />
-      </Label>
-      <Textarea
-        id="properties"
-        value={form.properties}
-        onChange={(e) => handleInputChange('properties', e.target.value)}
-        rows={4}
-        className={`text-sm ${
-          validationErrors.properties ? 'border-destructive' : ''
-        }`}
-        placeholder='{"severity": "high"}'
-      />
-      {validationErrors.properties && (
-        <p className="text-sm text-destructive">
-          {validationErrors.properties}
-        </p>
-      )}
-      <p className="text-xs text-muted-foreground">
-        Optional JSON properties. Example:{' '}
-        <span aria-label="opening curly brace">{'{'}</span>"severity": "high",
-        "priority": 1<span aria-label="closing curly brace">{'}'}</span>
-      </p>
-    </div>
-  );
+      const data = await res.json();
 
-  const renderSendButton = () => {
-    const isBackendUnavailable = !config;
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Initialization failed');
+      }
 
-    // Check if form is valid based on validationErrors state (no state updates during render)
-    const isFormValid =
-      Object.keys(validationErrors).length === 0 &&
-      form.queueName.trim() !== '' &&
-      form.subject.trim() !== '' &&
-      form.body.trim() !== '';
-    const canSend = !isFormValid && !isBackendUnavailable;
-
-    return (
-      <div className="space-y-3">
-        <Button
-          onClick={handleSendTestMessage}
-          disabled={!canSend}
-          className="w-full"
-          size="lg"
-        ><>
-              <Send className="w-5 h-5 mr-2" />
-              Send Test Message
-            </>
-        </Button>
-        {isBackendUnavailable && (
-          <div className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Service Bus is not initialized. Click the "Initialize Service Bus" button above to connect to the emulator.
-            </p>
-            <div className="text-xs text-muted-foreground">
-              <p>1. Ensure Service Bus emulator is running: <code>docker-compose up</code></p>
-              <p>2. Click "Initialize Service Bus" above</p>
-              <p>3. Then try sending your message</p>
-            </div>
-          </div>
-        )}
-        {!isBackendUnavailable && Object.keys(validationErrors).length > 0 && (
-          <p className="text-sm text-muted-foreground text-center">
-            Please fix the validation errors above before sending
-          </p>
-        )}
-      </div>
-    );
+      toast.success('Service Bus initialized!');
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error initializing Service Bus');
+    } finally {
+      setIsInitLoading(false);
+    }
   };
+
+  // ---------------------------
+  // UI HELPERS
+  // ---------------------------
+
+  const canSend = useMemo(() => {
+    const noErrors = Object.keys(validationErrors).length === 0;
+    const filled =
+      form.queueName.trim() &&
+      form.subject.trim() &&
+      form.body.trim() &&
+      serviceBusInitialized;
+
+    return noErrors && filled;
+  }, [validationErrors, form, serviceBusInitialized]);
+
+  // ---------------------------
+  // JSX
+  // ---------------------------
 
   return (
     <div className="space-y-6">
-      {/* Header Section */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground">
-            Send a test message to your Service Bus emulator for testing purposes.
-          </p>
-          {serviceBusInitialized === false && (
-            <Button
-              onClick={handleInitializeServiceBus}
-              disabled={isInitializingServiceBus}
-              variant="outline"
-              size="sm"
-            >
-              {isInitializingServiceBus ? 'Initializing...' : 'Initialize Service Bus'}
-            </Button>
-          )}
-        </div>
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground">
+          Send a test message to your Service Bus emulator.
+        </p>
+
+        {serviceBusInitialized === false && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={initServiceBus}
+            disabled={isInitLoading}
+          >
+            {isInitLoading ? 'Initializing...' : 'Initialize Service Bus'}
+          </Button>
+        )}
       </div>
 
-      {/* Main Form */}
-       <div className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-6">
-              {renderQueueTopicSelect()}
-             {/*  {renderSubjectInput()} */}
-              {renderMessageBodyInput()}
-            </div>
-            <div className="space-y-6">
-              {renderPropertiesInput()}
-              {renderSendButton()}
-            </div>
-          </div>
+      {/* FORM GRID */}
+      <div className="grid gap-6 lg:grid-cols-2">
+
+        {/* LEFT SIDE */}
+        <div className="space-y-6">
+          {/* QUEUE SELECT */}
+          <QueueTopicSelect
+            errors={validationErrors}
+            value={form.queueName}
+            config={CONFIG}
+            onChange={(v:any) => handleChange('queueName', v)}
+          />
+
+          {/* BODY */}
+          <MessageBodyInput
+            value={form.body}
+            onChange={(v:any) => handleChange('body', v)}
+            onFill={generateDummyData}
+            error={validationErrors.body}
+          />
         </div>
+
+        {/* RIGHT SIDE */}
+        <div className="space-y-6">
+          <PropertiesInput
+            value={form.properties}
+            error={validationErrors.properties}
+            onChange={(v:any) => handleChange('properties', v)}
+          />
+
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={handleSend}
+            disabled={!canSend}
+          >
+            <Send className="w-5 h-5 mr-2" /> Send Test Message
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
+
+// ---------------------------
+// SMALLER SUBCOMPONENTS
+// ---------------------------
+
+const QueueTopicSelect = ({ value, onChange, config, errors }: any) => (
+  <div className="space-y-1">
+    <Label className="flex items-center gap-2">
+      Queue/Topic Name <Info className="h-4 w-4 text-muted-foreground" />
+    </Label>
+
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={errors.queueName ? 'border-destructive' : ''}>
+        <SelectValue placeholder="Select..." />
+      </SelectTrigger>
+
+      <SelectContent>
+        <Section title="Queues" items={config.UserConfig.Namespaces[0].Queues} icon="📦" />
+        <Section title="Topics" items={config.UserConfig.Namespaces[0].Topics} icon="📡" />
+      </SelectContent>
+    </Select>
+
+    {errors.queueName && <p className="text-sm text-destructive">{errors.queueName}</p>}
+  </div>
+);
+
+const Section = ({ title, items, icon }: any) => (
+  <>
+    <div className="px-2 py-1.5 mt-1 text-xs font-semibold text-muted-foreground border-t first:border-none first:mt-0">
+      {title}
+    </div>
+    {items.map((x: any) => (
+      <SelectItem key={x.Name} value={x.Name}>
+        <span aria-hidden>{icon}</span> {x.Name}
+      </SelectItem>
+    ))}
+  </>
+);
+
+const MessageBodyInput = ({ value, onChange, onFill, error }: any) => (
+  <div className="space-y-2">
+    <div className="flex items-center justify-between">
+      <Label className="flex items-center gap-2">
+        Message Body (JSON) <Info className="h-4 w-4 text-muted-foreground" />
+      </Label>
+      <Button type="button" variant="outline" size="sm" onClick={onFill}>
+        <Sparkles className="h-3 w-3 mr-1" /> Fill
+      </Button>
+    </div>
+
+    <Textarea
+      rows={8}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={error ? 'border-destructive text-sm' : 'text-sm'}
+    />
+
+    {error && <p className="text-sm text-destructive">{error}</p>}
+  </div>
+);
+
+const PropertiesInput = ({ value, onChange, error }: any) => (
+  <div className="space-y-2">
+    <Label className="flex items-center gap-2">
+      Properties (JSON, Optional) <Info className="h-4 w-4 text-muted-foreground" />
+    </Label>
+
+    <Textarea
+      rows={4}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={error ? 'border-destructive text-sm' : 'text-sm'}
+    />
+
+    {error && <p className="text-sm text-destructive">{error}</p>}
+  </div>
+);

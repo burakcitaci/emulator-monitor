@@ -3,15 +3,11 @@ import React from 'react';
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from './components/ui/sidebar';
-import { Separator } from './components/ui/separator';
-import { Providers } from './providers';
-import { ThemeToggle } from './components/common/ThemeToggle';
 import { Messages } from './components/service-bus/Messages';
-import { MoveRight } from 'lucide-react';
 import { AppSidebar } from './components/containers/ContainerSidebar';
 import { SiteHeader } from './components/common/SiteHeader';
+import { Toaster } from 'react-hot-toast';
 
 export function App() {
   const cookieStore = document.cookie
@@ -40,6 +36,7 @@ export function App() {
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <Messages />
+          <Toaster />
         </div>
       </SidebarInset>
     </SidebarProvider>
