@@ -41,6 +41,41 @@ The E2E Monitor is a full-stack application that provides:
 └── README.md            # This comprehensive documentation
 ```
 
+## ♻️ Refinement Blueprint (NestJS · React · .NET)
+
+The current implementation already wires the three apps together; the tasks below tighten reliability and developer experience without changing the public surface. Tackle them per stack and keep the scope of each PR narrow.
+
+### Backend (NestJS)
+
+- **Config-first bootstrap**: Replace the duplicated hard-coded Mongo strings in `AppModule` with `ConfigModule.forRoot({ isGlobal: true, validationSchema: Joi.object({...}) })` plus `MongooseModule.forRootAsync`, pulling secrets from `.env`/Docker secrets.
+- **Service boundaries**: Extract Service Bus orchestration into a dedicated `ServiceBusModule` that registers clients/providers once and exposes `ServiceBusService`, `MessageRepository`, and CQRS-style handlers. Align DTOs with the shared `libs/shared/entities`.
+- **Observability guards**: Add `TerminusModule` health checks (Mongo + Service Bus), global `LoggingInterceptor`, `HttpExceptionFilter`, and rate limiting via `ThrottlerModule` to harden the API that the monitor relies on.
+- **Validation and serialization**: Continue using the global `ValidationPipe`, but add `ClassSerializerInterceptor` and per-route DTOs for message payloads so UI consumers never see raw Mongo docs.
+- **Worker alignment**: Move long-running Service Bus receive loops into `@nestjs/schedule` intervals or dedicated `OnModuleInit` providers with proper cancellation tokens, instead of ad-hoc calls from controllers.
+
+### Frontend (React monitor)
+
+- **Data layer**: Centralize HTTP access in `/src/app/hooks/api` using TanStack Query (or SWR) plus Zod schemas for runtime validation. This removes imperative fetches from components like `Messages`.
+- **State isolation**: Lift cookie/viewport logic from `App` into a `useSidebarState` hook and keep providers (theme, toasts, query client) in `Providers`. Add an `ErrorBoundary` + suspense boundaries around routes.
+- **UI performance**: Virtualize the message tables (`@tanstack/react-table` + `react-virtual`) and memoize column definitions to keep the UI smooth when thousands of messages stream in.
+- **Testing discipline**: Add component tests for the data-table filters and hooks, and wire Playwright smoke tests into the Nx task graph so regressions surface before backend deploys.
+- **Environment safety**: Read Vite env (e.g., `import.meta.env.VITE_API_URL`) via a typed config helper instead of sprinkling literals; ensure CORS/cookie settings match the backend recommendations above.
+
+### ServiceBusHelper (C# console)
+
+- **Generic host**: Convert `Program.cs` to `Host.CreateDefaultBuilder(args)` so logging, DI, and configuration (appsettings + user-secrets) come for free. Register `ServiceBusClient`, `MongoClient`, repositories, and command handlers as scoped services.
+- **Command plumbing**: Replace manual `args` parsing with `System.CommandLine` or `Spectre.Console.Cli` to get validation/help output and easy extensibility (e.g., scheduled send, peek-lock inspect).
+- **Resilient messaging**: Share a single `ServiceBusClient`/`ServiceBusSender` per queue, enable `ServiceBusRetryOptions`, and wrap receive loops in `CancellationTokenSource` linked to Ctrl+C.
+- **Telemetry + tracing**: Plug in `Azure.Monitor.OpenTelemetry.AspNetCore` (works for worker services too) or `ApplicationInsights` so send/receive operations emit traces the backend/UI can correlate.
+- **Packaging**: Provide `dotnet tool` packaging or containerized execution so the helper can run in CI when seeding queues for automated tests.
+
+### Cross-cutting
+
+- **Secure secrets**: Use `.env.local` (frontend), `.env`/Docker secrets (backend), and `dotnet user-secrets`/Key Vault (console) instead of embedding connection strings.
+- **Nx workflows**: Define composite targets (`nx run-many`) for “seed queues”, “smoke tests”, and “docker up” so CI/CD stays declarative.
+- **Contracts**: Keep shared DTOs/TypeScript interfaces in `libs/shared/entities`, generate OpenAPI from Nest, and feed it to the React client (via `orval`/`openapi-typescript`) to avoid drift.
+- **Quality gates**: Enforce `lint`, `test`, and `typecheck` in pre-push hooks or GitHub Actions, and surface health endpoints plus synthetic UI checks in monitoring.
+
 ## ⚙️ Configuration Management
 
 ### Single Source of Truth
@@ -61,7 +96,7 @@ The project maintains centralized configuration in the root directory:
 - **Method**: Direct filesystem access
 - **Path Resolution**: Prioritizes root directory, falls back to relative paths
 - **Key Files**:
-  - `apps/backend/src/app/common/config.service.ts` - Loads configuration
+  - `apps/backend/src/app/common/app-config.service.ts` - Loads configuration
   - `apps/backend/src/app/service-bus/service-bus.service.ts` - Service Bus initialization
 
 #### Frontend (React)
@@ -316,6 +351,7 @@ npm run test:coverage
    - Optimized production bundle created
 
 2. **Backend Build**:
+
    ```bash
    npm run build:backend
    ```

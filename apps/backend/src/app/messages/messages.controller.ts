@@ -1,43 +1,49 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from "@nestjs/common";
-import { MessageService } from "./messages.service";
-import { TrackingMessage } from "./message.schema";
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { MessageService } from './messages.service';
+import { TrackingMessage } from './message.schema';
+import { AppLogger } from '../common/logger.service';
 
 @Controller('tracked-messages')
 export class MessagesController {
-    constructor(private readonly messagesService: MessageService) {}
-    
-    @Get('tracking')
-    async getTrackingMessages() {
-        const result =  await this.messagesService.findTrackingMessages();
-        console.log('Retrieved tracking messages:', result);
-        return result;
-    }
+  constructor(
+    private readonly messagesService: MessageService,
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext(MessagesController.name);
+  }
 
-    @Get('tracking/:id')
-    async getTrackingMessage(@Param('id') id: string) {
-        const result = await this.messagesService.findOneTracking(id);
-        console.log('Retrieved tracking message:', result);
-        return result;
-    }
+  @Get('tracking')
+  async getTrackingMessages() {
+    const result = await this.messagesService.findTrackingMessages();
+    this.logger.log(`Retrieved ${result.length} tracking messages`);
+    return result;
+  }
 
-    @Post('tracking')
-    async createTrackingMessage(@Body() message: Partial<TrackingMessage>) {
-        const result = await this.messagesService.createTracking(message);
-        console.log('Created tracking message:', result);
-        return result;
-    }
+  @Get('tracking/:id')
+  async getTrackingMessage(@Param('id') id: string) {
+    const result = await this.messagesService.findOneTracking(id);
+    this.logger.log(`Retrieved tracking message ${id}`);
+    return result;
+  }
 
-    @Put('tracking/:id')
-    async updateTrackingMessage(@Param('id') id: string, @Body() message: Partial<TrackingMessage>) {
-        const result = await this.messagesService.updateTracking(id, message);
-        console.log('Updated tracking message:', result);
-        return result;
-    }
+  @Post('tracking')
+  async createTrackingMessage(@Body() message: Partial<TrackingMessage>) {
+    const result = await this.messagesService.createTracking(message);
+    this.logger.log(`Created tracking message ${result.messageId}`);
+    return result;
+  }
 
-    @Delete('tracking/:id')
-    async deleteTrackingMessage(@Param('id') id: string) {
-        await this.messagesService.removeTracking(id);
-        console.log('Deleted tracking message with id:', id);
-        return { message: 'Tracking message deleted successfully' };
-    }
+  @Put('tracking/:id')
+  async updateTrackingMessage(@Param('id') id: string, @Body() message: Partial<TrackingMessage>) {
+    const result = await this.messagesService.updateTracking(id, message);
+    this.logger.log(`Updated tracking message ${id}`);
+    return result;
+  }
+
+  @Delete('tracking/:id')
+  async deleteTrackingMessage(@Param('id') id: string) {
+    await this.messagesService.removeTracking(id);
+    this.logger.log(`Deleted tracking message ${id}`);
+    return { message: 'Tracking message deleted successfully' };
+  }
 }

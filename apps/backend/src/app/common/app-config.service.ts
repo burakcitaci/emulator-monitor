@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService as NestConfigService } from '@nestjs/config';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -49,41 +50,15 @@ export interface LoggingConfig {
 }
 
 @Injectable()
-export class ConfigService {
-  get dockerSocketPath(): string {
-    // On Windows, use named pipe
-    if (process.platform === 'win32') {
-      return process.env.DOCKER_SOCKET_PATH || '\\\\.\\pipe\\docker_engine';
-    }
-    return process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock';
-  }
-
-  get dockerHost(): string {
-    return process.env.DOCKER_HOST || 'tcp://localhost:2376';
-  }
-
-  get dockerProtocol(): string {
-    switch (process.platform) {
-      case 'win32':
-        return 'npipe'; // Windows uses named pipes
-      case 'linux':
-      case 'darwin':
-        return 'unix'; // Linux/macOS use Unix sockets
-      default:
-        return 'socket'; // fallback for other OS types
-    }
-  }
-
-  get dockerTimeout(): number {
-    return parseInt(process.env.DOCKER_TIMEOUT || '30000', 10);
-  }
+export class AppConfigService {
+  constructor(private readonly config: NestConfigService) {}
 
   get port(): number {
-    return parseInt(process.env.PORT || '3000', 10);
+    return this.config.get<number>('PORT', 3000);
   }
 
   get nodeEnv(): string {
-    return process.env.NODE_ENV || 'development';
+    return this.config.get<string>('NODE_ENV', 'development');
   }
 
   get isProduction(): boolean {
@@ -95,126 +70,139 @@ export class ConfigService {
   }
 
   get corsOrigin(): string | string[] {
-    const origin = process.env.CORS_ORIGIN || 'http://localhost:4200';
-    return origin.includes(',') ? origin.split(',') : origin;
+    const origin = this.config.get<string>('CORS_ORIGIN', 'http://localhost:4200');
+    return origin.includes(',') ? origin.split(',').map((o) => o.trim()) : origin;
   }
 
   get logLevel(): string {
-    return process.env.LOG_LEVEL || 'info';
+    return this.config.get<string>('LOG_LEVEL', 'info');
+  }
+
+  get dockerSocketPath(): string {
+    if (process.platform === 'win32') {
+      return this.config.get<string>('DOCKER_SOCKET_PATH', '\\?\\pipe\\docker_engine');
+    }
+    return this.config.get<string>('DOCKER_SOCKET_PATH', '/var/run/docker.sock');
+  }
+
+  get dockerHost(): string {
+    return this.config.get<string>('DOCKER_HOST', 'tcp://localhost:2376');
+  }
+
+  get dockerProtocol(): string {
+    switch (process.platform) {
+      case 'win32':
+        return 'npipe';
+      case 'linux':
+      case 'darwin':
+        return 'unix';
+      default:
+        return 'socket';
+    }
+  }
+
+  get dockerTimeout(): number {
+    return this.config.get<number>('DOCKER_TIMEOUT', 30000);
   }
 
   get serviceBusConnectionString(): string {
     return (
-      process.env.SERVICE_BUS_CONNECTION_STRING ||
+      this.config.get<string>('SERVICE_BUS_CONNECTION_STRING') ||
       'Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;UseDevelopmentEmulator=true'
     );
   }
 
   get serviceBusNamespace(): string {
-    return process.env.SERVICE_BUS_NAMESPACE || 'sbemulatorns';
+    return this.config.get<string>('SERVICE_BUS_NAMESPACE', 'sbemulatorns');
   }
 
-  // Validation methods
-  validateRequiredEnvVars(): void {
-    const requiredVars = [
-      'NODE_ENV',
-      // Add other required environment variables here
-    ];
-
-    const missing = requiredVars.filter((varName) => !process.env[varName]);
-
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required environment variables: ${missing.join(', ')}`
-      );
-    }
+  get serviceBusQueue(): string {
+    return this.config.get<string>('SERVICE_BUS_QUEUE', 'tracking-messages');
   }
 
-  // Docker-specific configuration
+  get mongoUri(): string {
+    return this.config.get<string>('MONGO_URI', 'mongodb://testuser:testpass@localhost:27017/');
+  }
+
+  get mongoTrackingDbName(): string {
+    return this.config.get<string>('MONGO_MESSAGE_DB', 'MessageTrackingDb');
+  }
+
+  get mongoAuthSource(): string {
+    return this.config.get<string>('MONGO_AUTH_SOURCE', 'admin');
+  }
+
+  get serviceBusMaxRetries(): number {
+    return this.config.get<number>('SERVICE_BUS_MAX_RETRIES', 3);
+  }
+
+  get serviceBusRetryDelay(): number {
+    return this.config.get<number>('SERVICE_BUS_RETRY_DELAY', 1000);
+  }
+
+  get throttleTtl(): number {
+    return this.config.get<number>('THROTTLE_TTL', 60);
+  }
+
+  get throttleLimit(): number {
+    return this.config.get<number>('THROTTLE_LIMIT', 60);
+  }
+
   getDockerConfig() {
     return {
       socketPath: this.dockerSocketPath,
       host: this.dockerHost,
       protocol: this.dockerProtocol,
       timeout: this.dockerTimeout,
-      checkSocketExists: process.env.DOCKER_CHECK_SOCKET !== 'false',
+      checkSocketExists: this.config.get<string>('DOCKER_CHECK_SOCKET', 'true') !== 'false',
     };
   }
 
-  // Service Bus configuration
   getServiceBusConfig() {
     return {
       connectionString: this.serviceBusConnectionString,
       namespace: this.serviceBusNamespace,
-      maxRetries: parseInt(process.env.SERVICE_BUS_MAX_RETRIES || '3', 10),
-      retryDelay: parseInt(process.env.SERVICE_BUS_RETRY_DELAY || '1000', 10),
+      maxRetries: this.serviceBusMaxRetries,
+      retryDelay: this.serviceBusRetryDelay,
     };
   }
 
-  // Load Service Bus configuration from file
   getServiceBusConfiguration(): ServiceBusConfig {
     try {
-      // Try multiple possible paths for the config file, prioritizing root directory
       const possiblePaths = [
-        // Root directory (preferred - single source of truth)
         join(process.cwd(), '..', '..', 'config', 'servicebus-config.json'),
         join(process.cwd(), 'config', 'servicebus-config.json'),
-        // Relative to dist directory when built
-        join(
-          __dirname,
-          '..',
-          '..',
-          '..',
-          '..',
-          'config',
-          'servicebus-config.json'
-        ),
+        join(__dirname, '..', '..', '..', '..', 'config', 'servicebus-config.json'),
         join(__dirname, '..', '..', 'config', 'servicebus-config.json'),
       ];
 
       let configData: string | null = null;
-      let configPath = '';
 
       for (const filePath of possiblePaths) {
         try {
           configData = readFileSync(filePath, 'utf8');
-          configPath = filePath;
           break;
         } catch {
-          // Try next path
+          // try next path
         }
       }
 
       if (!configData) {
-        throw new Error(
-          'Configuration file not found in any expected location. Expected: root/config/servicebus-config.json'
-        );
+        throw new Error('Configuration file not found in any expected location. Expected: root/config/servicebus-config.json');
       }
 
-      console.log(`✓ Loading Service Bus configuration from: ${configPath}`);
       const config = JSON.parse(configData);
-
-      // Validate the configuration structure
       if (!config.UserConfig?.Namespaces) {
-        throw new Error(
-          'Invalid configuration structure: missing UserConfig.Namespaces'
-        );
+        throw new Error('Invalid configuration structure: missing UserConfig.Namespaces');
       }
 
       return config;
     } catch (error) {
-      console.error(
-        '✗ Failed to load Service Bus configuration from file:',
-        error
-      );
-
-      // Instead of throwing, return a default configuration
-      console.log('⚠ Using default Service Bus configuration as fallback');
+      console.error('Failed to load Service Bus configuration from file:', error);
       return this.getDefaultServiceBusConfig();
     }
   }
 
-  // Get default Service Bus configuration as fallback
   private getDefaultServiceBusConfig(): ServiceBusConfig {
     return {
       UserConfig: {

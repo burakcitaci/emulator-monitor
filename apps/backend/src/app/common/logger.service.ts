@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Scope } from '@nestjs/common';
 
-@Injectable()
+@Injectable({ scope: Scope.TRANSIENT })
 export class AppLogger extends Logger {
   protected override context: string | undefined;
 

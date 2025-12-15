@@ -1,0 +1,1 @@
+export const SERVICE_BUS_CLIENT = Symbol('SERVICE_BUS_CLIENT');
