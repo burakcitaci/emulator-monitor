@@ -68,8 +68,9 @@ export class ServiceBusService implements OnModuleDestroy {
   }
 
   async ping(): Promise<void> {
-    const sender = await this.getOrCreateSender(this.config.serviceBusQueue);
-    await sender.open();
+    // Service Bus sender is ready to use immediately after creation
+    // This ping method verifies we can create a sender without errors
+    await this.getOrCreateSender(this.config.serviceBusQueue);
   }
 
   private parseBody(body: string): unknown {
