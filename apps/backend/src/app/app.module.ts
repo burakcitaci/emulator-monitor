@@ -31,7 +31,7 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
           'Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;UseDevelopmentEmulator=true'
         ),
         SERVICE_BUS_NAMESPACE: Joi.string().default('sbemulatorns'),
-        SERVICE_BUS_QUEUE: Joi.string().default('tracking-messages'),
+        SERVICE_BUS_QUEUE: Joi.string().default('orders-queue'),
         SERVICE_BUS_MAX_RETRIES: Joi.number().default(3),
         SERVICE_BUS_RETRY_DELAY: Joi.number().default(1000),
         MONGO_URI: Joi.string().default(

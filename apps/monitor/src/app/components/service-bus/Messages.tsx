@@ -1,12 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
-import { useMessages } from '../../hooks/api/useMessages';
-import { TrackingMessage } from '@e2e-monitor/entities';
+import { useTrackingMessages, useDeleteTrackingMessage } from '../../hooks/api';
 import { AlertCircle } from 'lucide-react';
-
-
 import { ToastAction } from '../ui/toast';
 import { toast } from 'sonner';
+import { LoadingSpinner } from '../ui/loading-spinner';
 
 function ErrorMessage({
   icon,
@@ -31,89 +29,73 @@ function ErrorMessage({
 }
 
 export const Messages: React.FC = () => {
-  const { fetchTrackingMessages, deleteTrackingMessage } = useMessages();
-  const [messages, setMessages] = useState<TrackingMessage[]>([]);
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const {
+    data: messages = [],
+    isLoading,
+    error,
+  } = useTrackingMessages();
 
-  const loadMessages = useCallback(async () => {
-    setIsFetching(true);
-    try {
-      const loadedMessages = await fetchTrackingMessages();
-      setMessages(loadedMessages);
-      setFetchError(null);
-      console.log('Tracking messages loaded successfully');
-    } catch (error) {
-      console.error('Failed to load tracking messages:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to load tracking messages';
-      setFetchError(errorMessage);
-      setMessages([]);
-    } finally {
-      setHasLoaded(true);
-      setIsFetching(false);
-    }
-  }, [fetchTrackingMessages]);
-
-  // Load messages on mount
-  useEffect(() => {
-    if (!hasLoaded && !isFetching) {
-      void loadMessages();
-    }
-  }, [hasLoaded, loadMessages, isFetching]);
-
+  const deleteMutation = useDeleteTrackingMessage();
 
   const handleMessageDelete = async (messageId: string) => {
     try {
-      // Assuming tracking messages are stored as 'received' type for deletion
-      await deleteTrackingMessage(messageId);
-      // Refresh messages after delete
-      await loadMessages();
-      toast.success("Your message has been sent.", {
-          description: "Your message has been sent.",
-        })
+      await deleteMutation.mutateAsync(messageId);
+      toast.success('Message deleted successfully', {
+        description: 'The tracking message has been removed.',
+      });
     } catch (error) {
       console.error('Failed to delete message:', error);
-      toast.error("Failed to delete message", {
-          description: "Your message has been sent.",
-        })
-      toast.error("Failed to delete message", {
-          description: "Failed to delete message",
-          action: <ToastAction altText="Try again">Try again</ToastAction>,
-        })
+      toast.error('Failed to delete message', {
+        description: 'Please try again.',
+        action: (
+          <ToastAction
+            altText="Try again"
+            onClick={() => handleMessageDelete(messageId)}
+          >
+            Try again
+          </ToastAction>
+        ),
+      });
     }
   };
 
-  return (
-    <div className="p-2">
-      {/* Header */}
-      <div className="space-y-6">
-      <div className="flex flex-col gap-4 w-full">
-        {/* Error Messages */}
-        {fetchError && (
-          <ErrorMessage
-            icon={
-              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-            }
-            title="Failed to Load Tracking Messages"
-            message={
-              fetchError.includes('Failed to fetch')
-                ? 'Backend server is not running on port 3000. Please ensure it is running.'
-                : fetchError
-            }
-          />
-        )}
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
-        {/* Table */}
-        <div className="w-full min-w-0">
-          <TrackingMessagesDataTable
-            messages={messages}
-            onMessageDelete={handleMessageDelete}
-          />
+  return (
+    <div className="p-2 h-full flex flex-col">
+      <div className="space-y-6 flex-1 flex flex-col min-h-0">
+        <div className="flex flex-col gap-4 w-full flex-1 min-h-0">
+          {/* Error Messages */}
+          {error && (
+            <ErrorMessage
+              icon={
+                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              }
+              title="Failed to Load Tracking Messages"
+              message={
+                (error as Error)?.message?.includes('Failed to fetch')
+                  ? 'Backend server is not running on port 3000. Please ensure it is running.'
+                  : (error as Error)?.message || 'Failed to load tracking messages'
+              }
+            />
+          )}
+
+          {/* Table */}
+          <div className="w-full min-w-0 flex-1 min-h-0">
+            <TrackingMessagesDataTable
+              messages={messages}
+              onMessageDelete={handleMessageDelete}
+              isDeleting={deleteMutation.isPending}
+            />
+          </div>
         </div>
       </div>
-    </div>
     </div>
   );
 };

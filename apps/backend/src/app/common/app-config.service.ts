@@ -117,7 +117,7 @@ export class AppConfigService {
   }
 
   get serviceBusQueue(): string {
-    return this.config.get<string>('SERVICE_BUS_QUEUE', 'tracking-messages');
+    return this.config.get<string>('SERVICE_BUS_QUEUE', 'orders-queue');
   }
 
   get mongoUri(): string {

@@ -16,34 +16,49 @@ export class MessagesController {
   async getTrackingMessages() {
     const result = await this.messagesService.findTrackingMessages();
     this.logger.log(`Retrieved ${result.length} tracking messages`);
-    return result;
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   @Get('tracking/:id')
   async getTrackingMessage(@Param('id') id: string) {
     const result = await this.messagesService.findOneTracking(id);
     this.logger.log(`Retrieved tracking message ${id}`);
-    return result;
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   @Post('tracking')
   async createTrackingMessage(@Body() message: Partial<TrackingMessage>) {
     const result = await this.messagesService.createTracking(message);
     this.logger.log(`Created tracking message ${result.messageId}`);
-    return result;
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   @Put('tracking/:id')
   async updateTrackingMessage(@Param('id') id: string, @Body() message: Partial<TrackingMessage>) {
     const result = await this.messagesService.updateTracking(id, message);
     this.logger.log(`Updated tracking message ${id}`);
-    return result;
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   @Delete('tracking/:id')
   async deleteTrackingMessage(@Param('id') id: string) {
     await this.messagesService.removeTracking(id);
     this.logger.log(`Deleted tracking message ${id}`);
-    return { message: 'Tracking message deleted successfully' };
+    return {
+      success: true,
+      message: 'Tracking message deleted successfully',
+    };
   }
 }

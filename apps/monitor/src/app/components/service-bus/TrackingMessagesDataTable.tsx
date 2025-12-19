@@ -3,20 +3,27 @@ import { Eye, Trash } from 'lucide-react';
 import React, { useState } from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { DataTable } from './data-table/DataTable';
+import { VirtualizedDataTable } from './data-table/VirtualizedDataTable';
 import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
 import { TrackingMessage } from '@e2e-monitor/entities';
 import { TrackingMessageDetailModal } from './TrackingMessageDetailModal';
 import { Option } from '../../types/data-table';
 
 interface TrackingMessagesDataTableProps {
-  messages: TrackingMessage[];
+  messages: TrackingMessage[] | undefined;
   onMessageDelete: (messageId: string) => void;
+  isDeleting?: boolean;
 }
 
 const createColumns = (
   onMessageDelete: (messageId: string) => void,
   onMessageSelect: (message: TrackingMessage) => void,
+  sentByOptions: Option[],
+  receivedByOptions: Option[],
+  sentByFilterFn: (row: TrackingMessage, id: string, value: unknown) => boolean,
+  receivedByFilterFn: (row: TrackingMessage, id: string, value: unknown) => boolean,
+  statusFilterFn: (row: TrackingMessage, id: string, value: unknown) => boolean,
+  isDeleting: boolean,
 ): ColumnDef<TrackingMessage>[] => [
   {
     accessorKey: 'sentBy',
@@ -31,14 +38,11 @@ const createColumns = (
       );
     },
     enableColumnFilter: true,
-    filterFn: (row, id, value) => {
-      if (!value || !Array.isArray(value)) return true;
-      return value.includes(row.original.sentBy);
-    },
+    filterFn: sentByFilterFn,
     meta: {
       variant: 'multiSelect',
       label: 'Sent By',
-      options: [] as Option[], // Will be populated dynamically
+      options: sentByOptions,
     },
   },
   {
@@ -54,14 +58,11 @@ const createColumns = (
       );
     },
     enableColumnFilter: true,
-    filterFn: (row, id, value) => {
-      if (!value || !Array.isArray(value)) return true;
-      return value.includes(row.original.receivedBy);
-    },
+    filterFn: receivedByFilterFn,
     meta: {
       variant: 'multiSelect',
       label: 'Received By',
-      options: [] as Option[], // Will be populated dynamically
+      options: receivedByOptions,
     },
   },
   {
@@ -82,10 +83,7 @@ const createColumns = (
       );
     },
     enableColumnFilter: true,
-    filterFn: (row, id, value) => {
-      if (!value || !Array.isArray(value)) return true;
-      return value.includes(row.original.status);
-    },
+    filterFn: statusFilterFn,
     meta: {
       variant: 'multiSelect',
       label: 'Status',
@@ -164,6 +162,7 @@ const createColumns = (
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0"
+            disabled={isDeleting}
             onClick={() =>
               onMessageDelete(row.original.messageId)
             }
@@ -179,36 +178,85 @@ const createColumns = (
 export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps> = ({
   messages,
   onMessageDelete,
+  isDeleting = false,
 }) => {
+  // Ensure messages is always an array
+  const safeMessages = messages || [];
   const [selectedMessage, setSelectedMessage] = useState<TrackingMessage | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleMessageSelect = (message: TrackingMessage) => {
+  const handleMessageSelect = React.useCallback((message: TrackingMessage) => {
     setSelectedMessage(message);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleModalClose = () => {
+  const handleModalClose = React.useCallback(() => {
     setIsModalOpen(false);
     setSelectedMessage(null);
-  };
+  }, []);
+
+  // Memoize filter options to avoid recalculation on every render
+  const filterOptions = React.useMemo(() => {
+    const sentByOptions = Array.from(
+      new Set(safeMessages.map(m => m.sentBy).filter(Boolean))
+    ).map(value => ({ label: value, value }));
+
+    const receivedByOptions = Array.from(
+      new Set(safeMessages.map(m => m.receivedBy).filter(Boolean))
+    ).map(value => ({ label: value, value }));
+
+    return { sentByOptions, receivedByOptions };
+  }, [safeMessages]);
+
+  // Memoize filter functions to prevent unnecessary re-renders
+  const sentByFilterFn = React.useCallback((row: TrackingMessage, id: string, value: unknown) => {
+    if (!value || !Array.isArray(value)) return true;
+    return value.includes(row.sentBy);
+  }, []);
+
+  const receivedByFilterFn = React.useCallback((row: TrackingMessage, id: string, value: unknown) => {
+    if (!value || !Array.isArray(value)) return true;
+    return value.includes(row.receivedBy);
+  }, []);
+
+  const statusFilterFn = React.useCallback((row: TrackingMessage, id: string, value: unknown) => {
+    if (!value || !Array.isArray(value)) return true;
+    return value.includes(row.status);
+  }, []);
 
   const columns = React.useMemo(
     () =>
       createColumns(
         onMessageDelete,
         handleMessageSelect,
+        filterOptions.sentByOptions,
+        filterOptions.receivedByOptions,
+        sentByFilterFn,
+        receivedByFilterFn,
+        statusFilterFn,
+        isDeleting,
       ),
-    [onMessageDelete],
+    [
+      onMessageDelete,
+      handleMessageSelect,
+      filterOptions.sentByOptions,
+      filterOptions.receivedByOptions,
+      sentByFilterFn,
+      receivedByFilterFn,
+      statusFilterFn,
+      isDeleting,
+    ],
   );
 
   return (
     <>
-      <DataTable
+      <VirtualizedDataTable
         columns={columns}
-        data={messages}
+        data={safeMessages}
         searchKey="body"
         searchPlaceholder="Search message body..."
+        estimateSize={48}
+        overscan={5}
       />
       <TrackingMessageDetailModal
         message={selectedMessage}

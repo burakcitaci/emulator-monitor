@@ -95,6 +95,11 @@
   "targetDefaults": {
     "test": {
       "dependsOn": ["^build"]
+    },
+    "e2e": {
+      "dependsOn": ["^build"],
+      "cache": true,
+      "inputs": ["default", "^production"]
     }
   },
   "generators": {

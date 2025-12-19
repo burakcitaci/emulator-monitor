@@ -317,9 +317,10 @@ The frontend uses **Shadcn/UI** for consistent, accessible components:
 
 ### Test Structure
 
-- **Unit Tests**: Jest for component and service testing
-- **Integration Tests**: Backend API testing
+- **Unit Tests**: Vitest for component and service testing
+- **Integration Tests**: Backend API testing with Jest
 - **E2E Tests**: Playwright for full user journey testing
+- **Query Tests**: React Query hooks with mock API client
 
 ### Running Tests
 
@@ -328,12 +329,77 @@ The frontend uses **Shadcn/UI** for consistent, accessible components:
 npm run test
 
 # Specific test suites
-npm run test:backend
-npm run test:monitor
-npm run test:e2e
+npm run test:backend           # NestJS backend unit tests
+npm run test:monitor           # React component & hook tests
+npm run test:e2e              # Full E2E smoke tests
+
+# E2E tests with UI mode for debugging
+yarn nx e2e monitor-e2e --ui
+
+# Watch mode for development
+yarn nx test monitor --watch
 
 # Coverage reports
-npm run test:coverage
+yarn nx test monitor --coverage
+yarn nx test backend --coverage
+```
+
+### Test Organization
+
+#### Frontend Tests (`apps/monitor/src`)
+
+- **Hook Tests**: `app/hooks/api/__tests__/` - React Query hooks with mocked API client
+- **Component Tests**: `app/components/**/__ tests__/` - Component behavior and filters
+- **Setup**: `test-setup.ts` - Global test configuration and mocks
+
+#### Backend Tests (`apps/backend/src`)
+
+- **Unit Tests**: Service and controller tests
+- **Integration Tests**: API endpoint testing
+
+#### E2E Tests (`apps/monitor-e2e`)
+
+- **Smoke Tests**: Critical path verification
+- **Configuration**: `playwright.config.ts` - Automated server startup
+- **CI Ready**: Wired into Nx dependency graph with caching
+
+### Writing Tests
+
+#### React Query Hooks
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+const wrapper = ({ children }) => (
+  <QueryClientProvider client={queryClient}>
+    {children}
+  </QueryClientProvider>
+);
+
+const { result } = renderHook(() => useTrackingMessages(), { wrapper });
+await waitFor(() => expect(result.current.data).toBeDefined());
+```
+
+#### Component Tests
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+const user = userEvent.setup();
+render(<MyComponent />);
+await user.click(screen.getByRole('button'));
+```
+
+#### E2E Tests
+
+```typescript
+test('smoke test', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading')).toBeVisible();
+});
 ```
 
 ## 🚀 Production Deployment
