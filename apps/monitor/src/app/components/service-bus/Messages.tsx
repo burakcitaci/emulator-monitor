@@ -41,17 +41,17 @@ export const Messages: React.FC = () => {
 
   const deleteMutation = useDeleteTrackingMessage();
   const [sendModalOpen, setSendModalOpen] = useState(false);
-  const [receiveModalOpen, setReceiveModalOpen] = useState(false);
 
   const { data: config } = useServiceBusConfig();
 
-  // Transform messages to convert null to undefined for receivedAt, receivedBy, and queue
+  // Transform messages to convert null to undefined for receivedAt, receivedBy, queue, and disposition
   const transformedMessages = React.useMemo(() => {
     return messages.map((message) => ({
       ...message,
       receivedAt: message.receivedAt ?? undefined,
       receivedBy: message.receivedBy ?? undefined,
       queue: message.queue ?? undefined,
+      disposition: message.disposition ?? undefined,
     }));
   }, [messages]);
 
@@ -59,10 +59,11 @@ export const Messages: React.FC = () => {
   const stats = React.useMemo(() => {
     const total = messages.length;
     const sent = messages.filter((m) => m.status === 'sent').length;
+    const processing = messages.filter((m) => m.status === 'processing').length;
     const received = messages.filter((m) => m.status === 'received').length;
     const uniqueSenders = new Set(messages.map((m) => m.sentBy)).size;
 
-    return { total, sent, received, uniqueSenders };
+    return { total, sent, processing, received, uniqueSenders };
   }, [messages]);
 
   // Extract queues and topics from config
@@ -140,7 +141,7 @@ export const Messages: React.FC = () => {
               <Send className="mr-2 h-4 w-4" />
               Simulate Message
             </Button>
-            <Button variant="outline" onClick={() => setReceiveModalOpen(true)}>
+            <Button variant="outline" disabled>
               <Download className="mr-2 h-4 w-4" />
               Receive Message
             </Button>

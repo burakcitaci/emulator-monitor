@@ -273,8 +273,9 @@ export interface TrackingMessage {
   body: string;
   sentBy: string;
   sentAt: Date;
-  status: 'sent' | 'received';
+  status: 'sent' | 'processing' | 'received';
   queue?: string;
   receivedAt?: Date;
   receivedBy?: string;
+  disposition?: 'complete' | 'abandon' | 'deadletter' | 'defer';
 }

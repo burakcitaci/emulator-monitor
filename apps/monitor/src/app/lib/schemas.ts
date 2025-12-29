@@ -38,10 +38,11 @@ export const trackingMessageSchema = z.preprocess(
     body: z.string(),
     sentBy: z.string(),
     sentAt: z.coerce.date(),
-    status: z.enum(['sent', 'received']),
+    status: z.enum(['sent', 'processing', 'received']),
     queue: z.string().optional().nullable(),
     receivedAt: z.coerce.date().optional().nullable(),
     receivedBy: z.string().optional().nullable(),
+    disposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional().nullable(),
   })
 );
 
@@ -67,6 +68,7 @@ export const sendServiceBusMessageSchema = z.object({
   messageId: z.string().optional(),
   sentBy: z.string().optional(),
   receivedBy: z.string().optional(),
+  messageDisposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional(),
   applicationProperties: z.record(z.any()).optional(),
 });
 

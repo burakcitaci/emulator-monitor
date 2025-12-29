@@ -44,6 +44,7 @@ export class ServiceBusService implements OnModuleDestroy {
       applicationProperties: {
         ...(dto.applicationProperties ?? {}),
         sentBy: dto.sentBy ?? 'service-bus-api',
+        messageDisposition: dto.messageDisposition ?? 'complete',
       },
     };
 
@@ -55,10 +56,11 @@ export class ServiceBusService implements OnModuleDestroy {
         body: typeof body === 'string' ? body : JSON.stringify(body),
         sentBy: dto.sentBy ?? 'service-bus-api',
         sentAt: new Date(),
-        status: 'sent',
+        status: 'processing', // Mark as processing until worker handles it
         queue: queueName,
+        // Don't set disposition until message is processed by worker
       });
-      this.logger.log(`Sent Service Bus message ${messageId} to ${queueName} and created tracking entry`);
+      this.logger.log(`Sent Service Bus message ${messageId} to ${queueName} and created tracking entry with status: processing`);
     } catch (error) {
       this.logger.error(`Failed to create tracking entry for message ${messageId} sent to ${queueName}:`, error);
       // Don't throw - message was sent successfully, tracking failure shouldn't block the operation

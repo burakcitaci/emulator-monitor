@@ -22,6 +22,10 @@ export class MessageService {
     return this.messageModel.findById(id).lean().exec();
   }
 
+  async findOneTrackingByMessageId(messageId: string): Promise<TrackingMessage | null> {
+    return this.messageModel.findOne({ messageId }).lean().exec();
+  }
+
   async createTracking(message: Partial<TrackingMessage>): Promise<TrackingMessageDocument> {
     const createdMessage = new this.messageModel(message);
     this.logger.log(`Creating tracking entry for ${message.messageId}`);
@@ -62,6 +66,29 @@ export class MessageService {
       this.logger.warn(`No tracking document found for received message ${messageId}`);
     } else {
       this.logger.log(`Marked message ${messageId} as received`);
+    }
+
+    return update as unknown as TrackingMessage | null;
+  }
+
+  async updateDisposition(messageId: string, disposition: string): Promise<TrackingMessage | null> {
+    const update = await this.messageModel
+      .findOneAndUpdate(
+        { messageId },
+        {
+          $set: {
+            disposition,
+          },
+        },
+        { new: true },
+      )
+      .lean()
+      .exec();
+
+    if (!update) {
+      this.logger.warn(`No tracking document found for message ${messageId} to update disposition`);
+    } else {
+      this.logger.log(`Updated disposition for message ${messageId} to ${disposition}. Current document: ${JSON.stringify({ disposition: update.disposition, status: update.status })}`);
     }
 
     return update as unknown as TrackingMessage | null;

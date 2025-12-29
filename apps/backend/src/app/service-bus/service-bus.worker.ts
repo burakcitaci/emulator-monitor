@@ -86,16 +86,61 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
             processMessage: async (message) => {
               const messageId = message.messageId?.toString();
               const receivedBy = (message.applicationProperties?.['receivedBy'] as string) ?? 'service-bus-worker';
+              const messageDisposition = (message.applicationProperties?.['messageDisposition'] as string) ?? 'complete';
+
+              this.logger.log(`Processing message ${messageId} with disposition: ${messageDisposition} (raw: ${JSON.stringify(message.applicationProperties?.['messageDisposition'])})`);
 
               if (messageId) {
                 await this.messageService.markMessageReceived(messageId, receivedBy);
               }
 
-              // Add random delay (0-2 seconds) before completing the message
+              // Add random delay (0-2 seconds) before processing the message
               await randomDelay();
 
-              // Complete the message using the receiver that processed it
-              await receiver.completeMessage(message);
+              // Handle message based on disposition
+              try {
+                const dispositionLower = messageDisposition.toLowerCase();
+                this.logger.log(`Executing disposition action: ${dispositionLower} for message ${messageId}`);
+                switch (dispositionLower) {
+                  case 'abandon':
+                    await receiver.abandonMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'abandon');
+                    }
+                    this.logger.log(`Abandoned message ${messageId} from queue ${queueName}`);
+                    break;
+                  case 'deadletter':
+                    await receiver.deadLetterMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'deadletter');
+                    }
+                    this.logger.log(`Dead-lettered message ${messageId} from queue ${queueName}`);
+                    break;
+                  case 'defer':
+                    await receiver.deferMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'defer');
+                    }
+                    this.logger.log(`Deferred message ${messageId} from queue ${queueName}`);
+                    break;
+                  case 'complete':
+                  default:
+                    await receiver.completeMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'complete');
+                    }
+                    this.logger.log(`Completed message ${messageId} from queue ${queueName}`);
+                    break;
+                }
+              } catch (error) {
+                this.logger.error(`Failed to process message ${messageId} with disposition ${messageDisposition}:`, error);
+                // Fallback to complete if disposition action fails
+                try {
+                  await receiver.completeMessage(message);
+                } catch (completeError) {
+                  this.logger.error(`Failed to complete message ${messageId} as fallback:`, completeError);
+                }
+              }
             },
             processError: async (args: ProcessErrorArgs) => {
               this.logger.error(`Service Bus processor error for queue ${queueName}:`, args.error);
@@ -125,6 +170,25 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
             processMessage: async (message) => {
               const messageId = message.messageId?.toString();
               const receivedBy = (message.applicationProperties?.['receivedBy'] as string) ?? 'service-bus-worker';
+              
+              // Check database first for existing disposition (in case message was abandoned and re-queued)
+              let messageDisposition: string | undefined;
+              let dispositionSource = 'applicationProperties';
+              if (messageId) {
+                const existingMessage = await this.messageService.findOneTrackingByMessageId(messageId);
+                if (existingMessage?.disposition) {
+                  messageDisposition = existingMessage.disposition;
+                  dispositionSource = 'database';
+                  this.logger.log(`Found existing disposition ${messageDisposition} in database for message ${messageId}`);
+                }
+              }
+              
+              // Fall back to application properties if no database disposition found
+              if (!messageDisposition) {
+                messageDisposition = (message.applicationProperties?.['messageDisposition'] as string) ?? 'complete';
+              }
+
+              this.logger.log(`Processing message ${messageId} with disposition: ${messageDisposition} (source: ${dispositionSource}, raw app props: ${JSON.stringify(message.applicationProperties?.['messageDisposition'])})`);
 
               if (messageId) {
                 try {
@@ -141,11 +205,53 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
                 this.logger.warn(`Received message without messageId from topic ${topic}/subscription ${subscription}`);
               }
 
-              // Add random delay (0-2 seconds) before completing the message
+              // Add random delay (0-2 seconds) before processing the message
               await randomDelay();
 
-              // Complete the message using the receiver that processed it
-              await receiver.completeMessage(message);
+              // Handle message based on disposition
+              try {
+                const dispositionLower = messageDisposition.toLowerCase();
+                this.logger.log(`Executing disposition action: ${dispositionLower} for message ${messageId}`);
+                switch (dispositionLower) {
+                  case 'abandon':
+                    await receiver.abandonMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'abandon');
+                    }
+                    this.logger.log(`Abandoned message ${messageId} from topic ${topic}/subscription ${subscription}`);
+                    break;
+                  case 'deadletter':
+                    await receiver.deadLetterMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'deadletter');
+                    }
+                    this.logger.log(`Dead-lettered message ${messageId} from topic ${topic}/subscription ${subscription}`);
+                    break;
+                  case 'defer':
+                    await receiver.deferMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'defer');
+                    }
+                    this.logger.log(`Deferred message ${messageId} from topic ${topic}/subscription ${subscription}`);
+                    break;
+                  case 'complete':
+                  default:
+                    await receiver.completeMessage(message);
+                    if (messageId) {
+                      await this.messageService.updateDisposition(messageId, 'complete');
+                    }
+                    this.logger.log(`Completed message ${messageId} from topic ${topic}/subscription ${subscription}`);
+                    break;
+                }
+              } catch (error) {
+                this.logger.error(`Failed to process message ${messageId} with disposition ${messageDisposition}:`, error);
+                // Fallback to complete if disposition action fails
+                try {
+                  await receiver.completeMessage(message);
+                } catch (completeError) {
+                  this.logger.error(`Failed to complete message ${messageId} as fallback:`, completeError);
+                }
+              }
             },
             processError: async (args: ProcessErrorArgs) => {
               this.logger.error(`Service Bus processor error for topic ${topic}/subscription ${subscription}:`, args.error);

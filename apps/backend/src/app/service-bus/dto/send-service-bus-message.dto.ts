@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+
+export enum MessageDisposition {
+  COMPLETE = 'complete',
+  ABANDON = 'abandon',
+  DEADLETTER = 'deadletter',
+  DEFER = 'defer',
+}
 
 export class SendServiceBusMessageDto {
   @IsOptional()
@@ -28,6 +35,10 @@ export class SendServiceBusMessageDto {
   @IsOptional()
   @IsString()
   receivedBy?: string;
+
+  @IsOptional()
+  @IsEnum(MessageDisposition)
+  messageDisposition?: MessageDisposition;
 
   @IsOptional()
   @IsObject()

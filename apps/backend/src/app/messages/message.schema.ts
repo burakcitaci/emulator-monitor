@@ -28,8 +28,11 @@ export class TrackingMessage {
   @Prop()
   receivedAt?: Date;
 
-  @Prop({ required: true, enum: ['sent', 'received'], default: 'sent' })
+  @Prop({ required: true, enum: ['sent', 'processing', 'received'], default: 'processing' })
   status?: string;
+
+  @Prop({ enum: ['complete', 'abandon', 'deadletter', 'defer'] })
+  disposition?: string;
 }
 
 

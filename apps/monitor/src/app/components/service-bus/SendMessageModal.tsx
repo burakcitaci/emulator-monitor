@@ -35,6 +35,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
   const [queue, setQueue] = useState('__default__');
   const [body, setBody] = useState('');
   const [sentBy, setSentBy] = useState('');
+  const [messageDisposition, setMessageDisposition] = useState<'complete' | 'abandon' | 'deadletter' | 'defer'>('complete');
 
   const sendMutation = useSendServiceBusMessage();
 
@@ -70,11 +71,14 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
     }
 
     try {
-      await sendMutation.mutateAsync({
+      const messagePayload = {
         queue: queue === '__default__' ? undefined : queue.trim() || undefined,
         body: body.trim(),
         sentBy: sentBy.trim() || undefined,
-      });
+        messageDisposition: messageDisposition,
+      };
+      console.log('Sending message with disposition:', messageDisposition, 'Full payload:', messagePayload);
+      await sendMutation.mutateAsync(messagePayload);
 
       toast.success('Message simulated successfully', {
         description: 'The message has been enqueued.',
@@ -84,6 +88,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
       setQueue('__default__');
       setBody('');
       setSentBy('');
+      setMessageDisposition('complete');
       onOpenChange(false);
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -165,6 +170,26 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
                 value={sentBy}
                 onChange={(e) => setSentBy(e.target.value)}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="disposition">Message Disposition</Label>
+              <Select value={messageDisposition} onValueChange={(value: 'complete' | 'abandon' | 'deadletter' | 'defer') => setMessageDisposition(value)}>
+                <SelectTrigger id="disposition">
+                  <SelectValue placeholder="Select message disposition" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="complete">Complete</SelectItem>
+                  <SelectItem value="abandon">Abandon</SelectItem>
+                  <SelectItem value="deadletter">Dead Letter</SelectItem>
+                  <SelectItem value="defer">Defer</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {messageDisposition === 'complete' && 'Message will be completed and removed from the queue.'}
+                {messageDisposition === 'abandon' && 'Message will be abandoned and returned to the queue for reprocessing.'}
+                {messageDisposition === 'deadletter' && 'Message will be moved to the dead-letter queue.'}
+                {messageDisposition === 'defer' && 'Message will be deferred and can be received later using sequence number.'}
+              </p>
             </div>
           </div>
           <SheetFooter>

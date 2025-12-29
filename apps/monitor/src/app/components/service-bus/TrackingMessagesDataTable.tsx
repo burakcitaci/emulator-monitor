@@ -121,9 +121,20 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Received By" />
     ),
     cell: ({ row }) => {
+      const status = row.original.status;
+      const receivedBy = row.original.receivedBy;
+      
+      if (status === 'processing') {
+        return (
+          <Badge variant="outline" className="text-xs px-2 py-0.5 h-5">
+            Processing
+          </Badge>
+        );
+      }
+      
       return (
         <div className="text-xs truncate max-w-32">
-          {row.original.receivedBy || '-'}
+          {receivedBy || '-'}
         </div>
       );
     },
@@ -143,9 +154,14 @@ const createColumns = (
     ),
     cell: ({ row }) => {
       const status = row.original.status;
+      const variantMap: Record<string, 'default' | 'secondary' | 'outline'> = {
+        received: 'default',
+        processing: 'outline',
+        sent: 'secondary',
+      };
       return (
         <Badge
-          variant={status === 'received' ? 'default' : 'secondary'}
+          variant={variantMap[status] || 'secondary'}
           className="text-xs px-2 py-0.5 h-5"
         >
           {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -159,8 +175,50 @@ const createColumns = (
       label: 'Status',
       options: [
         { label: 'Sent', value: 'sent' },
+        { label: 'Processing', value: 'processing' },
         { label: 'Received', value: 'received' },
       ] as Option[],
+    },
+  },
+  {
+    id: 'disposition',
+    accessorKey: 'disposition',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Disposition" />
+    ),
+    cell: ({ row }) => {
+      const disposition = row.original.disposition;
+      const status = row.original.status;
+      
+      // Show "Processing" badge when message is being processed
+      if (status === 'processing') {
+        return (
+          <Badge variant="outline" className="text-xs px-2 py-0.5 h-5">
+            Processing
+          </Badge>
+        );
+      }
+      
+      // Only show disposition when message has been received/processed
+      if (status !== 'received' || !disposition) {
+        return <div className="text-xs text-muted-foreground">-</div>;
+      }
+      
+      const variantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+        complete: 'default',
+        abandon: 'secondary',
+        deadletter: 'destructive',
+        defer: 'outline',
+      };
+      
+      return (
+        <Badge
+          variant={variantMap[disposition] || 'secondary'}
+          className="text-xs px-2 py-0.5 h-5"
+        >
+          {disposition.charAt(0).toUpperCase() + disposition.slice(1)}
+        </Badge>
+      );
     },
   },
   {
