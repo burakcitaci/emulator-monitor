@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TrackingMessagesDataTable } from '../../TrackingMessagesDataTable';
-import { TrackingMessage } from '../../../lib/schemas';
+import { TrackingMessage } from '@e2e-monitor/entities';
 
 // Mock TrackingMessageDetailModal since we're not testing it
 vi.mock('../../TrackingMessageDetailModal', () => ({
@@ -153,7 +153,7 @@ describe('DataTable Filters', () => {
     // Find all delete buttons and click the first one
     const deleteButtons = screen.getAllByRole('button');
     const trashButtons = deleteButtons.filter(
-      (btn) => btn.querySelector('svg') // Trash icon
+      (btn) => (btn as HTMLElement).querySelector('svg') // Trash icon
     );
 
     if (trashButtons.length > 0) {
@@ -175,7 +175,7 @@ describe('DataTable Filters', () => {
     );
 
     const buttons = screen.getAllByRole('button');
-    const deleteButtons = buttons.filter((btn) => btn.querySelector('svg'));
+    const deleteButtons = buttons.filter((btn) => (btn as HTMLElement).querySelector('svg'));
 
     deleteButtons.forEach((button) => {
       expect(button).toBeDisabled();

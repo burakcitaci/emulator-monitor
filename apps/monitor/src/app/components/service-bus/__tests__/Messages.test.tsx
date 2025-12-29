@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Messages } from '../Messages';
 import { apiClient } from '../../../lib/api-client';
-import { toast } from 'sonner';
 
 // Mock dependencies
 vi.mock('../../../lib/api-client', () => ({
@@ -14,20 +13,22 @@ vi.mock('../../../lib/api-client', () => ({
   },
 }));
 
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+
 vi.mock('sonner', () => ({
   toast: {
-    success: vi.fn(),
-    error: vi.fn(),
+    success: mockToastSuccess,
+    error: mockToastError,
   },
 }));
 
 const mockApiClient = vi.mocked(apiClient);
-const mockToast = vi.mocked(toast);
 
 describe('Messages component', () => {
   let queryClient: QueryClient;
 
-  const wrapper = ({ children }: React.ReactNode) => (
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       {children}
     </QueryClientProvider>
@@ -46,8 +47,8 @@ describe('Messages component', () => {
     });
     mockApiClient.getTrackingMessages.mockClear();
     mockApiClient.deleteTrackingMessage.mockClear();
-    mockToast.success.mockClear();
-    mockToast.error.mockClear();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
   });
 
   it('should show loading state initially', () => {
@@ -67,18 +68,18 @@ describe('Messages component', () => {
         messageId: 'msg-1',
         body: 'Test message 1',
         sentBy: 'user1',
-        sentAt: '2024-01-01T00:00:00Z',
-        status: 'sent',
+        sentAt: new Date('2024-01-01T00:00:00Z'),
+        status: 'sent' as const,
       },
       {
         _id: '2',
         messageId: 'msg-2',
         body: 'Test message 2',
         sentBy: 'user2',
-        sentAt: '2024-01-01T01:00:00Z',
-        status: 'received',
+        sentAt: new Date('2024-01-01T01:00:00Z'),
+        status: 'received' as const,
         receivedBy: 'receiver',
-        receivedAt: '2024-01-01T01:30:00Z',
+        receivedAt: new Date('2024-01-01T01:30:00Z'),
       },
     ];
 
@@ -115,8 +116,8 @@ describe('Messages component', () => {
         messageId: 'msg-1',
         body: 'Test message',
         sentBy: 'user1',
-        sentAt: '2024-01-01T00:00:00Z',
-        status: 'sent',
+        sentAt: new Date('2024-01-01T00:00:00Z'),
+        status: 'sent' as const,
       },
     ];
 
@@ -137,7 +138,7 @@ describe('Messages component', () => {
 
     // Wait for the mutation to complete
     await waitFor(() => {
-      expect(mockToast.success).toHaveBeenCalledWith(
+      expect(mockToastSuccess).toHaveBeenCalledWith(
         'Message deleted successfully',
         expect.objectContaining({
           description: 'The tracking message has been removed.',
@@ -155,8 +156,8 @@ describe('Messages component', () => {
         messageId: 'msg-1',
         body: 'Test message',
         sentBy: 'user1',
-        sentAt: '2024-01-01T00:00:00Z',
-        status: 'sent',
+        sentAt: new Date('2024-01-01T00:00:00Z'),
+        status: 'sent' as const,
       },
     ];
 
@@ -176,7 +177,7 @@ describe('Messages component', () => {
 
     // Wait for the error toast
     await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith(
+      expect(mockToastError).toHaveBeenCalledWith(
         'Failed to delete message',
         expect.objectContaining({
           description: 'Please try again.',

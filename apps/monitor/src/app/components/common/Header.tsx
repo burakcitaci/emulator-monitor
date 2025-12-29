@@ -1,11 +1,11 @@
 import React from 'react';
 import { ConnectionInfo, Message } from '@e2e-monitor/entities';
-import { DeadLetterMessage } from '../../hooks/api/useServiceBus';
+import { ServiceBusMessage } from '@azure/service-bus';
 
 interface HeaderProps {
   connectionInfo: ConnectionInfo;
   messages: Message[];
-  dlqMessages: DeadLetterMessage[];
+  dlqMessages: ServiceBusMessage[];
   serviceBusConfig?: unknown;
   onServiceBusInitialized?: () => void;
 }

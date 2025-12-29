@@ -74,8 +74,8 @@ describe('tracking-messages hooks', () => {
           messageId: 'msg-1',
           body: 'test message',
           sentBy: 'test-user',
-          sentAt: '2024-01-01T00:00:00Z',
-          status: 'sent',
+          sentAt: new Date('2024-01-01T00:00:00Z'),
+          status: 'sent' as const,
         },
       ];
 
@@ -149,7 +149,7 @@ describe('tracking-messages hooks', () => {
         messageId: 'msg-new',
         body: 'new message',
         sentBy: 'test-user',
-        sentAt: '2024-01-01T00:00:00Z',
+        sentAt: new Date('2024-01-01T00:00:00Z'),
         status: 'sent' as const,
       };
 
@@ -178,9 +178,9 @@ describe('tracking-messages hooks', () => {
         messageId: 'msg-1',
         body: 'test message',
         sentBy: 'test-user',
-        sentAt: '2024-01-01T00:00:00Z',
+        sentAt: new Date('2024-01-01T00:00:00Z'),
         status: 'received' as const,
-        receivedAt: '2024-01-01T01:00:00Z',
+        receivedAt: new Date('2024-01-01T01:00:00Z'),
         receivedBy: 'receiver',
       };
 
