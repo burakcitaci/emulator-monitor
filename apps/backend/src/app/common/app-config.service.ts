@@ -168,6 +168,17 @@ export class AppConfigService {
     return this.config.get<string>('AWS_SQS_QUEUE_NAME', 'orders-queue');
   }
 
+  get rabbitmqConnectionUrl(): string {
+    return this.config.get<string>(
+      'RABBITMQ_URL',
+      'amqp://guest:guest@localhost:5673',
+    );
+  }
+
+  get rabbitmqQueue(): string {
+    return this.config.get<string>('RABBITMQ_QUEUE', 'orders-queue');
+  }
+
   getDockerConfig() {
     return {
       socketPath: this.dockerSocketPath,
@@ -272,6 +283,13 @@ export class AppConfigService {
       queueName: this.awsSqsQueueName,
       accessKeyId: this.awsAccessKeyId,
       // Don't expose secret in config response
+    };
+  }
+
+  getRabbitmqConfiguration() {
+    return {
+      connectionUrl: this.rabbitmqConnectionUrl.replace(/\/\/.*@/, '//***:***@'), // Hide credentials
+      queueName: this.rabbitmqQueue,
     };
   }
 }

@@ -122,6 +122,25 @@ services:
         aliases:
           - "localstack"
 
+  # --------------------------------------------------------------------------------------------------
+
+  rabbitmq:
+    container_name: "rabbitmq"
+    image: rabbitmq:3.13-management-alpine
+    pull_policy: always
+    ports:
+      - "5673:5672"   # AMQP port (mapped to 5673 to avoid conflict with Azure Service Bus emulator)
+      - "15672:15672" # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - "./rabbitmq-data:/var/lib/rabbitmq"
+    networks:
+      sb-emulator:
+        aliases:
+          - "rabbitmq"
+
 # --------------------------------------------------------------------------------------------------
 
 networks:

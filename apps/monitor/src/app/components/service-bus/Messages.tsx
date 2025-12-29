@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
 import { useTrackingMessages, useDeleteTrackingMessage } from '../../hooks/api';
 import { AlertCircle, Send } from 'lucide-react';
+import { TrackingMessage } from '@e2e-monitor/entities';
 import { ToastAction } from '../ui/toast';
 import { toast } from 'sonner';
 import { LoadingSpinner } from '../ui/loading-spinner';
@@ -45,7 +46,7 @@ export const Messages: React.FC = () => {
   const { data: config } = useServiceBusConfig();
 
   // Transform messages to convert null to undefined for receivedAt, receivedBy, queue, disposition, and emulatorType
-  const transformedMessages = React.useMemo(() => {
+  const transformedMessages: TrackingMessage[] = React.useMemo(() => {
     return messages.map((message) => ({
       ...message,
       receivedAt: message.receivedAt ?? undefined,
@@ -67,8 +68,9 @@ export const Messages: React.FC = () => {
     // Emulator statistics
     const sqs = messages.filter((m) => m.emulatorType === 'sqs').length;
     const azureServiceBus = messages.filter((m) => m.emulatorType === 'azure-service-bus').length;
+    const rabbitmq = messages.filter((m) => m.emulatorType === 'rabbitmq').length;
 
-    return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus };
+    return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus, rabbitmq };
   }, [messages]);
 
   // Extract queues and topics from config
@@ -148,7 +150,7 @@ export const Messages: React.FC = () => {
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
@@ -203,6 +205,14 @@ export const Messages: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.azureServiceBus}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">RabbitMQ</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.rabbitmq}</div>
               </CardContent>
             </Card>
           </div>

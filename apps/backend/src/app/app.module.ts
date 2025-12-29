@@ -13,6 +13,7 @@ import { AppConfigService } from './common/app-config.service';
 import { MessageModule } from './messages/messages.module';
 import { ServiceBusModule } from './service-bus/service-bus.module';
 import { AwsSqsModule } from './aws-sqs/aws-sqs.module';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { HealthModule } from './health/health.module';
 import { LoggingInterceptor } from './common/logging.interceptor';
 import { HttpExceptionFilter } from './common/http-exception.filter';
@@ -47,6 +48,8 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
         AWS_ACCESS_KEY_ID: Joi.string().default('test'),
         AWS_SECRET_ACCESS_KEY: Joi.string().default('test'),
         AWS_SQS_QUEUE_NAME: Joi.string().default('orders-queue'),
+        RABBITMQ_URL: Joi.string().default('amqp://guest:guest@localhost:5673'),
+        RABBITMQ_QUEUE: Joi.string().default('orders-queue'),
       }),
     }),
     CommonModule,
@@ -80,6 +83,7 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
     MessageModule,
     ServiceBusModule,
     AwsSqsModule,
+    RabbitmqModule,
     HealthModule,
   ],
   controllers: [AppController],

@@ -1,0 +1,3 @@
+export const RABBITMQ_CONNECTION = Symbol('RABBITMQ_CONNECTION');
+export const RABBITMQ_CHANNEL = Symbol('RABBITMQ_CHANNEL');
+

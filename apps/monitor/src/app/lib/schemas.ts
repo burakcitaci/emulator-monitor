@@ -43,7 +43,7 @@ export const trackingMessageSchema = z.preprocess(
     receivedAt: z.coerce.date().optional().nullable(),
     receivedBy: z.string().optional().nullable(),
     disposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional().nullable(),
-    emulatorType: z.enum(['sqs', 'azure-service-bus']).optional().nullable(),
+    emulatorType: z.enum(['sqs', 'azure-service-bus', 'rabbitmq']).optional().nullable(),
   })
 );
 
@@ -189,3 +189,34 @@ export const awsSqsConfigSchema = z.object({
 });
 
 export type AwsSqsConfig = z.infer<typeof awsSqsConfigSchema>;
+
+// Send RabbitMQ message request schema
+export const sendRabbitmqMessageSchema = z.object({
+  queue: z.string().optional(),
+  body: z.string(),
+  messageId: z.string().optional(),
+  sentBy: z.string().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  expiration: z.number().optional(),
+  priority: z.number().optional(),
+  messageDisposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional(),
+});
+
+export type SendRabbitmqMessage = z.infer<typeof sendRabbitmqMessageSchema>;
+
+// Receive RabbitMQ message request schema
+export const receiveRabbitmqMessageSchema = z.object({
+  queue: z.string().optional(),
+  receivedBy: z.string(),
+  maxMessages: z.number().optional(),
+});
+
+export type ReceiveRabbitmqMessage = z.infer<typeof receiveRabbitmqMessageSchema>;
+
+// RabbitMQ config schema
+export const rabbitmqConfigSchema = z.object({
+  connectionUrl: z.string(),
+  queueName: z.string(),
+});
+
+export type RabbitmqConfig = z.infer<typeof rabbitmqConfigSchema>;

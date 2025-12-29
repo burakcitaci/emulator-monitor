@@ -80,6 +80,19 @@ export class AwsSqsConnectionException extends HttpException {
   }
 }
 
+export class RabbitmqConnectionException extends HttpException {
+  constructor(message = 'Failed to connect to RabbitMQ') {
+    super(
+      {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        error: 'RabbitMQ Connection Error',
+        message,
+      },
+      HttpStatus.SERVICE_UNAVAILABLE
+    );
+  }
+}
+
 export class ValidationException extends HttpException {
   constructor(message: string, errors?: any[]) {
     super(

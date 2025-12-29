@@ -21,9 +21,5 @@
     "eslint.config.cjs",
     "eslint.config.mjs"
   ],
-  "references": [
-    {
-      "path": "../../libs/shared/entities/tsconfig.lib.json"
-    }
-  ]
+  "references": []
 }
