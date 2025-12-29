@@ -7,7 +7,9 @@
   },
   "private": true,
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.700.0",
+    "@aws-sdk/client-sqs": "^3.958.0",
+    "@e2e-monitor/entities": "0.0.1",
+    "uuid": "^13.0.0",
     "@azure/service-bus": "7.10.0-beta.2",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
