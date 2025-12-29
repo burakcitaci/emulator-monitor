@@ -99,12 +99,28 @@
   ],
   "targetDefaults": {
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": {
+        "NODE_OPTIONS": "--no-deprecation"
+      }
     },
     "e2e": {
       "dependsOn": ["^build"],
       "cache": true,
-      "inputs": ["default", "^production"]
+      "inputs": ["default", "^production"],
+      "env": {
+        "NODE_OPTIONS": "--no-deprecation"
+      }
+    },
+    "lint": {
+      "env": {
+        "NODE_OPTIONS": "--no-deprecation"
+      }
+    },
+    "build": {
+      "env": {
+        "NODE_OPTIONS": "--no-deprecation"
+      }
     }
   },
   "generators": {
