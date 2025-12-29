@@ -20,6 +20,9 @@ import {
 } from '../ui/select';
 import { Button } from '../ui/button';
 import { useSendServiceBusMessage } from '../../hooks/api/service-bus';
+import { useSendSqsMessage, useAwsSqsConfig } from '../../hooks/api/aws-sqs';
+
+type ServiceType = 'service-bus' | 'sqs';
 
 interface SendMessageModalProps {
   open: boolean;
@@ -32,12 +35,21 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
   onOpenChange,
   destinations,
 }) => {
+  const [serviceType, setServiceType] = useState<ServiceType>('service-bus');
   const [queue, setQueue] = useState('__default__');
   const [body, setBody] = useState('');
   const [sentBy, setSentBy] = useState('');
   const [messageDisposition, setMessageDisposition] = useState<'complete' | 'abandon' | 'deadletter' | 'defer'>('complete');
+  // SQS-specific fields
+  const [messageGroupId, setMessageGroupId] = useState('');
+  const [messageDeduplicationId, setMessageDeduplicationId] = useState('');
+  const [delaySeconds, setDelaySeconds] = useState<number | undefined>(undefined);
 
-  const sendMutation = useSendServiceBusMessage();
+  const sendServiceBusMutation = useSendServiceBusMessage();
+  const sendSqsMutation = useSendSqsMessage();
+  const { data: awsSqsConfig } = useAwsSqsConfig();
+
+  const sendMutation = serviceType === 'service-bus' ? sendServiceBusMutation : sendSqsMutation;
 
   const generateRandomJson = () => {
     const sampleData = {
@@ -55,7 +67,9 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
   };
 
   const generateRandomSender = () => {
-    const prefixes = ['service-bus', 'api', 'worker', 'scheduler', 'processor', 'handler'];
+    const prefixes = serviceType === 'service-bus' 
+      ? ['service-bus', 'api', 'worker', 'scheduler', 'processor', 'handler']
+      : ['aws-sqs', 'lambda', 'worker', 'scheduler', 'processor', 'handler'];
     const suffixes = ['api', 'service', 'worker', 'processor', 'handler', 'client'];
     const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
     const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
@@ -71,17 +85,40 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
     }
 
     try {
-      const messagePayload = {
-        queue: queue === '__default__' ? undefined : queue.trim() || undefined,
-        body: body.trim(),
-        sentBy: sentBy.trim() || undefined,
-        messageDisposition: messageDisposition,
-      };
-      console.log('Sending message with disposition:', messageDisposition, 'Full payload:', messagePayload);
-      await sendMutation.mutateAsync(messagePayload);
+      if (serviceType === 'service-bus') {
+        const messagePayload = {
+          queue: queue === '__default__' ? undefined : queue.trim() || undefined,
+          body: body.trim(),
+          sentBy: sentBy.trim() || undefined,
+          messageDisposition: messageDisposition,
+        };
+        await sendServiceBusMutation.mutateAsync(messagePayload);
+      } else {
+        // SQS
+        const queueNameOrUrl = queue === '__default__' 
+          ? (awsSqsConfig?.queueName || undefined)
+          : queue.trim() || undefined;
+        
+        // If it's a full URL, use it; otherwise construct URL or use queue name
+        const queueUrl = queueNameOrUrl?.startsWith('http') 
+          ? queueNameOrUrl
+          : queueNameOrUrl
+            ? `http://localhost:4566/000000000000/${queueNameOrUrl}`
+            : undefined;
+
+        const messagePayload = {
+          queueUrl,
+          body: body.trim(),
+          sentBy: sentBy.trim() || undefined,
+          messageGroupId: messageGroupId.trim() || undefined,
+          messageDeduplicationId: messageDeduplicationId.trim() || undefined,
+          delaySeconds: delaySeconds !== undefined ? delaySeconds : undefined,
+        };
+        await sendSqsMutation.mutateAsync(messagePayload);
+      }
 
       toast.success('Message simulated successfully', {
-        description: 'The message has been enqueued.',
+        description: `The message has been enqueued to ${serviceType === 'service-bus' ? 'Service Bus' : 'AWS SQS'}.`,
       });
 
       // Reset form
@@ -89,6 +126,9 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
       setBody('');
       setSentBy('');
       setMessageDisposition('complete');
+      setMessageGroupId('');
+      setMessageDeduplicationId('');
+      setDelaySeconds(undefined);
       onOpenChange(false);
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -104,13 +144,35 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
         <SheetHeader>
           <SheetTitle>Simulate Message</SheetTitle>
           <SheetDescription>
-            Simulate sending a message to the Service Bus queue. The message will be tracked.
+            Simulate sending a message to {serviceType === 'service-bus' ? 'Azure Service Bus' : 'AWS SQS'}. The message will be tracked.
           </SheetDescription>
         </SheetHeader>
         <form onSubmit={handleSendMessage}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="queue">Queue Name (optional)</Label>
+              <Label htmlFor="serviceType">Service Type</Label>
+              <Select value={serviceType} onValueChange={(value: ServiceType) => {
+                setServiceType(value);
+                // Reset form fields when switching service types
+                setQueue('__default__');
+                setMessageDisposition('complete');
+                setMessageGroupId('');
+                setMessageDeduplicationId('');
+                setDelaySeconds(undefined);
+              }}>
+                <SelectTrigger id="serviceType">
+                  <SelectValue placeholder="Select service type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="service-bus">Azure Service Bus</SelectItem>
+                  <SelectItem value="sqs">AWS SQS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="queue">
+                {serviceType === 'service-bus' ? 'Queue Name' : 'Queue Name/URL'} (optional)
+              </Label>
               <Select value={queue} onValueChange={setQueue}>
                 <SelectTrigger id="queue">
                   <SelectValue placeholder="Select a queue or leave empty for default" />
@@ -166,31 +228,76 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
               </div>
               <Input
                 id="sentBy"
-                placeholder="service-bus-api"
+                placeholder={serviceType === 'service-bus' ? 'service-bus-api' : 'aws-sqs-api'}
                 value={sentBy}
                 onChange={(e) => setSentBy(e.target.value)}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="disposition">Message Disposition</Label>
-              <Select value={messageDisposition} onValueChange={(value: 'complete' | 'abandon' | 'deadletter' | 'defer') => setMessageDisposition(value)}>
-                <SelectTrigger id="disposition">
-                  <SelectValue placeholder="Select message disposition" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="complete">Complete</SelectItem>
-                  <SelectItem value="abandon">Abandon</SelectItem>
-                  <SelectItem value="deadletter">Dead Letter</SelectItem>
-                  <SelectItem value="defer">Defer</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {messageDisposition === 'complete' && 'Message will be completed and removed from the queue.'}
-                {messageDisposition === 'abandon' && 'Message will be abandoned and returned to the queue for reprocessing.'}
-                {messageDisposition === 'deadletter' && 'Message will be moved to the dead-letter queue.'}
-                {messageDisposition === 'defer' && 'Message will be deferred and can be received later using sequence number.'}
-              </p>
-            </div>
+            {serviceType === 'service-bus' && (
+              <div className="grid gap-2">
+                <Label htmlFor="disposition">Message Disposition</Label>
+                <Select value={messageDisposition} onValueChange={(value: 'complete' | 'abandon' | 'deadletter' | 'defer') => setMessageDisposition(value)}>
+                  <SelectTrigger id="disposition">
+                    <SelectValue placeholder="Select message disposition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="complete">Complete</SelectItem>
+                    <SelectItem value="abandon">Abandon</SelectItem>
+                    <SelectItem value="deadletter">Dead Letter</SelectItem>
+                    <SelectItem value="defer">Defer</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {messageDisposition === 'complete' && 'Message will be completed and removed from the queue.'}
+                  {messageDisposition === 'abandon' && 'Message will be abandoned and returned to the queue for reprocessing.'}
+                  {messageDisposition === 'deadletter' && 'Message will be moved to the dead-letter queue.'}
+                  {messageDisposition === 'defer' && 'Message will be deferred and can be received later using sequence number.'}
+                </p>
+              </div>
+            )}
+            {serviceType === 'sqs' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="messageGroupId">Message Group ID (FIFO queues only, optional)</Label>
+                  <Input
+                    id="messageGroupId"
+                    placeholder="group-123"
+                    value={messageGroupId}
+                    onChange={(e) => setMessageGroupId(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Required for FIFO queues. Messages with the same group ID are processed in order.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="messageDeduplicationId">Message Deduplication ID (FIFO queues only, optional)</Label>
+                  <Input
+                    id="messageDeduplicationId"
+                    placeholder="dedup-123"
+                    value={messageDeduplicationId}
+                    onChange={(e) => setMessageDeduplicationId(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used to prevent duplicate messages in FIFO queues within the deduplication interval.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="delaySeconds">Delay Seconds (optional)</Label>
+                  <Input
+                    id="delaySeconds"
+                    type="number"
+                    min="0"
+                    max="900"
+                    placeholder="0"
+                    value={delaySeconds ?? ''}
+                    onChange={(e) => setDelaySeconds(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The number of seconds to delay the message (0-900). Messages become available after this delay.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
           <SheetFooter>
             <Button

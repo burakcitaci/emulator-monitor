@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Eye, Trash, ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
@@ -77,8 +78,10 @@ const createColumns = (
   onMessageSelect: (message: TrackingMessage) => void,
   sentByOptions: Option[],
   receivedByOptions: Option[],
+  emulatorTypeOptions: Option[],
   sentByFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
   receivedByFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
+  emulatorTypeFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
   statusFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
   isDeleting: boolean,
 ): ColumnDef<TrackingMessage>[] => [
@@ -93,6 +96,30 @@ const createColumns = (
           {row.original.queue || '-'}
         </div>
       );
+    },
+  },
+  {
+    accessorKey: 'emulatorType',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Emulator" />
+    ),
+    cell: ({ row }) => {
+      const emulatorType = (row.original as any).emulatorType;
+      const displayText = emulatorType === 'azure-service-bus' ? 'Azure SB' :
+                         emulatorType === 'sqs' ? 'SQS' : emulatorType || '-';
+
+      return (
+        <div className="text-xs">
+          {displayText}
+        </div>
+      );
+    },
+    enableColumnFilter: true,
+    filterFn: emulatorTypeFilterFn,
+    meta: {
+      variant: 'multiSelect',
+      label: 'Emulator',
+      options: emulatorTypeOptions,
     },
   },
   {
@@ -335,7 +362,15 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
       new Set(safeMessages.map(m => m.receivedBy).filter((v): v is string => Boolean(v)))
     ).map(value => ({ label: value, value }));
 
-    return { sentByOptions, receivedByOptions };
+    const emulatorTypeOptions = Array.from(
+      new Set(safeMessages.map(m => (m as any).emulatorType).filter((v): v is string => Boolean(v)))
+    ).map(value => ({
+      label: value === 'azure-service-bus' ? 'Azure Service Bus' :
+             value === 'sqs' ? 'SQS' : value,
+      value
+    }));
+
+    return { sentByOptions, receivedByOptions, emulatorTypeOptions };
   }, [safeMessages]);
 
   // Memoize filter functions to prevent unnecessary re-renders
@@ -347,6 +382,11 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
   const receivedByFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
     if (!value || !Array.isArray(value)) return true;
     return value.includes(row.original.receivedBy);
+  }, []);
+
+  const emulatorTypeFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
+    if (!value || !Array.isArray(value)) return true;
+    return value.includes((row.original as any).emulatorType);
   }, []);
 
   const statusFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
@@ -361,8 +401,10 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
         handleMessageSelect,
         filterOptions.sentByOptions,
         filterOptions.receivedByOptions,
+        filterOptions.emulatorTypeOptions,
         sentByFilterFn,
         receivedByFilterFn,
+        emulatorTypeFilterFn,
         statusFilterFn,
         isDeleting,
       ),
@@ -371,8 +413,10 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
       handleMessageSelect,
       filterOptions.sentByOptions,
       filterOptions.receivedByOptions,
+      filterOptions.emulatorTypeOptions,
       sentByFilterFn,
       receivedByFilterFn,
+      emulatorTypeFilterFn,
       statusFilterFn,
       isDeleting,
     ],
@@ -393,7 +437,14 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
           <SheetHeader>
             <SheetTitle className="text-lg font-semibold">
               <div className='flex items-center justify-between px-4'>
-                <label className="block text-sm font-bold uppercase text-gray-700 mb-1">Tracking Message Details</label>
+                <div className="flex items-center gap-2">
+                  <label className="block text-sm font-bold uppercase text-gray-700 mb-1">Tracking Message Details</label>
+                  <Badge variant="outline" className="text-xs">
+                    {(selectedMessage as any)?.emulatorType === 'azure-service-bus' ? 'Azure SB' :
+                     (selectedMessage as any)?.emulatorType === 'sqs' ? 'SQS' :
+                     (selectedMessage as any)?.emulatorType || 'Unknown'}
+                  </Badge>
+                </div>
                 <Badge variant={selectedMessage?.status === 'received' ? 'default' : 'secondary'} className="text-sm">
                   {selectedMessage?.status === 'received' ? 'Completed' : 'Sent'}
                 </Badge>

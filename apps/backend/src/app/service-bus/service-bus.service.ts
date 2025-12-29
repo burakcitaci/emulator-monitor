@@ -58,6 +58,7 @@ export class ServiceBusService implements OnModuleDestroy {
         sentAt: new Date(),
         status: 'processing', // Mark as processing until worker handles it
         queue: queueName,
+        emulatorType: 'azure-service-bus',
         // Don't set disposition until message is processed by worker
       });
       this.logger.log(`Sent Service Bus message ${messageId} to ${queueName} and created tracking entry with status: processing`);

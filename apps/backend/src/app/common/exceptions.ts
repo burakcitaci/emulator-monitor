@@ -67,6 +67,19 @@ export class ServiceBusConnectionException extends HttpException {
   }
 }
 
+export class AwsSqsConnectionException extends HttpException {
+  constructor(message = 'Failed to connect to AWS SQS (LocalStack)') {
+    super(
+      {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        error: 'AWS SQS Connection Error',
+        message,
+      },
+      HttpStatus.SERVICE_UNAVAILABLE
+    );
+  }
+}
+
 export class ValidationException extends HttpException {
   constructor(message: string, errors?: any[]) {
     super(

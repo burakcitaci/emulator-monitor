@@ -12,6 +12,7 @@ import { CommonModule } from './common/common.module';
 import { AppConfigService } from './common/app-config.service';
 import { MessageModule } from './messages/messages.module';
 import { ServiceBusModule } from './service-bus/service-bus.module';
+import { AwsSqsModule } from './aws-sqs/aws-sqs.module';
 import { HealthModule } from './health/health.module';
 import { LoggingInterceptor } from './common/logging.interceptor';
 import { HttpExceptionFilter } from './common/http-exception.filter';
@@ -41,6 +42,11 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
         MONGO_AUTH_SOURCE: Joi.string().default('admin'),
         THROTTLE_TTL: Joi.number().default(60),
         THROTTLE_LIMIT: Joi.number().default(60),
+        AWS_SQS_ENDPOINT: Joi.string().default('http://localhost:4566'),
+        AWS_REGION: Joi.string().default('us-east-1'),
+        AWS_ACCESS_KEY_ID: Joi.string().default('test'),
+        AWS_SECRET_ACCESS_KEY: Joi.string().default('test'),
+        AWS_SQS_QUEUE_NAME: Joi.string().default('orders-queue'),
       }),
     }),
     CommonModule,
@@ -73,6 +79,7 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
     }),
     MessageModule,
     ServiceBusModule,
+    AwsSqsModule,
     HealthModule,
   ],
   controllers: [AppController],

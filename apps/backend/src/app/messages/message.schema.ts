@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document } from 'mongoose';
 
 export type TrackingMessageDocument = TrackingMessage & Document;
 
@@ -33,6 +33,9 @@ export class TrackingMessage {
 
   @Prop({ enum: ['complete', 'abandon', 'deadletter', 'defer'] })
   disposition?: string;
+
+  @Prop({ required: true, enum: ['sqs', 'azure-service-bus'], default: 'azure-service-bus' })
+  emulatorType?: string;
 }
 
 

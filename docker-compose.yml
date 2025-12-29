@@ -95,6 +95,33 @@ services:
     volumes:
       - ./.mocks:/home/wiremock/mappings
 
+  # --------------------------------------------------------------------------------------------------
+
+  localstack:
+    container_name: "localstack"
+    image: localstack/localstack:latest
+    pull_policy: always
+    ports:
+      - "4566:4566"            # LocalStack edge port
+      - "4510-4559:4510-4559"  # External services port range
+    environment:
+      - SERVICES=s3,sqs,sns,lambda,dynamodb,apigateway,cloudformation,iam,sts,logs,events,stepfunctions,secretsmanager,ssm
+      - DEBUG=${DEBUG:-0}
+      - DATA_DIR=/var/lib/localstack/data
+      - PERSISTENCE=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - LAMBDA_EXECUTOR=docker-reuse
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - "./localstack-data:/var/lib/localstack/data"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      sb-emulator:
+        aliases:
+          - "localstack"
+
 # --------------------------------------------------------------------------------------------------
 
 networks:

@@ -148,6 +148,26 @@ export class AppConfigService {
     return this.config.get<number>('THROTTLE_LIMIT', 60);
   }
 
+  get awsSqsEndpoint(): string {
+    return this.config.get<string>('AWS_SQS_ENDPOINT', 'http://localhost:4566');
+  }
+
+  get awsRegion(): string {
+    return this.config.get<string>('AWS_REGION', 'us-east-1');
+  }
+
+  get awsAccessKeyId(): string {
+    return this.config.get<string>('AWS_ACCESS_KEY_ID', 'test');
+  }
+
+  get awsSecretAccessKey(): string {
+    return this.config.get<string>('AWS_SECRET_ACCESS_KEY', 'test');
+  }
+
+  get awsSqsQueueName(): string {
+    return this.config.get<string>('AWS_SQS_QUEUE_NAME', 'orders-queue');
+  }
+
   getDockerConfig() {
     return {
       socketPath: this.dockerSocketPath,
@@ -242,6 +262,16 @@ export class AppConfigService {
           Type: 'console',
         },
       },
+    };
+  }
+
+  getAwsSqsConfiguration() {
+    return {
+      endpoint: this.awsSqsEndpoint,
+      region: this.awsRegion,
+      queueName: this.awsSqsQueueName,
+      accessKeyId: this.awsAccessKeyId,
+      // Don't expose secret in config response
     };
   }
 }

@@ -43,10 +43,24 @@ export const trackingMessageSchema = z.preprocess(
     receivedAt: z.coerce.date().optional().nullable(),
     receivedBy: z.string().optional().nullable(),
     disposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional().nullable(),
+    emulatorType: z.enum(['sqs', 'azure-service-bus']).optional().nullable(),
   })
 );
 
-export type TrackingMessage = z.infer<typeof trackingMessageSchema>;
+// Explicit type definition to ensure emulatorType is included
+export type TrackingMessage = {
+  _id: string;
+  messageId: string;
+  body: string;
+  sentBy: string;
+  sentAt: Date;
+  status: 'sent' | 'processing' | 'received';
+  queue?: string | null;
+  receivedAt?: Date | null;
+  receivedBy?: string | null;
+  disposition?: 'complete' | 'abandon' | 'deadletter' | 'defer' | null;
+  emulatorType?: 'sqs' | 'azure-service-bus' | null;
+};
 
 // Message filters schema
 export const messageFiltersSchema = z.object({
@@ -69,7 +83,7 @@ export const sendServiceBusMessageSchema = z.object({
   sentBy: z.string().optional(),
   receivedBy: z.string().optional(),
   messageDisposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional(),
-  applicationProperties: z.record(z.any()).optional(),
+  applicationProperties: z.record(z.string(), z.any()).optional(),
 });
 
 export type SendServiceBusMessage = z.infer<typeof sendServiceBusMessageSchema>;
@@ -153,3 +167,38 @@ export const serviceBusConfigSchema = z.object({
 });
 
 export type ServiceBusConfig = z.infer<typeof serviceBusConfigSchema>;
+
+// Send SQS message request schema
+export const sendSqsMessageSchema = z.object({
+  queueUrl: z.string().optional(),
+  body: z.string(),
+  messageId: z.string().optional(),
+  sentBy: z.string().optional(),
+  messageGroupId: z.string().optional(), // For FIFO queues
+  messageDeduplicationId: z.string().optional(), // For FIFO queues
+  messageAttributes: z.record(z.string(), z.any()).optional(),
+  delaySeconds: z.number().optional(),
+  messageDisposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional(),
+});
+
+export type SendSqsMessage = z.infer<typeof sendSqsMessageSchema>;
+
+// Receive SQS message request schema
+export const receiveSqsMessageSchema = z.object({
+  queueUrl: z.string().optional(),
+  receivedBy: z.string(),
+  maxNumberOfMessages: z.number().optional(),
+  waitTimeSeconds: z.number().optional(),
+});
+
+export type ReceiveSqsMessage = z.infer<typeof receiveSqsMessageSchema>;
+
+// AWS SQS config schema
+export const awsSqsConfigSchema = z.object({
+  endpoint: z.string(),
+  region: z.string(),
+  queueName: z.string(),
+  accessKeyId: z.string(),
+});
+
+export type AwsSqsConfig = z.infer<typeof awsSqsConfigSchema>;

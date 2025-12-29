@@ -11,6 +11,10 @@ import {
   ReceiveServiceBusMessage,
   ServiceBusConfig,
   serviceBusConfigSchema,
+  SendSqsMessage,
+  ReceiveSqsMessage,
+  AwsSqsConfig,
+  awsSqsConfigSchema,
 } from './schemas';
 
 class ApiError extends Error {
@@ -233,6 +237,64 @@ class ApiClient {
 
     if (!response.success || !response.data) {
       throw new ApiError(500, response.message || 'Failed to fetch Service Bus config');
+    }
+
+    return response.data;
+  }
+
+  // AWS SQS API
+  async sendSqsMessage(message: SendSqsMessage) {
+    const response = await this.request(
+      '/aws-sqs/messages',
+      {
+        method: 'POST',
+        body: JSON.stringify(message),
+      },
+      sendMessageResponseSchema
+    );
+
+    if (!response.success || !response.data) {
+      throw new ApiError(500, response.message || 'Failed to send SQS message');
+    }
+
+    return response.data;
+  }
+
+  async receiveSqsMessage(message: ReceiveSqsMessage) {
+    const response = await this.request(
+      '/aws-sqs/messages/receive',
+      {
+        method: 'POST',
+        body: JSON.stringify(message),
+      },
+      apiResponseSchema(
+        z.object({
+          queueName: z.string(),
+          queueUrl: z.string(),
+          messageId: z.string(),
+          receiptHandle: z.string().optional(),
+          body: z.string(),
+          messageAttributes: z.record(z.any()).optional(),
+          md5OfBody: z.string().optional(),
+        }).nullable()
+      )
+    );
+
+    return response;
+  }
+
+  async getAwsSqsConfig(): Promise<AwsSqsConfig> {
+    const response = await this.request(
+      '/aws-sqs/config',
+      undefined,
+      z.object({
+        success: z.boolean(),
+        data: awsSqsConfigSchema,
+      })
+    );
+
+    if (!response.success || !response.data) {
+      throw new ApiError(500, response.message || 'Failed to fetch AWS SQS config');
     }
 
     return response.data;
