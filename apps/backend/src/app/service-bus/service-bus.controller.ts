@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { SendServiceBusMessageDto } from './dto/send-service-bus-message.dto';
+import { ReceiveServiceBusMessageDto } from './dto/receive-service-bus-message.dto';
 import { ServiceBusService } from './service-bus.service';
 import { AppConfigService } from '../common/app-config.service';
 
@@ -18,6 +19,12 @@ export class ServiceBusController {
       message: 'Message enqueued successfully',
       data: result,
     };
+  }
+
+  @Post('messages/receive')
+  async receiveMessage(@Body() dto: ReceiveServiceBusMessageDto) {
+    const result = await this.serviceBusService.receiveMessage(dto);
+    return result;
   }
 
   @Get('config')

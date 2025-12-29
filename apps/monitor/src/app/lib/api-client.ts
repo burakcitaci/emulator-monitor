@@ -5,8 +5,10 @@ import {
   trackingMessageResponseSchema,
   sendMessageResponseSchema,
   deleteMessageResponseSchema,
+  apiResponseSchema,
   TrackingMessage,
   SendServiceBusMessage,
+  ReceiveServiceBusMessage,
   ServiceBusConfig,
   serviceBusConfigSchema,
 } from './schemas';
@@ -198,6 +200,25 @@ class ApiClient {
     }
 
     return response.data;
+  }
+
+  async receiveMessage(message: ReceiveServiceBusMessage) {
+    const response = await this.request(
+      '/service-bus/messages/receive',
+      {
+        method: 'POST',
+        body: JSON.stringify(message),
+      },
+      apiResponseSchema(
+        z.object({
+          queueName: z.string(),
+          messageId: z.string(),
+          body: z.string(),
+        }).nullable()
+      )
+    );
+
+    return response;
   }
 
   async getServiceBusConfig(): Promise<ServiceBusConfig> {

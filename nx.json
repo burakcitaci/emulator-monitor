@@ -56,7 +56,6 @@
       "plugin": "@nx/vite/plugin",
       "options": {
         "buildTargetName": "build",
-        "testTargetName": "test",
         "serveTargetName": "serve",
         "devTargetName": "dev",
         "previewTargetName": "preview",
@@ -90,7 +89,13 @@
       },
       "exclude": ["apps/backend-e2e/**/*"]
     },
-    "@nx/dotnet"
+    "@nx/dotnet",
+    {
+      "plugin": "@nx/vitest",
+      "options": {
+        "testTargetName": "test"
+      }
+    }
   ],
   "targetDefaults": {
     "test": {

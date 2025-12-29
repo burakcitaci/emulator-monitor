@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, ApiError } from '../../lib/api-client';
-import { SendServiceBusMessage } from '../../lib/schemas';
+import { SendServiceBusMessage, ReceiveServiceBusMessage } from '../../lib/schemas';
+import { trackingMessageKeys } from './tracking-messages';
 
 // Query keys
 export const serviceBusKeys = {
@@ -25,8 +26,27 @@ export const useServiceBusConfig = () => {
 };
 
 export const useSendServiceBusMessage = () => {
+  const queryClient = useQueryClient();
+  
   return useMutation({
     mutationFn: (message: SendServiceBusMessage) =>
       apiClient.sendMessage(message),
+    onSuccess: () => {
+      // Invalidate tracking messages to refresh the list
+      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
+    },
+  });
+};
+
+export const useReceiveServiceBusMessage = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (message: ReceiveServiceBusMessage) =>
+      apiClient.receiveMessage(message),
+    onSuccess: () => {
+      // Invalidate tracking messages to refresh the list
+      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
+    },
   });
 };

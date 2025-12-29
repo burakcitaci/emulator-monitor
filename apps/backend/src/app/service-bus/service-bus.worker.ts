@@ -11,8 +11,8 @@ import { AppLogger } from '../common/logger.service';
 
 @Injectable()
 export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
-  private receiver?: ServiceBusReceiver;
-  private subscription?: { close(): Promise<void> };
+  private receivers: Map<string, ServiceBusReceiver> = new Map();
+  private subscriptions: Map<string, { close(): Promise<void> }> = new Map();
 
   constructor(
     private readonly serviceBusService: ServiceBusService,
@@ -24,41 +24,100 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    const queue = this.config.serviceBusQueue;
-    if (!queue) {
-      this.logger.warn('SERVICE_BUS_QUEUE not configured. Skipping processor bootstrap.');
-      return;
-    }
+    try {
+      // Get all queues from Service Bus configuration
+      const serviceBusConfig = this.config.getServiceBusConfiguration();
+      const queues: string[] = [];
 
-    this.receiver = this.serviceBusService.createReceiver(queue);
+      if (serviceBusConfig?.UserConfig?.Namespaces) {
+        serviceBusConfig.UserConfig.Namespaces.forEach((namespace) => {
+          if (namespace.Queues) {
+            namespace.Queues.forEach((q) => {
+              queues.push(q.Name);
+            });
+          }
+        });
+      }
 
-    const handlers: MessageHandlers = {
-      processMessage: async (message) => {
-        const messageId = message.messageId?.toString();
-        const receivedBy = (message.applicationProperties?.['receivedBy'] as string) ?? 'service-bus-worker';
-
-        if (messageId) {
-          await this.messageService.markMessageReceived(messageId, receivedBy);
+      // Fallback to default queue if no queues found in config
+      if (queues.length === 0) {
+        const defaultQueue = this.config.serviceBusQueue;
+        if (defaultQueue) {
+          queues.push(defaultQueue);
+          this.logger.warn('No queues found in config, using default queue from SERVICE_BUS_QUEUE');
+        } else {
+          this.logger.warn('SERVICE_BUS_QUEUE not configured and no queues found in config. Skipping processor bootstrap.');
+          return;
         }
+      }
 
-        await this.receiver?.completeMessage(message);
-      },
-      processError: async (args: ProcessErrorArgs) => {
-        this.logger.error('Service Bus processor error', args.error);
-      },
-    };
+      // Subscribe to all queues
+      for (const queueName of queues) {
+        try {
+          const receiver = this.serviceBusService.createReceiver(queueName);
+          this.receivers.set(queueName, receiver);
 
-    this.subscription = this.receiver.subscribe(handlers, {
-      autoCompleteMessages: false,
-      maxConcurrentCalls: 5,
-    });
+          // Create handlers for each queue with receiver reference
+          const handlers: MessageHandlers = {
+            processMessage: async (message) => {
+              const messageId = message.messageId?.toString();
+              const receivedBy = (message.applicationProperties?.['receivedBy'] as string) ?? 'service-bus-worker';
 
-    this.logger.log(`Service Bus subscription started for queue ${queue}`);
+              if (messageId) {
+                await this.messageService.markMessageReceived(messageId, receivedBy);
+              }
+
+              // Complete the message using the receiver that processed it
+              await receiver.completeMessage(message);
+            },
+            processError: async (args: ProcessErrorArgs) => {
+              this.logger.error(`Service Bus processor error for queue ${queueName}:`, args.error);
+            },
+          };
+
+          const subscription = receiver.subscribe(handlers, {
+            autoCompleteMessages: false,
+            maxConcurrentCalls: 5,
+          });
+
+          this.subscriptions.set(queueName, subscription);
+          this.logger.log(`Service Bus subscription started for queue ${queueName}`);
+        } catch (error) {
+          this.logger.error(`Failed to subscribe to queue ${queueName}:`, error);
+        }
+      }
+
+      this.logger.log(`Service Bus subscriptions started for ${queues.length} queue(s): ${queues.join(', ')}`);
+    } catch (error) {
+      this.logger.error('Failed to initialize Service Bus worker:', error);
+    }
   }
 
   async onModuleDestroy() {
-    await this.subscription?.close();
-    await this.receiver?.close();
-    this.logger.log('Service Bus subscription stopped.');
+    // Close all subscriptions
+    await Promise.all(
+      Array.from(this.subscriptions.values()).map(async (subscription) => {
+        try {
+          await subscription.close();
+        } catch (error) {
+          this.logger.error('Error closing subscription:', error);
+        }
+      })
+    );
+
+    // Close all receivers
+    await Promise.all(
+      Array.from(this.receivers.values()).map(async (receiver) => {
+        try {
+          await receiver.close();
+        } catch (error) {
+          this.logger.error('Error closing receiver:', error);
+        }
+      })
+    );
+
+    this.receivers.clear();
+    this.subscriptions.clear();
+    this.logger.log('Service Bus subscriptions stopped.');
   }
 }

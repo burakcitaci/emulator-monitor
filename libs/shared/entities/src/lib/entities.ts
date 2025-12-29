@@ -274,6 +274,7 @@ export interface TrackingMessage {
   sentBy: string;
   sentAt: Date;
   status: 'sent' | 'received';
+  queue?: string;
   receivedAt?: Date;
   receivedBy?: string;
 }

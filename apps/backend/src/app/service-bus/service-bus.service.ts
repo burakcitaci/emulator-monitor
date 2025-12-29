@@ -12,6 +12,7 @@ import {
 import { randomUUID } from 'crypto';
 import { SERVICE_BUS_CLIENT } from './service-bus.constants';
 import { SendServiceBusMessageDto } from './dto/send-service-bus-message.dto';
+import { ReceiveServiceBusMessageDto } from './dto/receive-service-bus-message.dto';
 import { AppConfigService } from '../common/app-config.service';
 import { AppLogger } from '../common/logger.service';
 import { MessageService } from '../messages/messages.service';
@@ -54,6 +55,7 @@ export class ServiceBusService implements OnModuleDestroy {
       sentBy: dto.sentBy ?? 'service-bus-api',
       sentAt: new Date(),
       status: 'sent',
+      queue: queueName,
     });
 
     this.logger.log(`Sent Service Bus message ${messageId} to ${queueName}`);
@@ -65,6 +67,64 @@ export class ServiceBusService implements OnModuleDestroy {
     return this.client.createReceiver(queueName, {
       receiveMode: 'peekLock',
     });
+  }
+
+  async receiveMessage(dto: ReceiveServiceBusMessageDto) {
+    let entityName: string;
+
+    // Determine the entity to receive from
+    if (dto.queue) {
+      // Receiving from a queue
+      entityName = dto.queue;
+    } else if (dto.topic && dto.subscription) {
+      // Receiving from a topic subscription
+      entityName = `${dto.topic}/subscriptions/${dto.subscription}`;
+    } else {
+      // Fallback to default queue
+      entityName = this.config.serviceBusQueue;
+    }
+
+    const receiver = this.createReceiver(entityName);
+
+    try {
+      // Try to receive a message with a timeout
+      const messages = await receiver.receiveMessages(1, {
+        maxWaitTimeInMs: 5000, // 5 second timeout
+      });
+
+      if (messages.length === 0) {
+        return {
+          success: false,
+          message: 'No messages available',
+          data: null,
+        };
+      }
+
+      const message = messages[0];
+      const messageId = message.messageId?.toString();
+
+      if (messageId) {
+        // Mark message as received in tracking
+        await this.messageService.markMessageReceived(messageId, dto.receivedBy);
+      }
+
+      // Complete the message
+      await receiver.completeMessage(message);
+
+      this.logger.log(`Received Service Bus message ${messageId} from ${entityName} by ${dto.receivedBy}`);
+
+      return {
+        success: true,
+        message: 'Message received successfully',
+        data: {
+          queueName: entityName,
+          messageId,
+          body: typeof message.body === 'string' ? message.body : JSON.stringify(message.body),
+        },
+      };
+    } finally {
+      await receiver.close();
+    }
   }
 
   async ping(): Promise<void> {

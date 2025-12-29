@@ -39,6 +39,7 @@ export const trackingMessageSchema = z.preprocess(
     sentBy: z.string(),
     sentAt: z.coerce.date(),
     status: z.enum(['sent', 'received']),
+    queue: z.string().optional().nullable(),
     receivedAt: z.coerce.date().optional().nullable(),
     receivedBy: z.string().optional().nullable(),
   })
@@ -70,6 +71,16 @@ export const sendServiceBusMessageSchema = z.object({
 });
 
 export type SendServiceBusMessage = z.infer<typeof sendServiceBusMessageSchema>;
+
+// Receive message request schema
+export const receiveServiceBusMessageSchema = z.object({
+  queue: z.string().optional(),
+  topic: z.string().optional(),
+  subscription: z.string().optional(),
+  receivedBy: z.string(),
+});
+
+export type ReceiveServiceBusMessage = z.infer<typeof receiveServiceBusMessageSchema>;
 
 // API response types - handle both wrapped and unwrapped responses
 // Try wrapped format first (what backend returns), then fallback to array
