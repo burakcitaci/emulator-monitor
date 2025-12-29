@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
 import { useTrackingMessages, useDeleteTrackingMessage } from '../../hooks/api';
-import { AlertCircle, Send, Download } from 'lucide-react';
+import { AlertCircle, Send } from 'lucide-react';
 import { ToastAction } from '../ui/toast';
 import { toast } from 'sonner';
 import { LoadingSpinner } from '../ui/loading-spinner';
@@ -55,15 +55,15 @@ export const Messages: React.FC = () => {
     }));
   }, [messages]);
 
-  // Calculate statistics
+  // Calculate statistics by disposition
   const stats = React.useMemo(() => {
     const total = messages.length;
-    const sent = messages.filter((m) => m.status === 'sent').length;
-    const processing = messages.filter((m) => m.status === 'processing').length;
-    const received = messages.filter((m) => m.status === 'received').length;
-    const uniqueSenders = new Set(messages.map((m) => m.sentBy)).size;
+    const complete = messages.filter((m) => m.disposition === 'complete').length;
+    const abandon = messages.filter((m) => m.disposition === 'abandon').length;
+    const deadletter = messages.filter((m) => m.disposition === 'deadletter').length;
+    const defer = messages.filter((m) => m.disposition === 'defer').length;
 
-    return { total, sent, processing, received, uniqueSenders };
+    return { total, complete, abandon, deadletter, defer };
   }, [messages]);
 
   // Extract queues and topics from config
@@ -117,9 +117,8 @@ export const Messages: React.FC = () => {
   }
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <div className="space-y-6 flex-1 flex flex-col min-h-0">
-        <div className="flex flex-col gap-4 w-full flex-1 min-h-0">
+    <div className="p-6">
+      <div className="flex flex-col gap-4 w-full flex-1 min-h-0">
           {/* Error Messages */}
           {error && (
             <ErrorMessage
@@ -141,14 +140,10 @@ export const Messages: React.FC = () => {
               <Send className="mr-2 h-4 w-4" />
               Simulate Message
             </Button>
-            <Button variant="outline" disabled>
-              <Download className="mr-2 h-4 w-4" />
-              Receive Message
-            </Button>
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
@@ -159,26 +154,34 @@ export const Messages: React.FC = () => {
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Sent</CardTitle>
+                <CardTitle className="text-sm font-medium">Complete</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.sent}</div>
+                <div className="text-2xl font-bold">{stats.complete}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Received</CardTitle>
+                <CardTitle className="text-sm font-medium">Abandon</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.received}</div>
+                <div className="text-2xl font-bold">{stats.abandon}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Unique Senders</CardTitle>
+                <CardTitle className="text-sm font-medium">Dead Letter</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.uniqueSenders}</div>
+                <div className="text-2xl font-bold">{stats.deadletter}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Defer</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.defer}</div>
               </CardContent>
             </Card>
           </div>
@@ -192,7 +195,6 @@ export const Messages: React.FC = () => {
             />
           </div>
         </div>
-      </div>
 
       {/* Modals */}
       <SendMessageModal
