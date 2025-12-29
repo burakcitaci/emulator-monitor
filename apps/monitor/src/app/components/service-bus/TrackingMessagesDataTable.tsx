@@ -1,4 +1,4 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, Row } from '@tanstack/react-table';
 import { Eye, Trash, ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
 import { Badge } from '../ui/badge';
@@ -77,9 +77,9 @@ const createColumns = (
   onMessageSelect: (message: TrackingMessage) => void,
   sentByOptions: Option[],
   receivedByOptions: Option[],
-  sentByFilterFn: (row: TrackingMessage, id: string, value: unknown) => boolean,
-  receivedByFilterFn: (row: TrackingMessage, id: string, value: unknown) => boolean,
-  statusFilterFn: (row: TrackingMessage, id: string, value: unknown) => boolean,
+  sentByFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
+  receivedByFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
+  statusFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
   isDeleting: boolean,
 ): ColumnDef<TrackingMessage>[] => [
   {
@@ -250,8 +250,8 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
   onMessageDelete,
   isDeleting = false,
 }) => {
-  // Ensure messages is always an array
-  const safeMessages = messages || [];
+  // Ensure messages is always an array - wrapped in useMemo to fix ESLint warning
+  const safeMessages = React.useMemo(() => messages || [], [messages]);
   const [selectedMessage, setSelectedMessage] = useState<TrackingMessage | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBodyExpanded, setIsBodyExpanded] = useState(false);
@@ -270,30 +270,30 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
   // Memoize filter options to avoid recalculation on every render
   const filterOptions = React.useMemo(() => {
     const sentByOptions = Array.from(
-      new Set(safeMessages.map(m => m.sentBy).filter(Boolean))
+      new Set(safeMessages.map(m => m.sentBy).filter((v): v is string => Boolean(v)))
     ).map(value => ({ label: value, value }));
 
     const receivedByOptions = Array.from(
-      new Set(safeMessages.map(m => m.receivedBy).filter(Boolean))
+      new Set(safeMessages.map(m => m.receivedBy).filter((v): v is string => Boolean(v)))
     ).map(value => ({ label: value, value }));
 
     return { sentByOptions, receivedByOptions };
   }, [safeMessages]);
 
   // Memoize filter functions to prevent unnecessary re-renders
-  const sentByFilterFn = React.useCallback((row: TrackingMessage, id: string, value: unknown) => {
+  const sentByFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
     if (!value || !Array.isArray(value)) return true;
-    return value.includes(row.sentBy);
+    return value.includes(row.original.sentBy);
   }, []);
 
-  const receivedByFilterFn = React.useCallback((row: TrackingMessage, id: string, value: unknown) => {
+  const receivedByFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
     if (!value || !Array.isArray(value)) return true;
-    return value.includes(row.receivedBy);
+    return value.includes(row.original.receivedBy);
   }, []);
 
-  const statusFilterFn = React.useCallback((row: TrackingMessage, id: string, value: unknown) => {
+  const statusFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
     if (!value || !Array.isArray(value)) return true;
-    return value.includes(row.status);
+    return value.includes(row.original.status);
   }, []);
 
   const columns = React.useMemo(

@@ -49,14 +49,20 @@ export class ServiceBusService implements OnModuleDestroy {
 
     await sender.sendMessages(serviceBusMessage);
 
-    await this.messageService.createTracking({
-      messageId,
-      body: typeof body === 'string' ? body : JSON.stringify(body),
-      sentBy: dto.sentBy ?? 'service-bus-api',
-      sentAt: new Date(),
-      status: 'sent',
-      queue: queueName,
-    });
+    try {
+      await this.messageService.createTracking({
+        messageId,
+        body: typeof body === 'string' ? body : JSON.stringify(body),
+        sentBy: dto.sentBy ?? 'service-bus-api',
+        sentAt: new Date(),
+        status: 'sent',
+        queue: queueName,
+      });
+      this.logger.log(`Sent Service Bus message ${messageId} to ${queueName} and created tracking entry`);
+    } catch (error) {
+      this.logger.error(`Failed to create tracking entry for message ${messageId} sent to ${queueName}:`, error);
+      // Don't throw - message was sent successfully, tracking failure shouldn't block the operation
+    }
 
     this.logger.log(`Sent Service Bus message ${messageId} to ${queueName}`);
 

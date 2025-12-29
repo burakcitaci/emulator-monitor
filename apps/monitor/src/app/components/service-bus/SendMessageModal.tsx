@@ -1,13 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
+import { Send, Shuffle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
-import { Button } from '../ui/button';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '../ui/sheet';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import {
@@ -17,46 +18,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { useSendServiceBusMessage, useServiceBusConfig } from '../../hooks/api/service-bus';
-import { toast } from 'sonner';
-import { Send } from 'lucide-react';
+import { Button } from '../ui/button';
+import { useSendServiceBusMessage } from '../../hooks/api/service-bus';
 
 interface SendMessageModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  destinations: string[];
 }
 
 export const SendMessageModal: React.FC<SendMessageModalProps> = ({
   open,
   onOpenChange,
+  destinations,
 }) => {
-  const [queue, setQueue] = useState('');
+  const [queue, setQueue] = useState('__default__');
   const [body, setBody] = useState('');
   const [sentBy, setSentBy] = useState('');
 
   const sendMutation = useSendServiceBusMessage();
-  const { data: config } = useServiceBusConfig();
 
-  // Extract queues and topics from config
-  const destinations = useMemo(() => {
-    if (!config?.UserConfig?.Namespaces) return [];
-    const allDestinations: string[] = [];
-    config.UserConfig.Namespaces.forEach((namespace) => {
-      if (namespace.Queues) {
-        namespace.Queues.forEach((q) => {
-          allDestinations.push(q.Name);
-        });
-      }
-      if (namespace.Topics) {
-        namespace.Topics.forEach((t) => {
-          allDestinations.push(t.Name);
-        });
-      }
-    });
-    return allDestinations.sort();
-  }, [config]);
+  const generateRandomJson = () => {
+    const sampleData = {
+      id: Math.random().toString(36).substring(7),
+      timestamp: new Date().toISOString(),
+      event: ['created', 'updated', 'deleted', 'processed'][Math.floor(Math.random() * 4)],
+      userId: Math.floor(Math.random() * 10000),
+      metadata: {
+        source: ['web', 'api', 'mobile', 'batch'][Math.floor(Math.random() * 4)],
+        version: `v${Math.floor(Math.random() * 5) + 1}.${Math.floor(Math.random() * 10)}`,
+      },
+      value: Math.floor(Math.random() * 1000),
+    };
+    setBody(JSON.stringify(sampleData, null, 2));
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const generateRandomSender = () => {
+    const prefixes = ['service-bus', 'api', 'worker', 'scheduler', 'processor', 'handler'];
+    const suffixes = ['api', 'service', 'worker', 'processor', 'handler', 'client'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+    setSentBy(`${prefix}-${suffix}`);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!body.trim()) {
@@ -89,19 +94,19 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Simulate Message</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-2/6 sm:max-w-4xl">
+        <SheetHeader>
+          <SheetTitle>Simulate Message</SheetTitle>
+          <SheetDescription>
             Simulate sending a message to the Service Bus queue. The message will be tracked.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit}>
+          </SheetDescription>
+        </SheetHeader>
+        <form onSubmit={handleSendMessage}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="queue">Queue Name (optional)</Label>
-              <Select value={queue || '__default__'} onValueChange={setQueue}>
+              <Select value={queue} onValueChange={setQueue}>
                 <SelectTrigger id="queue">
                   <SelectValue placeholder="Select a queue or leave empty for default" />
                 </SelectTrigger>
@@ -116,9 +121,21 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="body">
-                Message Body <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="body">
+                  Message Body <span className="text-destructive">*</span>
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={generateRandomJson}
+                  className="h-7 text-xs"
+                >
+                  <Shuffle className="mr-1 h-3 w-3" />
+                  Random JSON
+                </Button>
+              </div>
               <textarea
                 id="body"
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -129,7 +146,19 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="sentBy">Sent By (optional)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sentBy">Sent By (optional)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={generateRandomSender}
+                  className="h-7 text-xs"
+                >
+                  <Shuffle className="mr-1 h-3 w-3" />
+                  Random Sender
+                </Button>
+              </div>
               <Input
                 id="sentBy"
                 placeholder="service-bus-api"
@@ -138,29 +167,30 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
               />
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter>
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => onOpenChange(false)}
               disabled={sendMutation.isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={sendMutation.isPending}>
+            <Button type="submit" size="sm" variant="default" disabled={sendMutation.isPending}>
               {sendMutation.isPending ? (
                 'Simulating...'
               ) : (
                 <>
-                  <Send className="mr-2 h-3 w-4" />
+                  <Send />
                   Simulate Message
                 </>
               )}
             </Button>
-          </DialogFooter>
+          </SheetFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };
 
