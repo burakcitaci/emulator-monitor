@@ -33,7 +33,7 @@ export default defineConfig(() => ({
     exclude: ['ssh2', 'cpu-features', '@tabler/icons-react'],
   },
   test: {
-    projects: [{ extends: './vitest.config.mts' }],
+    projects: [{ extends: './vitest.config.ts' }],
     name: '@e2e-monitor/monitor',
     watch: false,
     globals: true,
