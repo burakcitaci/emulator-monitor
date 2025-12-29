@@ -33,16 +33,20 @@ export default defineConfig(() => ({
     exclude: ['ssh2', 'cpu-features', '@tabler/icons-react'],
   },
   test: {
-    projects: [{ extends: './vitest.config.ts' }],
-    name: '@e2e-monitor/monitor',
-    watch: false,
     globals: true,
     environment: 'jsdom',
-    include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    reporters: ['default'],
+    setupFiles: ['./src/test-setup.ts'],
+    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
       reportsDirectory: './test-output/vitest/coverage',
-      provider: 'v8' as const,
+      exclude: [
+        'node_modules/',
+        'src/test-setup.ts',
+        '**/*.spec.ts',
+        '**/*.test.ts',
+      ],
     },
   },
 }));
