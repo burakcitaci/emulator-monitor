@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Eye, Trash, ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
@@ -104,7 +103,7 @@ const createColumns = (
       <DataTableColumnHeader column={column} title="Emulator" />
     ),
     cell: ({ row }) => {
-      const emulatorType = (row.original as any).emulatorType;
+      const emulatorType = row.original.emulatorType;
       const displayText = emulatorType === 'azure-service-bus' ? 'Azure SB' :
                          emulatorType === 'sqs' ? 'SQS' : emulatorType || '-';
 
@@ -363,8 +362,8 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
     ).map(value => ({ label: value, value }));
 
     const emulatorTypeOptions = Array.from(
-      new Set(safeMessages.map(m => (m as any).emulatorType).filter((v): v is string => Boolean(v)))
-    ).map(value => ({
+      new Set(safeMessages.map(m => m.emulatorType).filter((v): v is 'sqs' | 'azure-service-bus' => Boolean(v)))
+    ).map((value: 'sqs' | 'azure-service-bus') => ({
       label: value === 'azure-service-bus' ? 'Azure Service Bus' :
              value === 'sqs' ? 'SQS' : value,
       value
@@ -386,7 +385,7 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
 
   const emulatorTypeFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
     if (!value || !Array.isArray(value)) return true;
-    return value.includes((row.original as any).emulatorType);
+    return value.includes(row.original.emulatorType);
   }, []);
 
   const statusFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
@@ -440,9 +439,9 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
                 <div className="flex items-center gap-2">
                   <label className="block text-sm font-bold uppercase text-gray-700 mb-1">Tracking Message Details</label>
                   <Badge variant="outline" className="text-xs">
-                    {(selectedMessage as any)?.emulatorType === 'azure-service-bus' ? 'Azure SB' :
-                     (selectedMessage as any)?.emulatorType === 'sqs' ? 'SQS' :
-                     (selectedMessage as any)?.emulatorType || 'Unknown'}
+                    {selectedMessage?.emulatorType === 'azure-service-bus' ? 'Azure SB' :
+                     selectedMessage?.emulatorType === 'sqs' ? 'SQS' :
+                     selectedMessage?.emulatorType || 'Unknown'}
                   </Badge>
                 </div>
                 <Badge variant={selectedMessage?.status === 'received' ? 'default' : 'secondary'} className="text-sm">

@@ -1,5 +1,5 @@
 import { config } from './config';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import {
   trackingMessagesResponseSchema,
   trackingMessageResponseSchema,
@@ -16,6 +16,23 @@ import {
   AwsSqsConfig,
   awsSqsConfigSchema,
 } from './schemas';
+
+// API Response types
+type ApiResponse<T> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+};
+
+// Type guard for API response
+function isApiResponse<T>(response: unknown): response is ApiResponse<T> {
+  return (
+    typeof response === 'object' &&
+    response !== null &&
+    'success' in response &&
+    typeof (response as { success: unknown }).success === 'boolean'
+  );
+}
 
 class ApiError extends Error {
   constructor(
@@ -39,7 +56,7 @@ class ApiClient {
     endpoint: string,
     options?: RequestInit,
     schema?: z.ZodTypeAny
-  ): Promise<T> {
+  ): Promise<ApiResponse<T> | T> {
     const url = `${this.baseUrl}${endpoint}`;
 
     try {
@@ -66,23 +83,29 @@ class ApiClient {
       if (schema) {
         try {
           return schema.parse(data) as T;
-        } catch (parseError) {
+        } catch (parseError: unknown) {
           // Log the actual data received for debugging
           console.error('Schema validation failed:', {
             endpoint,
             receivedData: data,
             error: parseError,
           });
+          const errorMessage = parseError instanceof ZodError
+            ? (parseError as ZodError & { errors: Array<{ path: (string | number)[]; message: string }> }).errors
+                .map((e) => `${e.path.join('.')}: ${e.message}`)
+                .join(', ')
+            : 'Unknown error';
+
           throw new ApiError(
             500,
-            `Invalid response format: ${parseError instanceof z.ZodError ? parseError.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ') : 'Unknown error'}`,
+            `Invalid response format: ${errorMessage}`,
             data
           );
         }
       }
 
       return data as T;
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof ApiError) {
         throw error;
       }
@@ -103,7 +126,7 @@ class ApiClient {
     );
 
     // Handle wrapped response format
-    if (typeof response === 'object' && 'success' in response) {
+    if (isApiResponse<TrackingMessage[]>(response)) {
       if (!response.success) {
         throw new ApiError(500, response.message || 'Failed to fetch tracking messages');
       }
@@ -128,8 +151,8 @@ class ApiClient {
       trackingMessageResponseSchema
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to fetch tracking message');
+    if (!isApiResponse<TrackingMessage>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch tracking message') : 'Invalid response format');
     }
 
     return response.data;
@@ -145,8 +168,8 @@ class ApiClient {
       trackingMessageResponseSchema
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to create tracking message');
+    if (!isApiResponse<TrackingMessage>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to create tracking message') : 'Invalid response format');
     }
 
     return response.data;
@@ -165,8 +188,8 @@ class ApiClient {
       trackingMessageResponseSchema
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to update tracking message');
+    if (!isApiResponse<TrackingMessage>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to update tracking message') : 'Invalid response format');
     }
 
     return response.data;
@@ -181,8 +204,8 @@ class ApiClient {
       deleteMessageResponseSchema
     );
 
-    if (!response.success) {
-      throw new ApiError(500, response.message || 'Failed to delete tracking message');
+    if (!isApiResponse<{ message?: string }>(response) || !response.success) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to delete tracking message') : 'Invalid response format');
     }
 
     return { message: response.message || 'Tracking message deleted successfully' };
@@ -199,8 +222,8 @@ class ApiClient {
       sendMessageResponseSchema
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to send message');
+    if (!isApiResponse<{ queueName: string; messageId: string }>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to send message') : 'Invalid response format');
     }
 
     return response.data;
@@ -235,8 +258,8 @@ class ApiClient {
       })
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to fetch Service Bus config');
+    if (!isApiResponse<ServiceBusConfig>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch Service Bus config') : 'Invalid response format');
     }
 
     return response.data;
@@ -253,8 +276,8 @@ class ApiClient {
       sendMessageResponseSchema
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to send SQS message');
+    if (!isApiResponse<{ queueName: string; messageId: string; queueUrl: string; md5OfBody: string }>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to send SQS message') : 'Invalid response format');
     }
 
     return response.data;
@@ -274,7 +297,7 @@ class ApiClient {
           messageId: z.string(),
           receiptHandle: z.string().optional(),
           body: z.string(),
-          messageAttributes: z.record(z.any()).optional(),
+          messageAttributes: z.record(z.string(), z.any()).optional(),
           md5OfBody: z.string().optional(),
         }).nullable()
       )
@@ -293,8 +316,8 @@ class ApiClient {
       })
     );
 
-    if (!response.success || !response.data) {
-      throw new ApiError(500, response.message || 'Failed to fetch AWS SQS config');
+    if (!isApiResponse<AwsSqsConfig>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch AWS SQS config') : 'Invalid response format');
     }
 
     return response.data;

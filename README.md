@@ -1,18 +1,20 @@
-# E2E Monitor - Service Bus Monitoring Platform
+# E2E Monitor - Multi-Platform Messaging Monitoring Platform
 
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
-A comprehensive real-time monitoring and management platform for Azure Service Bus, built with modern web technologies including React, NestJS, and Docker.
+A comprehensive real-time monitoring and management platform for **Azure Service Bus** and **AWS SQS**, built with modern web technologies including React, NestJS, and Docker. Monitor, send, and manage messages across multiple messaging platforms with unified tracking and disposition management.
 
 ## 🚀 Overview
 
 The E2E Monitor is a full-stack application that provides:
 
-- **Real-time Service Bus monitoring** with live message tracking
-- **Message management** including sending, receiving, and dead letter queue handling
-- **Visual configuration management** for Service Bus entities
-- **Docker-based Service Bus emulation** for development and testing
-- **Modern UI** with Shadcn/UI components and dark/light theme support
+- **Multi-platform messaging monitoring** with unified tracking across Azure Service Bus and AWS SQS
+- **Real-time message processing** with automatic disposition management (complete, abandon, deadletter, defer)
+- **Emulator type tracking** distinguishing between different messaging platforms
+- **Advanced message management** including sending, receiving, dead letter queues, and disposition control
+- **Visual configuration management** for Service Bus and SQS entities
+- **Docker-based emulators** for Azure Service Bus, AWS SQS (LocalStack), and supporting services
+- **Modern UI** with Shadcn/UI components, comprehensive statistics, and dark/light theme support
 
 ## 🏗️ Architecture
 
@@ -20,7 +22,9 @@ The E2E Monitor is a full-stack application that provides:
 
 - **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS + Shadcn/UI
 - **Backend**: NestJS + TypeScript + MongoDB
-- **Service Bus**: Azure Service Bus SDK with Docker emulator
+- **Messaging Platforms**:
+  - **Azure Service Bus**: Azure Service Bus SDK with Docker emulator
+  - **AWS SQS**: AWS SDK v3 with LocalStack emulator and automatic worker processing
 - **Build Tool**: Nx workspace with monorepo structure
 - **Testing**: Jest + Playwright + Vitest
 
@@ -29,17 +33,30 @@ The E2E Monitor is a full-stack application that provides:
 ```
 /
 ├── apps/
-│   ├── backend/           # NestJS API server
+│   ├── backend/           # NestJS API server with multi-platform messaging
+│   │   ├── src/app/
+│   │   │   ├── aws-sqs/       # AWS SQS service with automatic worker
+│   │   │   ├── service-bus/   # Azure Service Bus with background worker
+│   │   │   └── messages/      # Unified message tracking with emulator types
 │   ├── backend-e2e/       # Backend integration tests
-│   ├── monitor/          # React frontend application
+│   ├── monitor/          # React frontend with unified messaging UI
 │   └── monitor-e2e/      # Frontend E2E tests
 ├── libs/
 │   └── shared/
 │       └── entities/     # Shared TypeScript types/interfaces
 ├── config/               # Service Bus configuration (single source of truth)
-├── docker-compose.yml    # Service Bus emulator setup
+├── docker-compose.yml    # Multi-platform emulator setup (Service Bus + SQS)
 └── README.md            # This comprehensive documentation
 ```
+
+## 🎯 E2E Monitor Mission
+
+The E2E Monitor provides comprehensive, real-time monitoring and management for modern messaging platforms. Whether you're working with Azure Service Bus or AWS SQS, the platform offers:
+
+- **Unified Tracking**: Single dashboard for messages across all platforms
+- **Automatic Processing**: Background workers handle message disposition intelligently
+- **Advanced Analytics**: Detailed statistics and filtering capabilities
+- **Developer-Friendly**: Modern UI with Docker-based emulators for easy local development
 
 ## ♻️ Refinement Blueprint (NestJS · React · .NET)
 
@@ -84,10 +101,25 @@ The project maintains centralized configuration in the root directory:
 
 ```
 /
-├── docker-compose.yml              # Docker services configuration
+├── docker-compose.yml              # Multi-platform emulator services
 └── config/
     └── servicebus-config.json      # Service Bus entities (topics, queues, subscriptions)
 ```
+
+### Supported Platforms
+
+**Azure Service Bus:**
+
+- Docker-based emulator with SQL Edge backend
+- Topics, queues, and subscriptions management
+- Automatic message processing with background workers
+
+**AWS SQS:**
+
+- LocalStack emulator for SQS simulation
+- Standard and FIFO queues support
+- Automatic message processing with disposition management
+- Message attributes and group ID support
 
 ### How Applications Access Configuration
 
@@ -194,10 +226,12 @@ npm run init:db           # Initialize test database
 The frontend uses **Shadcn/UI** components for a consistent, modern interface:
 
 - **Navigation**: Sidebar with tab-based navigation (Messages, Send, Configuration)
-- **Message Management**: Real-time message display with filtering and search
-- **Configuration**: Visual Service Bus entity management
+- **Multi-platform Message Management**: Real-time message display across Azure Service Bus and AWS SQS
+- **Advanced Statistics**: Comprehensive statistics cards showing message counts by disposition and emulator type
+- **Emulator Type Tracking**: Visual distinction between Azure Service Bus and SQS messages
+- **Configuration**: Visual Service Bus entity management with emulator selection
 - **Dark/Light Theme**: System-aware theme switching
-- **Responsive Design**: Mobile-friendly layout
+- **Responsive Design**: Mobile-friendly layout with adaptive grid layouts
 
 ### Key Components
 
@@ -210,10 +244,14 @@ The frontend uses **Shadcn/UI** components for a consistent, modern interface:
 
 #### Message Management
 
-- **Live Message Feed**: Real-time message monitoring
-- **Message Sending**: Test message creation and sending
-- **Dead Letter Queue**: DLQ message management and replay
-- **Message Filtering**: Advanced filtering and search capabilities
+- **Live Message Feed**: Real-time message monitoring across all platforms
+- **Multi-platform Message Sending**: Send messages to Azure Service Bus topics/queues or AWS SQS queues
+- **Disposition Management**: Control message processing outcomes (complete, abandon, deadletter, defer)
+- **Automatic Processing**: Background workers automatically process messages on both platforms
+- **Emulator Type Filtering**: Filter messages by originating platform (Azure SB vs SQS)
+- **Dead Letter Queue**: DLQ message management and replay across platforms
+- **Advanced Statistics**: Comprehensive statistics by disposition and emulator type
+- **Message Filtering**: Advanced filtering and search with emulator type support
 
 ## 🔧 Backend API
 
@@ -228,10 +266,23 @@ The frontend uses **Shadcn/UI** components for a consistent, modern interface:
 
 #### Message Operations
 
+**Azure Service Bus:**
+
 - `POST /api/v1/servicebus/send` - Send messages to topics/queues
 - `POST /api/v1/servicebus/send-batch` - Send multiple messages
 - `GET /api/v1/servicebus/messages` - Peek active messages
 - `GET /api/v1/servicebus/dead-letter-messages` - Retrieve DLQ messages
+
+**AWS SQS:**
+
+- `POST /api/v1/aws-sqs/messages` - Send messages to SQS queues
+- `POST /api/v1/aws-sqs/messages/receive` - Receive and process messages
+- `GET /api/v1/aws-sqs/config` - Get SQS configuration
+
+**Unified Tracking:**
+
+- `GET /api/v1/tracked-messages/tracking` - Get all tracked messages
+- `DELETE /api/v1/tracked-messages/tracking/:id` - Delete tracked message
 
 #### Docker Management
 
@@ -268,13 +319,14 @@ The application includes a complete Service Bus emulator environment:
 
 ### Services Overview
 
-| Service                 | Purpose                    | Ports       | Configuration                      |
-| ----------------------- | -------------------------- | ----------- | ---------------------------------- |
-| **servicebus-emulator** | Azure Service Bus emulator | 5672, 5300  | Uses config/servicebus-config.json |
-| **sqledge**             | SQL Server for emulator    | 1431        | Database storage                   |
-| **azurite**             | Azure Storage emulator     | 10000-10002 | Blob/Queue/Table storage           |
-| **mongodb**             | Application database       | 27017       | Message persistence                |
-| **redis**               | Caching layer              | 6380        | Session and cache storage          |
+| Service                 | Purpose                     | Ports       | Configuration                      |
+| ----------------------- | --------------------------- | ----------- | ---------------------------------- |
+| **servicebus-emulator** | Azure Service Bus emulator  | 5672, 5300  | Uses config/servicebus-config.json |
+| **localstack**          | AWS SQS & services emulator | 4566        | AWS SDK compatible                 |
+| **sqledge**             | SQL Server for Service Bus  | 1431        | Database storage                   |
+| **azurite**             | Azure Storage emulator      | 10000-10002 | Blob/Queue/Table storage           |
+| **mongodb**             | Application database        | 27017       | Message persistence                |
+| **redis**               | Caching layer               | 6380        | Session and cache storage          |
 
 ### Service Bus Configuration
 
@@ -499,6 +551,35 @@ npm run dev:backend  # Check console output
 # View frontend logs
 npm run dev:monitor  # Check console output
 ```
+
+## 🚀 Recent Features
+
+### Multi-Platform Messaging Support
+
+The E2E Monitor now supports comprehensive monitoring across multiple messaging platforms:
+
+#### AWS SQS Integration
+
+- **Automatic Message Processing**: Background worker automatically processes SQS messages
+- **Disposition Management**: Complete, abandon, deadletter, and defer dispositions
+- **LocalStack Emulator**: Full AWS SQS simulation for development and testing
+- **Message Attributes**: Support for SQS message attributes and metadata
+
+#### Unified Message Tracking
+
+- **Emulator Type Field**: Database tracks which platform each message originated from
+- **Cross-Platform Statistics**: UI shows message counts by disposition and emulator type
+- **Advanced Filtering**: Filter messages by emulator type (SQS vs Azure Service Bus)
+- **Consistent UI Experience**: Unified interface for managing messages across platforms
+
+#### Enhanced User Experience
+
+- **Statistics Dashboard**: 7 comprehensive statistics cards showing:
+  - Total messages
+  - Messages by disposition (Complete, Abandon, Dead Letter, Defer)
+  - Messages by platform (SQS, Azure Service Bus)
+- **Real-time Updates**: Live message processing with automatic status updates
+- **Responsive Design**: Adaptive grid layouts that work on all screen sizes
 
 ## 📚 Additional Resources
 

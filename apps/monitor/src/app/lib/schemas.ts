@@ -47,20 +47,7 @@ export const trackingMessageSchema = z.preprocess(
   })
 );
 
-// Explicit type definition to ensure emulatorType is included
-export type TrackingMessage = {
-  _id: string;
-  messageId: string;
-  body: string;
-  sentBy: string;
-  sentAt: Date;
-  status: 'sent' | 'processing' | 'received';
-  queue?: string | null;
-  receivedAt?: Date | null;
-  receivedBy?: string | null;
-  disposition?: 'complete' | 'abandon' | 'deadletter' | 'defer' | null;
-  emulatorType?: 'sqs' | 'azure-service-bus' | null;
-};
+export type TrackingMessage = z.infer<typeof trackingMessageSchema>;
 
 // Message filters schema
 export const messageFiltersSchema = z.object({

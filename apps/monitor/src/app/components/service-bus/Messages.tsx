@@ -44,7 +44,7 @@ export const Messages: React.FC = () => {
 
   const { data: config } = useServiceBusConfig();
 
-  // Transform messages to convert null to undefined for receivedAt, receivedBy, queue, and disposition
+  // Transform messages to convert null to undefined for receivedAt, receivedBy, queue, disposition, and emulatorType
   const transformedMessages = React.useMemo(() => {
     return messages.map((message) => ({
       ...message,
@@ -52,10 +52,11 @@ export const Messages: React.FC = () => {
       receivedBy: message.receivedBy ?? undefined,
       queue: message.queue ?? undefined,
       disposition: message.disposition ?? undefined,
+      emulatorType: message.emulatorType ?? undefined,
     }));
   }, [messages]);
 
-  // Calculate statistics by disposition
+  // Calculate statistics by disposition and emulator
   const stats = React.useMemo(() => {
     const total = messages.length;
     const complete = messages.filter((m) => m.disposition === 'complete').length;
@@ -63,7 +64,11 @@ export const Messages: React.FC = () => {
     const deadletter = messages.filter((m) => m.disposition === 'deadletter').length;
     const defer = messages.filter((m) => m.disposition === 'defer').length;
 
-    return { total, complete, abandon, deadletter, defer };
+    // Emulator statistics
+    const sqs = messages.filter((m) => m.emulatorType === 'sqs').length;
+    const azureServiceBus = messages.filter((m) => m.emulatorType === 'azure-service-bus').length;
+
+    return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus };
   }, [messages]);
 
   // Extract queues and topics from config
@@ -143,7 +148,7 @@ export const Messages: React.FC = () => {
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
@@ -182,6 +187,22 @@ export const Messages: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.defer}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">SQS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.sqs}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Azure SB</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.azureServiceBus}</div>
               </CardContent>
             </Card>
           </div>
