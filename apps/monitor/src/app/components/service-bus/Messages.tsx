@@ -6,7 +6,7 @@ import { TrackingMessage } from '@e2e-monitor/entities';
 import { ToastAction } from '../ui/toast';
 import { toast } from 'sonner';
 import { LoadingSpinner } from '../ui/loading-spinner';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { useServiceBusConfig } from '../../hooks/api/service-bus';
 import { SendMessageModal } from './SendMessageModal';
@@ -124,8 +124,8 @@ export const Messages: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col gap-4 w-full flex-1 min-h-0">
+    <div className="p-6 min-w-0">
+      <div className="flex flex-col gap-4 w-full flex-1 min-h-0 min-w-0">
           {/* Error Messages */}
           {error && (
             <ErrorMessage
@@ -150,69 +150,53 @@ export const Messages: React.FC = () => {
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.total}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">Total Messages</div>
+                <div className="text-xl font-bold">{stats.total}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Complete</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.complete}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">Complete</div>
+                <div className="text-xl font-bold">{stats.complete}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Abandon</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.abandon}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">Abandon</div>
+                <div className="text-xl font-bold">{stats.abandon}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Dead Letter</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.deadletter}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">Dead Letter</div>
+                <div className="text-xl font-bold">{stats.deadletter}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Defer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.defer}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">Defer</div>
+                <div className="text-xl font-bold">{stats.defer}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">SQS</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.sqs}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">SQS</div>
+                <div className="text-xl font-bold">{stats.sqs}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Azure SB</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.azureServiceBus}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">Azure SB</div>
+                <div className="text-xl font-bold">{stats.azureServiceBus}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">RabbitMQ</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.rabbitmq}</div>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">RabbitMQ</div>
+                <div className="text-xl font-bold">{stats.rabbitmq}</div>
               </CardContent>
             </Card>
           </div>

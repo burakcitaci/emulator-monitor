@@ -23,7 +23,7 @@ export function App() {
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col min-w-0">
           <Messages />
         </div>
       </SidebarInset>

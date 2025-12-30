@@ -175,8 +175,8 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-2/6 sm:max-w-4xl">
-        <SheetHeader>
+      <SheetContent className="w-2/6 sm:max-w-4xl flex flex-col overflow-hidden">
+        <SheetHeader className="flex-shrink-0">
           <SheetTitle>Simulate Message</SheetTitle>
           <SheetDescription>
             Simulate sending a message to {
@@ -188,8 +188,8 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
             }. The message will be tracked.
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSendMessage}>
-          <div className="grid gap-4 py-4">
+        <form onSubmit={handleSendMessage} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0 pr-2">
             <div className="grid gap-2">
               <Label htmlFor="serviceType">Service Type</Label>
               <Select value={serviceType} onValueChange={(value: ServiceType) => {
@@ -402,7 +402,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
               </>
             )}
           </div>
-          <SheetFooter>
+          <SheetFooter className="mt-4 flex-shrink-0">
             <Button
               type="button"
               variant="outline"
