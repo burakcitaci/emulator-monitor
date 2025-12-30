@@ -9,6 +9,7 @@ export const trackingMessageKeys = {
   list: () => [...trackingMessageKeys.lists()] as const,
   details: () => [...trackingMessageKeys.all, 'detail'] as const,
   detail: (id: string) => [...trackingMessageKeys.details(), id] as const,
+  listsByEmulator: (emulator: string) => [...trackingMessageKeys.all, 'list', emulator] as const,
 };
 
 // Hooks
@@ -37,6 +38,15 @@ export const useTrackingMessage = (id: string) => {
   });
 };
 
+export const useTrackingMessagesByEmulator = (emulator: string) => {
+  console.log('useTrackingMessagesByEmulator', emulator);
+  return useQuery({
+    queryKey: trackingMessageKeys.listsByEmulator(emulator),
+    queryFn: () => apiClient.getTrackingMessagesByEmulator(emulator),
+    enabled: !!emulator,
+    staleTime: 5000, // 5 seconds - consider data stale quickly for monitoring
+  });
+};
 export const useCreateTrackingMessage = () => {
   const queryClient = useQueryClient();
 

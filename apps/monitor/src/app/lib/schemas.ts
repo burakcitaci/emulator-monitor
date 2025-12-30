@@ -190,6 +190,60 @@ export const awsSqsConfigSchema = z.object({
 
 export type AwsSqsConfig = z.infer<typeof awsSqsConfigSchema>;
 
+// AWS SQS Message schema (from AWS SDK Message type)
+export const awsSqsMessageSchema = z.object({
+  MessageId: z.string().optional(),
+  ReceiptHandle: z.string().optional(),
+  MD5OfBody: z.string().optional(),
+  Body: z.string().optional(),
+  Attributes: z.record(z.string(), z.string()).optional(),
+  MD5OfMessageAttributes: z.string().optional(),
+  MessageAttributes: z.record(
+    z.string(),
+    z.object({
+      StringValue: z.string().optional(),
+      BinaryValue: z.instanceof(Uint8Array).optional(),
+      StringListValues: z.array(z.string()).optional(),
+      BinaryListValues: z.array(z.instanceof(Uint8Array)).optional(),
+      DataType: z.string(),
+    })
+  ).optional(),
+});
+
+export type AwsSqsMessage = z.infer<typeof awsSqsMessageSchema>;
+
+// AWS SQS Messages Data schema
+const awsSqsMessagesDataSchema = z.object({
+  queueName: z.string(),
+  queueUrl: z.string(),
+  dlqMessages: z.array(awsSqsMessageSchema),
+  abandonedMessages: z.array(awsSqsMessageSchema),
+  deferredMessages: z.array(awsSqsMessageSchema),
+  trackingMessages: z.object({
+    deadletter: z.array(trackingMessageSchema),
+    abandon: z.array(trackingMessageSchema),
+    defer: z.array(trackingMessageSchema),
+  }),
+  summary: z.object({
+    dlq: z.number(),
+    abandoned: z.number(),
+    deferred: z.number(),
+    trackingDeadletter: z.number(),
+    trackingAbandon: z.number(),
+    trackingDefer: z.number(),
+  }),
+});
+
+export type AwsSqsMessagesData = z.infer<typeof awsSqsMessagesDataSchema>;
+
+// AWS SQS Messages Response schema - handle both wrapped and unwrapped responses
+export const awsSqsMessagesResponseSchema = z.union([
+  apiResponseSchema(awsSqsMessagesDataSchema),
+  awsSqsMessagesDataSchema,
+]);
+
+export type AwsSqsMessagesResponse = z.infer<typeof awsSqsMessagesResponseSchema>;
+
 // Send RabbitMQ message request schema
 export const sendRabbitmqMessageSchema = z.object({
   queue: z.string().optional(),

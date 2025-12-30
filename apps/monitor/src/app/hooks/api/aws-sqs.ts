@@ -7,6 +7,7 @@ import { trackingMessageKeys } from './tracking-messages';
 export const awsSqsKeys = {
   all: ['aws-sqs'] as const,
   config: () => [...awsSqsKeys.all, 'config'] as const,
+  messages: () => [...awsSqsKeys.all, 'messages'] as const,
 };
 
 // Hooks
@@ -51,3 +52,9 @@ export const useReceiveSqsMessage = () => {
   });
 };
 
+export const useGetSqsMessages = () => {
+  return useQuery({
+    queryKey: awsSqsKeys.messages(),
+    queryFn: () => apiClient.getAwsSqsMessages(),
+  });
+};

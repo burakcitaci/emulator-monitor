@@ -17,6 +17,9 @@ export class MessageService {
   async findTrackingMessages(): Promise<TrackingMessage[]> {
     return this.messageModel.find().sort({ sentAt: -1 }).lean().exec();
   }
+  async findTrackingMessagesByEmulator(emulator: string): Promise<TrackingMessage[]> {
+    return this.messageModel.find({ emulatorType: emulator }).sort({ sentAt: -1 }).lean().exec();
+  }
 
   async findOneTracking(id: string): Promise<TrackingMessage | null> {
     return this.messageModel.findById(id).lean().exec();

@@ -15,6 +15,9 @@ import {
   ReceiveSqsMessage,
   AwsSqsConfig,
   awsSqsConfigSchema,
+  AwsSqsMessagesResponse,
+  AwsSqsMessagesData,
+  awsSqsMessagesResponseSchema,
   SendRabbitmqMessage,
   ReceiveRabbitmqMessage,
   RabbitmqConfig,
@@ -118,6 +121,37 @@ class ApiClient {
     }
   }
 
+  // AWS SQS API
+  async getAwsSqsMessages(): Promise<AwsSqsMessagesData> {
+    const response = await this.request<AwsSqsMessagesResponse>(
+      '/aws-sqs/messages',
+      undefined,
+      awsSqsMessagesResponseSchema
+    );
+
+    // Handle wrapped response format
+    if (isApiResponse<AwsSqsMessagesData>(response)) {
+      if (!response.success) {
+        throw new ApiError(500, response.message || 'Failed to fetch AWS SQS messages');
+      }
+      if (!response.data) {
+        throw new ApiError(500, 'No data returned from AWS SQS messages endpoint');
+      }
+      return response.data;
+    }
+
+    // Handle unwrapped response format (direct data)
+    if (
+      typeof response === 'object' &&
+      response !== null &&
+      'queueName' in response &&
+      'queueUrl' in response
+    ) {
+      return response as AwsSqsMessagesData;
+    }
+
+    throw new ApiError(500, 'Invalid response format from AWS SQS messages endpoint');
+  }
   // Tracking Messages API
   async getTrackingMessages(): Promise<TrackingMessage[]> {
     const response = await this.request<
@@ -157,6 +191,20 @@ class ApiClient {
 
     if (!isApiResponse<TrackingMessage>(response) || !response.success || !response.data) {
       throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch tracking message') : 'Invalid response format');
+    }
+
+    return response.data;
+  }
+
+  async getTrackingMessagesByEmulator(emulator: string): Promise<TrackingMessage[]> {
+    const response = await this.request(
+      `/tracked-messages/tracking/emulator/${emulator}`,
+      undefined,
+      trackingMessagesResponseSchema
+    );
+
+    if (!isApiResponse<TrackingMessage[]>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch tracking messages by broker') : 'Invalid response format');
     }
 
     return response.data;

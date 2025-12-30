@@ -21,6 +21,15 @@ export class MessagesController {
       data: result,
     };
   }
+  @Get('tracking/emulator/:emulator')
+  async getTrackingMessagesByEmulator(@Param('emulator') emulator: string) {
+    const result = await this.messagesService.findTrackingMessagesByEmulator(emulator);
+    this.logger.log(`Retrieved ${result.length} tracking messages for emulator ${emulator}`);
+    return {
+      success: true,
+      data: result,
+    };
+  }
 
   @Get('tracking/:id')
   async getTrackingMessage(@Param('id') id: string) {

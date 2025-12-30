@@ -10,6 +10,7 @@ import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { useServiceBusConfig } from '../../hooks/api/service-bus';
 import { SendMessageModal } from './SendMessageModal';
+import { useNavigate } from 'react-router';
 
 function ErrorMessage({
   icon,
@@ -40,6 +41,7 @@ export const Messages: React.FC = () => {
     error,
   } = useTrackingMessages();
 
+  const navigate = useNavigate();
   const deleteMutation = useDeleteTrackingMessage();
   const [sendModalOpen, setSendModalOpen] = useState(false);
 
@@ -157,6 +159,24 @@ export const Messages: React.FC = () => {
                 <div className="text-xl font-bold">{stats.total}</div>
               </CardContent>
             </Card>
+             <Card onClick={() => navigate('/sqs')}>
+              <CardContent className="p-4 cursor-pointer hover:bg-accent transition-colors">
+                <div className="text-xs text-muted-foreground mb-1">SQS</div>
+                <div className="text-xl font-bold">{stats.sqs}</div>
+              </CardContent>
+            </Card>
+            <Card onClick={() => navigate('/azure-service-bus')}>
+              <CardContent className="p-4 cursor-pointer hover:bg-accent transition-colors">
+                <div className="text-xs text-muted-foreground mb-1">Azure SB</div>
+                <div className="text-xl font-bold">{stats.azureServiceBus}</div>
+              </CardContent>
+            </Card>
+            <Card onClick={() => navigate('/rabbitmq')}>
+              <CardContent className="p-4 cursor-pointer hover:bg-accent transition-colors">
+                <div className="text-xs text-muted-foreground mb-1">RabbitMQ</div>
+                <div className="text-xl font-bold">{stats.rabbitmq}</div>
+              </CardContent>
+            </Card>
             <Card>
               <CardContent className="p-4">
                 <div className="text-xs text-muted-foreground mb-1">Complete</div>
@@ -181,24 +201,7 @@ export const Messages: React.FC = () => {
                 <div className="text-xl font-bold">{stats.defer}</div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">SQS</div>
-                <div className="text-xl font-bold">{stats.sqs}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">Azure SB</div>
-                <div className="text-xl font-bold">{stats.azureServiceBus}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">RabbitMQ</div>
-                <div className="text-xl font-bold">{stats.rabbitmq}</div>
-              </CardContent>
-            </Card>
+           
           </div>
 
           {/* Table */}

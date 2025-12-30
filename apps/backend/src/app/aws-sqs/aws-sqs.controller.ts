@@ -21,6 +21,15 @@ export class AwsSqsController {
     };
   }
 
+  @Get('messages')
+  async getMessages() {
+    const result = await this.awsSqsService.getMessages();
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
   @Post('messages/receive')
   async receiveMessage(@Body() dto: ReceiveSqsMessageDto) {
     const result = await this.awsSqsService.receiveMessage(dto);

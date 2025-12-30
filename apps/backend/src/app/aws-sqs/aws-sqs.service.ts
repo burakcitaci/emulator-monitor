@@ -12,6 +12,7 @@ import {
   GetQueueUrlCommand,
   CreateQueueCommand,
   ChangeMessageVisibilityCommand,
+  GetQueueAttributesCommand,
   Message,
 } from '@aws-sdk/client-sqs';
 import { randomUUID } from 'crypto';
@@ -22,6 +23,7 @@ import { AppConfigService } from '../common/app-config.service';
 import { AppLogger } from '../common/logger.service';
 import { MessageService } from '../messages/messages.service';
 import { AwsSqsConnectionException } from '../common/exceptions';
+import { TrackingMessage } from '../messages/message.schema';
 
 // Helper function to create a random delay between 0 and 2000ms
 const randomDelay = (): Promise<void> => {
@@ -152,6 +154,148 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
       queueUrl,
       messageId: response.MessageId || messageId,
       md5OfBody: response.MD5OfMessageBody,
+    };
+  }
+
+  async getMessages() {
+    const queueName = this.config.awsSqsQueueName;
+    const queueUrl = await this.getOrCreateQueueUrl(queueName);
+    
+    const results = {
+      dlq: [] as Message[],
+      abandoned: [] as Message[],
+      deferred: [] as Message[],
+      tracking: {
+        deadletter: [] as TrackingMessage[],
+        abandon: [] as TrackingMessage[],
+        defer: [] as TrackingMessage[],
+      },
+    };
+
+    try {
+      // Try to get DLQ queue URL from queue attributes
+      const attributesCommand = new GetQueueAttributesCommand({
+        QueueUrl: queueUrl,
+        AttributeNames: ['RedrivePolicy'],
+      });
+      const attributesResponse = await this.client.send(attributesCommand);
+      
+      // Check if there's a redrive policy pointing to a DLQ
+      const redrivePolicy = attributesResponse.Attributes?.RedrivePolicy;
+      if (redrivePolicy) {
+        try {
+          const redrivePolicyObj = JSON.parse(redrivePolicy);
+          const dlqArn = redrivePolicyObj.deadLetterTargetArn;
+          if (dlqArn) {
+            // Extract DLQ name from ARN (format: arn:aws:sqs:region:account:queue-name)
+            const dlqName = dlqArn.split(':').pop();
+            if (dlqName) {
+              const dlqUrl = await this.getOrCreateQueueUrl(dlqName);
+              const dlqCommand = new ReceiveMessageCommand({
+                QueueUrl: dlqUrl,
+                MaxNumberOfMessages: 10,
+                MessageAttributeNames: ['All'],
+              });
+              const dlqResponse = await this.client.send(dlqCommand);
+              if (dlqResponse.Messages) {
+                results.dlq = dlqResponse.Messages;
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to parse redrive policy or get DLQ messages: ${error}`);
+        }
+      }
+      
+      // Also try common DLQ naming convention: {queue-name}-dlq
+      try {
+        const dlqName = `${queueName}-dlq`;
+        const dlqUrl = await this.getOrCreateQueueUrl(dlqName);
+        const dlqCommand = new ReceiveMessageCommand({
+          QueueUrl: dlqUrl,
+          MaxNumberOfMessages: 10,
+          MessageAttributeNames: ['All'],
+        });
+        const dlqResponse = await this.client.send(dlqCommand);
+        if (dlqResponse.Messages && dlqResponse.Messages.length > 0) {
+          results.dlq = [...results.dlq, ...dlqResponse.Messages];
+        }
+      } catch (error) {
+        // DLQ queue doesn't exist, that's okay
+        this.logger.debug(`DLQ queue ${queueName}-dlq not found: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get DLQ messages: ${error}`);
+    }
+
+    // Get messages from tracking database with specific dispositions
+    try {
+      const trackingMessages = await this.messageService.findTrackingMessagesByEmulator('sqs');
+      
+      // Filter by disposition
+      results.tracking.deadletter = trackingMessages.filter(
+        (msg) => msg.disposition === 'deadletter' && msg.queue === queueName
+      );
+      results.tracking.abandon = trackingMessages.filter(
+        (msg) => msg.disposition === 'abandon' && msg.queue === queueName
+      );
+      results.tracking.defer = trackingMessages.filter(
+        (msg) => msg.disposition === 'defer' && msg.queue === queueName
+      );
+    } catch (error) {
+      this.logger.error(`Failed to get tracking messages: ${error}`);
+    }
+
+    // Try to receive abandoned/deferred messages from the main queue
+    // These are messages that are still in the queue (not deleted)
+    try {
+      const receiveCommand = new ReceiveMessageCommand({
+        QueueUrl: queueUrl,
+        MaxNumberOfMessages: 10,
+        MessageAttributeNames: ['All'],
+        VisibilityTimeout: 0, // Make messages immediately visible
+      });
+      const response = await this.client.send(receiveCommand);
+      
+      if (response.Messages) {
+        // Check each message's disposition from tracking or attributes
+        for (const message of response.Messages) {
+          const messageId = message.MessageId;
+          if (messageId) {
+            const tracking = await this.messageService.findOneTrackingByMessageId(messageId);
+            const disposition = tracking?.disposition || 
+                              message.MessageAttributes?.messageDisposition?.StringValue?.toLowerCase();
+            
+            if (disposition === 'abandon') {
+              results.abandoned.push(message);
+            } else if (disposition === 'defer') {
+              results.deferred.push(message);
+            } else if (disposition === 'deadletter') {
+              // This shouldn't happen in main queue, but check anyway
+              results.dlq.push(message);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to receive messages from queue: ${error}`);
+    }
+
+    return {
+      queueName,
+      queueUrl,
+      dlqMessages: results.dlq,
+      abandonedMessages: results.abandoned,
+      deferredMessages: results.deferred,
+      trackingMessages: results.tracking,
+      summary: {
+        dlq: results.dlq.length,
+        abandoned: results.abandoned.length,
+        deferred: results.deferred.length,
+        trackingDeadletter: results.tracking.deadletter.length,
+        trackingAbandon: results.tracking.abandon.length,
+        trackingDefer: results.tracking.defer.length,
+      },
     };
   }
 
