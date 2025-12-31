@@ -3,22 +3,19 @@ import {
   MessageHandlers,
   ProcessErrorArgs,
   ServiceBusReceiver,
+  ServiceBusReceivedMessage,
 } from '@azure/service-bus';
 import { ServiceBusService } from './service-bus.service';
 import { MessageService } from '../messages/messages.service';
 import { AppConfigService } from '../common/app-config.service';
 import { AppLogger } from '../common/logger.service';
-
-// Helper function to create a random delay between 0 and 2000ms
-const randomDelay = (): Promise<void> => {
-  const delayMs = Math.floor(Math.random() * 2000); // 0 to 1999ms
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
-};
+import { MessageProcessor, DispositionActions, MessageDisposition } from '../common/message-processor';
 
 @Injectable()
 export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
   private receivers: Map<string, ServiceBusReceiver> = new Map();
   private subscriptions: Map<string, { close(): Promise<void> }> = new Map();
+  private readonly messageProcessor: MessageProcessor;
 
   constructor(
     private readonly serviceBusService: ServiceBusService,
@@ -27,264 +24,35 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
     private readonly logger: AppLogger,
   ) {
     this.logger.setContext(ServiceBusWorker.name);
+    this.messageProcessor = new MessageProcessor(messageService, logger);
   }
 
   async onModuleInit() {
     try {
-      // Get all queues and topic subscriptions from Service Bus configuration
-      const serviceBusConfig = this.config.getServiceBusConfiguration();
-      const queues: string[] = [];
-      const topicSubscriptions: Array<{ topic: string; subscription: string; entityName: string }> = [];
+      const { queues, topicSubscriptions } = this.getEntitiesFromConfig();
 
-      if (serviceBusConfig?.UserConfig?.Namespaces) {
-        serviceBusConfig.UserConfig.Namespaces.forEach((namespace) => {
-          // Collect queues
-          if (namespace.Queues) {
-            namespace.Queues.forEach((q) => {
-              queues.push(q.Name);
-            });
-          }
-
-          // Collect topic subscriptions
-          if (namespace.Topics) {
-            namespace.Topics.forEach((topic) => {
-              if (topic.Subscriptions) {
-                topic.Subscriptions.forEach((sub) => {
-                  const entityName = `${topic.Name}/subscriptions/${sub.Name}`;
-                  topicSubscriptions.push({
-                    topic: topic.Name,
-                    subscription: sub.Name,
-                    entityName,
-                  });
-                });
-              }
-            });
-          }
-        });
-      }
-
-      // Fallback to default queue if no queues found in config
       if (queues.length === 0 && topicSubscriptions.length === 0) {
-        const defaultQueue = this.config.serviceBusQueue;
-        if (defaultQueue) {
-          queues.push(defaultQueue);
-          this.logger.warn('No queues or topics found in config, using default queue from SERVICE_BUS_QUEUE');
-        } else {
-          this.logger.warn('SERVICE_BUS_QUEUE not configured and no queues/topics found in config. Skipping processor bootstrap.');
-          return;
-        }
+        this.logger.warn('No queues or topics found in config. Skipping processor bootstrap.');
+        return;
       }
 
       // Subscribe to all queues
       for (const queueName of queues) {
-        try {
-          const receiver = this.serviceBusService.createReceiver(queueName);
-          this.receivers.set(queueName, receiver);
-
-          // Create handlers for each queue with receiver reference
-          const handlers: MessageHandlers = {
-            processMessage: async (message) => {
-              const messageId = message.messageId?.toString();
-              const receivedBy = (message.applicationProperties?.['receivedBy'] as string) ?? 'service-bus-worker';
-              const messageDisposition = (message.applicationProperties?.['messageDisposition'] as string) ?? 'complete';
-
-              this.logger.log(`Processing message ${messageId} with disposition: ${messageDisposition} (raw: ${JSON.stringify(message.applicationProperties?.['messageDisposition'])})`);
-
-              if (messageId) {
-                await this.messageService.markMessageReceived(messageId, receivedBy);
-              }
-
-              // Add random delay (0-2 seconds) before processing the message
-              await randomDelay();
-
-              // Handle message based on disposition
-              try {
-                const dispositionLower = messageDisposition.toLowerCase();
-                this.logger.log(`Executing disposition action: ${dispositionLower} for message ${messageId}`);
-                switch (dispositionLower) {
-                  case 'abandon':
-                    await receiver.abandonMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'abandon');
-                    }
-                    this.logger.log(`Abandoned message ${messageId} from queue ${queueName}`);
-                    break;
-                  case 'deadletter':
-                    await receiver.deadLetterMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'deadletter');
-                    }
-                    this.logger.log(`Dead-lettered message ${messageId} from queue ${queueName}`);
-                    break;
-                  case 'defer':
-                    await receiver.deferMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'defer');
-                    }
-                    this.logger.log(`Deferred message ${messageId} from queue ${queueName}`);
-                    break;
-                  case 'complete':
-                  default:
-                    await receiver.completeMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'complete');
-                    }
-                    this.logger.log(`Completed message ${messageId} from queue ${queueName}`);
-                    break;
-                }
-              } catch (error) {
-                this.logger.error(`Failed to process message ${messageId} with disposition ${messageDisposition}:`, error);
-                // Fallback to complete if disposition action fails
-                try {
-                  await receiver.completeMessage(message);
-                } catch (completeError) {
-                  this.logger.error(`Failed to complete message ${messageId} as fallback:`, completeError);
-                }
-              }
-            },
-            processError: async (args: ProcessErrorArgs) => {
-              this.logger.error(`Service Bus processor error for queue ${queueName}:`, args.error);
-            },
-          };
-
-          const subscription = receiver.subscribe(handlers, {
-            autoCompleteMessages: false,
-            maxConcurrentCalls: 5,
-          });
-
-          this.subscriptions.set(queueName, subscription);
-          this.logger.log(`Service Bus subscription started for queue ${queueName}`);
-        } catch (error) {
-          this.logger.error(`Failed to subscribe to queue ${queueName}:`, error);
-        }
+        await this.subscribeToQueue(queueName);
       }
 
       // Subscribe to all topic subscriptions
       for (const { topic, subscription, entityName } of topicSubscriptions) {
-        try {
-          const receiver = this.serviceBusService.createReceiver(entityName);
-          this.receivers.set(entityName, receiver);
-
-          // Create handlers for each topic subscription with receiver reference
-          const handlers: MessageHandlers = {
-            processMessage: async (message) => {
-              const messageId = message.messageId?.toString();
-              const receivedBy = (message.applicationProperties?.['receivedBy'] as string) ?? 'service-bus-worker';
-              
-              // Check database first for existing disposition (in case message was abandoned and re-queued)
-              let messageDisposition: string | undefined;
-              let dispositionSource = 'applicationProperties';
-              if (messageId) {
-                const existingMessage = await this.messageService.findOneTrackingByMessageId(messageId);
-                if (existingMessage?.disposition) {
-                  messageDisposition = existingMessage.disposition;
-                  dispositionSource = 'database';
-                  this.logger.log(`Found existing disposition ${messageDisposition} in database for message ${messageId}`);
-                }
-              }
-              
-              // Fall back to application properties if no database disposition found
-              if (!messageDisposition) {
-                messageDisposition = (message.applicationProperties?.['messageDisposition'] as string) ?? 'complete';
-              }
-
-              this.logger.log(`Processing message ${messageId} with disposition: ${messageDisposition} (source: ${dispositionSource}, raw app props: ${JSON.stringify(message.applicationProperties?.['messageDisposition'])})`);
-
-              if (messageId) {
-                try {
-                  const updated = await this.messageService.markMessageReceived(messageId, receivedBy);
-                  if (!updated) {
-                    this.logger.warn(`Message ${messageId} received from topic ${topic}/subscription ${subscription} but no tracking entry found`);
-                  } else {
-                    this.logger.log(`Message ${messageId} received from topic ${topic}/subscription ${subscription} and marked as received`);
-                  }
-                } catch (error) {
-                  this.logger.error(`Failed to mark message ${messageId} as received from topic ${topic}/subscription ${subscription}:`, error);
-                }
-              } else {
-                this.logger.warn(`Received message without messageId from topic ${topic}/subscription ${subscription}`);
-              }
-
-              // Add random delay (0-2 seconds) before processing the message
-              await randomDelay();
-
-              // Handle message based on disposition
-              try {
-                const dispositionLower = messageDisposition.toLowerCase();
-                this.logger.log(`Executing disposition action: ${dispositionLower} for message ${messageId}`);
-                switch (dispositionLower) {
-                  case 'abandon':
-                    await receiver.abandonMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'abandon');
-                    }
-                    this.logger.log(`Abandoned message ${messageId} from topic ${topic}/subscription ${subscription}`);
-                    break;
-                  case 'deadletter':
-                    await receiver.deadLetterMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'deadletter');
-                    }
-                    this.logger.log(`Dead-lettered message ${messageId} from topic ${topic}/subscription ${subscription}`);
-                    break;
-                  case 'defer':
-                    await receiver.deferMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'defer');
-                    }
-                    this.logger.log(`Deferred message ${messageId} from topic ${topic}/subscription ${subscription}`);
-                    break;
-                  case 'complete':
-                  default:
-                    await receiver.completeMessage(message);
-                    if (messageId) {
-                      await this.messageService.updateDisposition(messageId, 'complete');
-                    }
-                    this.logger.log(`Completed message ${messageId} from topic ${topic}/subscription ${subscription}`);
-                    break;
-                }
-              } catch (error) {
-                this.logger.error(`Failed to process message ${messageId} with disposition ${messageDisposition}:`, error);
-                // Fallback to complete if disposition action fails
-                try {
-                  await receiver.completeMessage(message);
-                } catch (completeError) {
-                  this.logger.error(`Failed to complete message ${messageId} as fallback:`, completeError);
-                }
-              }
-            },
-            processError: async (args: ProcessErrorArgs) => {
-              this.logger.error(`Service Bus processor error for topic ${topic}/subscription ${subscription}:`, args.error);
-            },
-          };
-
-          const subscriptionHandle = receiver.subscribe(handlers, {
-            autoCompleteMessages: false,
-            maxConcurrentCalls: 5,
-          });
-
-          this.subscriptions.set(entityName, subscriptionHandle);
-          this.logger.log(`Service Bus subscription started for topic ${topic}, subscription ${subscription}`);
-        } catch (error) {
-          this.logger.error(`Failed to subscribe to topic ${topic}, subscription ${subscription}:`, error);
-        }
+        await this.subscribeToTopic(topic, subscription, entityName);
       }
 
-      const totalSubscriptions = queues.length + topicSubscriptions.length;
-      const queueList = queues.length > 0 ? `queue(s): ${queues.join(', ')}` : '';
-      const topicList = topicSubscriptions.length > 0
-        ? `topic subscription(s): ${topicSubscriptions.map((ts) => `${ts.topic}/${ts.subscription}`).join(', ')}`
-        : '';
-      const subscriptionList = [queueList, topicList].filter(Boolean).join('; ');
-
-      this.logger.log(`Service Bus subscriptions started for ${totalSubscriptions} entity(ies): ${subscriptionList}`);
+      this.logSubscriptionSummary(queues, topicSubscriptions);
     } catch (error) {
       this.logger.error('Failed to initialize Service Bus worker:', error);
     }
   }
 
   async onModuleDestroy() {
-    // Close all subscriptions
     await Promise.all(
       Array.from(this.subscriptions.values()).map(async (subscription) => {
         try {
@@ -292,10 +60,9 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
           this.logger.error('Error closing subscription:', error);
         }
-      })
+      }),
     );
 
-    // Close all receivers
     await Promise.all(
       Array.from(this.receivers.values()).map(async (receiver) => {
         try {
@@ -303,11 +70,179 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
           this.logger.error('Error closing receiver:', error);
         }
-      })
+      }),
     );
 
     this.receivers.clear();
     this.subscriptions.clear();
     this.logger.log('Service Bus subscriptions stopped.');
+  }
+
+  private getEntitiesFromConfig(): {
+    queues: string[];
+    topicSubscriptions: Array<{ topic: string; subscription: string; entityName: string }>;
+  } {
+    const serviceBusConfig = this.config.getServiceBusConfiguration();
+    const queues: string[] = [];
+    const topicSubscriptions: Array<{ topic: string; subscription: string; entityName: string }> = [];
+
+    if (serviceBusConfig?.UserConfig?.Namespaces) {
+      serviceBusConfig.UserConfig.Namespaces.forEach((namespace) => {
+        if (namespace.Queues) {
+          namespace.Queues.forEach((q) => queues.push(q.Name));
+        }
+
+        if (namespace.Topics) {
+          namespace.Topics.forEach((topic) => {
+            if (topic.Subscriptions) {
+              topic.Subscriptions.forEach((sub) => {
+                topicSubscriptions.push({
+                  topic: topic.Name,
+                  subscription: sub.Name,
+                  entityName: `${topic.Name}/subscriptions/${sub.Name}`,
+                });
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // Fallback to default queue
+    if (queues.length === 0 && topicSubscriptions.length === 0) {
+      const defaultQueue = this.config.serviceBusQueue;
+      if (defaultQueue) {
+        queues.push(defaultQueue);
+        this.logger.warn('Using default queue from SERVICE_BUS_QUEUE');
+      }
+    }
+
+    return { queues, topicSubscriptions };
+  }
+
+  private async subscribeToQueue(queueName: string) {
+    try {
+      const receiver = this.serviceBusService.createReceiver(queueName);
+      this.receivers.set(queueName, receiver);
+
+      const handlers = this.createMessageHandlers(receiver, queueName, 'queue');
+
+      const subscription = receiver.subscribe(handlers, {
+        autoCompleteMessages: false,
+        maxConcurrentCalls: 5,
+      });
+
+      this.subscriptions.set(queueName, subscription);
+      this.logger.log(`Service Bus subscription started for queue ${queueName}`);
+    } catch (error) {
+      this.logger.error(`Failed to subscribe to queue ${queueName}:`, error);
+    }
+  }
+
+  private async subscribeToTopic(topic: string, subscription: string, entityName: string) {
+    try {
+      const receiver = this.serviceBusService.createReceiver(entityName);
+      this.receivers.set(entityName, receiver);
+
+      const handlers = this.createMessageHandlers(receiver, entityName, 'topic', topic, subscription);
+
+      const subscriptionHandle = receiver.subscribe(handlers, {
+        autoCompleteMessages: false,
+        maxConcurrentCalls: 5,
+      });
+
+      this.subscriptions.set(entityName, subscriptionHandle);
+      this.logger.log(`Service Bus subscription started for topic ${topic}, subscription ${subscription}`);
+    } catch (error) {
+      this.logger.error(`Failed to subscribe to topic ${topic}, subscription ${subscription}:`, error);
+    }
+  }
+
+  private createMessageHandlers(
+    receiver: ServiceBusReceiver,
+    entityName: string,
+    type: 'queue' | 'topic',
+    topic?: string,
+    subscription?: string,
+  ): MessageHandlers {
+    return {
+      processMessage: async (message) => {
+        const messageId = message.messageId?.toString();
+        if (!messageId) {
+          this.logger.warn(`Received message without messageId from ${entityName}`);
+          await receiver.completeMessage(message);
+          return;
+        }
+
+        const disposition = await this.getDisposition(messageId, message);
+
+        await this.messageProcessor.processMessage(
+          { message, receiver },
+          {
+            messageId,
+            disposition,
+            queueName: entityName,
+            receivedBy: 'service-bus-worker',
+            emulatorType: 'azure-service-bus',
+          },
+          this.createDispositionActions(),
+        );
+      },
+      processError: async (args: ProcessErrorArgs) => {
+        const location = type === 'topic' ? `topic ${topic}/subscription ${subscription}` : `queue ${entityName}`;
+        this.logger.error(`Service Bus processor error for ${location}:`, args.error);
+      },
+    };
+  }
+
+  private async getDisposition(
+    messageId: string,
+    message: ServiceBusReceivedMessage,
+  ): Promise<MessageDisposition> {
+    // Check database first for existing disposition
+    const existingMessage = await this.messageService.findOneTrackingByMessageId(messageId);
+    if (existingMessage?.disposition) {
+      return MessageProcessor.normalizeDisposition(existingMessage.disposition);
+    }
+
+    // Fall back to application properties
+    return MessageProcessor.normalizeDisposition(
+      message.applicationProperties?.['messageDisposition'] as string,
+    );
+  }
+
+  private createDispositionActions(): DispositionActions<{
+    message: ServiceBusReceivedMessage;
+    receiver: ServiceBusReceiver;
+  }> {
+    return {
+      complete: async ({ message, receiver }) => {
+        await receiver.completeMessage(message);
+      },
+      abandon: async ({ message, receiver }) => {
+        await receiver.abandonMessage(message);
+      },
+      deadletter: async ({ message, receiver }) => {
+        await receiver.deadLetterMessage(message);
+      },
+      defer: async ({ message, receiver }) => {
+        await receiver.deferMessage(message);
+      },
+    };
+  }
+
+  private logSubscriptionSummary(
+    queues: string[],
+    topicSubscriptions: Array<{ topic: string; subscription: string }>,
+  ) {
+    const totalSubscriptions = queues.length + topicSubscriptions.length;
+    const queueList = queues.length > 0 ? `queue(s): ${queues.join(', ')}` : '';
+    const topicList =
+      topicSubscriptions.length > 0
+        ? `topic subscription(s): ${topicSubscriptions.map((ts) => `${ts.topic}/${ts.subscription}`).join(', ')}`
+        : '';
+    const subscriptionList = [queueList, topicList].filter(Boolean).join('; ');
+
+    this.logger.log(`Service Bus subscriptions started for ${totalSubscriptions} entity(ies): ${subscriptionList}`);
   }
 }

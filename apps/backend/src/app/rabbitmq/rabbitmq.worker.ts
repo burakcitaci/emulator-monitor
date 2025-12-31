@@ -14,37 +14,32 @@ export class RabbitmqWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    const defaultQueue = this.config.rabbitmqQueue;
+
+    if (!defaultQueue) {
+      this.logger.warn('RABBITMQ_QUEUE not configured. Skipping RabbitMQ worker bootstrap.');
+      return;
+    }
+
     try {
-      // Get default queue from config
-      const defaultQueue = this.config.rabbitmqQueue;
-      this.logger.log(`RabbitMQ worker initializing with queue: ${defaultQueue}`);
-
-      if (!defaultQueue) {
-        this.logger.warn('RABBITMQ_QUEUE not configured. Skipping RabbitMQ worker bootstrap.');
-        return;
-      }
-
-      // Start consuming from the default queue
       await this.rabbitmqService.startConsuming(defaultQueue);
-
       this.logger.log(`RabbitMQ worker initialized and polling queue: ${defaultQueue}`);
     } catch (error) {
       this.logger.error('Failed to initialize RabbitMQ worker', error);
-      throw error; // Re-throw to prevent silent failures
+      throw error;
     }
   }
 
   async onModuleDestroy() {
-    try {
-      // Stop consuming from the default queue
-      const defaultQueue = this.config.rabbitmqQueue;
-      if (defaultQueue) {
+    const defaultQueue = this.config.rabbitmqQueue;
+
+    if (defaultQueue) {
+      try {
         await this.rabbitmqService.stopConsuming(defaultQueue);
         this.logger.log(`RabbitMQ worker stopped consuming queue: ${defaultQueue}`);
+      } catch (error) {
+        this.logger.error('Error stopping RabbitMQ worker', error);
       }
-    } catch (error) {
-      this.logger.error('Error stopping RabbitMQ worker', error);
     }
   }
 }
-
