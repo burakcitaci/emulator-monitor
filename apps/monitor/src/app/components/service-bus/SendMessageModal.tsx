@@ -127,6 +127,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
           messageGroupId: messageGroupId.trim() || undefined,
           messageDeduplicationId: messageDeduplicationId.trim() || undefined,
           delaySeconds: delaySeconds !== undefined ? delaySeconds : undefined,
+          messageDisposition: messageDisposition,
         };
         await sendSqsMutation.mutateAsync(messagePayload);
       } else {
@@ -307,6 +308,26 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
             )}
             {serviceType === 'sqs' && (
               <>
+                <div className="grid gap-2">
+                  <Label htmlFor="disposition">Message Disposition</Label>
+                  <Select value={messageDisposition} onValueChange={(value: 'complete' | 'abandon' | 'deadletter' | 'defer') => setMessageDisposition(value)}>
+                    <SelectTrigger id="disposition">
+                      <SelectValue placeholder="Select message disposition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="complete">Complete</SelectItem>
+                      <SelectItem value="abandon">Abandon</SelectItem>
+                      <SelectItem value="deadletter">Dead Letter</SelectItem>
+                      <SelectItem value="defer">Defer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {messageDisposition === 'complete' && 'Message will be completed and deleted from the queue.'}
+                    {messageDisposition === 'abandon' && 'Message will be abandoned and become visible again after visibility timeout.'}
+                    {messageDisposition === 'deadletter' && 'Message will be marked for dead-letter queue (requires redrive policy configuration).'}
+                    {messageDisposition === 'defer' && 'Message will be deferred with extended visibility timeout (5 minutes).'}
+                  </p>
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="messageGroupId">Message Group ID (FIFO queues only, optional)</Label>
                   <Input

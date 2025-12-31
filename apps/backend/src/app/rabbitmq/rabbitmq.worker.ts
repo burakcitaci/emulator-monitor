@@ -17,28 +17,30 @@ export class RabbitmqWorker implements OnModuleInit, OnModuleDestroy {
     try {
       // Get default queue from config
       const defaultQueue = this.config.rabbitmqQueue;
-      
+      this.logger.log(`RabbitMQ worker initializing with queue: ${defaultQueue}`);
+
       if (!defaultQueue) {
         this.logger.warn('RABBITMQ_QUEUE not configured. Skipping RabbitMQ worker bootstrap.');
         return;
       }
 
-      // Start polling from the default queue
-      await this.rabbitmqService.startPolling(defaultQueue);
-      
+      // Start consuming from the default queue
+      await this.rabbitmqService.startConsuming(defaultQueue);
+
       this.logger.log(`RabbitMQ worker initialized and polling queue: ${defaultQueue}`);
     } catch (error) {
       this.logger.error('Failed to initialize RabbitMQ worker', error);
+      throw error; // Re-throw to prevent silent failures
     }
   }
 
   async onModuleDestroy() {
     try {
-      // Stop polling for the default queue
+      // Stop consuming from the default queue
       const defaultQueue = this.config.rabbitmqQueue;
       if (defaultQueue) {
-        await this.rabbitmqService.stopPolling(defaultQueue);
-        this.logger.log(`RabbitMQ worker stopped polling queue: ${defaultQueue}`);
+        await this.rabbitmqService.stopConsuming(defaultQueue);
+        this.logger.log(`RabbitMQ worker stopped consuming queue: ${defaultQueue}`);
       }
     } catch (error) {
       this.logger.error('Error stopping RabbitMQ worker', error);

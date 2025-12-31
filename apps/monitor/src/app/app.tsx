@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   SidebarInset,
   SidebarProvider,
@@ -11,36 +11,8 @@ import { useSidebarState } from './hooks/useSidebarState';
 import { Detail } from './components/detail';
 
 
-type EmulatorType = 'sqs' | 'azure-service-bus' | 'rabbitmq' | null;
-
-function getEmulatorTypeFromPath(): EmulatorType {
-  const path = window.location.pathname;
-  if (path === '/sqs' || path.startsWith('/sqs/')) return 'sqs';
-  if (path === '/azure-service-bus' || path.startsWith('/azure-service-bus/')) return 'azure-service-bus';
-  if (path === '/rabbitmq' || path.startsWith('/rabbitmq/')) return 'rabbitmq';
-  return null;
-}
-
 export function App() {
   const { isOpen } = useSidebarState();
-  const [emulatorType, setEmulatorType] = useState<EmulatorType>(() => getEmulatorTypeFromPath());
-
-  useEffect(() => {
-    const handleRouteChange = () => {
-      setEmulatorType(getEmulatorTypeFromPath());
-    };
-
-    // Listen for browser back/forward navigation
-    window.addEventListener('popstate', handleRouteChange);
-    
-    // Listen for custom route change events
-    window.addEventListener('routechange', handleRouteChange);
-
-    return () => {
-      window.removeEventListener('popstate', handleRouteChange);
-      window.removeEventListener('routechange', handleRouteChange);
-    };
-  }, []);
 
   return (
     <SidebarProvider

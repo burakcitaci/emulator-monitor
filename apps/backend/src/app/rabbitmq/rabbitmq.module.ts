@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import * as amqp from 'amqplib';
+import type { Connection, Channel } from 'amqplib';
 import { CommonModule } from '../common/common.module';
 import { AppConfigService } from '../common/app-config.service';
 import { MessageModule } from '../messages/messages.module';
@@ -34,10 +35,11 @@ import { RabbitmqWorker } from './rabbitmq.worker';
     {
       provide: RABBITMQ_CHANNEL,
       inject: [RABBITMQ_CONNECTION],
-      useFactory: async (connection: amqp.Connection) => {
+      useFactory: async (connection: Connection) => {
         try {
-          const channel = await connection.createChannel();
-          channel.on('error', (err) => {
+          // Connection type from amqplib may not expose createChannel in types, but it exists at runtime
+          const channel = await (connection as Connection & { createChannel(): Promise<Channel> }).createChannel();
+          channel.on('error', (err: Error) => {
             console.error('RabbitMQ channel error:', err);
           });
           channel.on('close', () => {

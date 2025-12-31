@@ -27,6 +27,15 @@ export class RabbitmqController {
     return result;
   }
 
+  @Get('messages')
+  async getMessages() {
+    const result = await this.rabbitmqService.getMessages();
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
   @Get('config')
   getConfiguration() {
     return {

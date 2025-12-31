@@ -74,15 +74,34 @@ export class MessageService {
     return update as unknown as TrackingMessage | null;
   }
 
-  async updateDisposition(messageId: string, disposition: string): Promise<TrackingMessage | null> {
+  async updateDisposition(messageId: string, disposition: string, receivedBy?: string): Promise<TrackingMessage | null> {
+    // Check current status first to conditionally update it
+    const currentDoc = await this.messageModel.findOne({ messageId }).lean().exec();
+    const shouldUpdateStatus = currentDoc?.status === 'processing';
+    
+    const updateData: any = {
+      $set: {
+        disposition,
+      },
+    };
+    
+    // If status is still 'processing', also update it to 'received'
+    // This ensures UI shows disposition badge instead of "Processing" badge
+    if (shouldUpdateStatus) {
+      updateData.$set.status = 'received';
+      // Also set receivedAt and receivedBy if not already set
+      if (!currentDoc?.receivedAt) {
+        updateData.$set.receivedAt = new Date();
+      }
+      if (receivedBy && !currentDoc?.receivedBy) {
+        updateData.$set.receivedBy = receivedBy;
+      }
+    }
+
     const update = await this.messageModel
       .findOneAndUpdate(
         { messageId },
-        {
-          $set: {
-            disposition,
-          },
-        },
+        updateData,
         { new: true },
       )
       .lean()

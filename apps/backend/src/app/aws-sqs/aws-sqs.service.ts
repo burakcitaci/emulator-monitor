@@ -248,6 +248,7 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
 
     // Try to receive abandoned/deferred messages from the main queue
     // These are messages that are still in the queue (not deleted)
+    const visibleMessageIds = new Set<string>();
     try {
       const receiveCommand = new ReceiveMessageCommand({
         QueueUrl: queueUrl,
@@ -262,6 +263,7 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
         for (const message of response.Messages) {
           const messageId = message.MessageId;
           if (messageId) {
+            visibleMessageIds.add(messageId);
             const tracking = await this.messageService.findOneTrackingByMessageId(messageId);
             const disposition = tracking?.disposition || 
                               message.MessageAttributes?.messageDisposition?.StringValue?.toLowerCase();
@@ -279,6 +281,57 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       this.logger.error(`Failed to receive messages from queue: ${error}`);
+    }
+
+    // Add abandoned messages from tracking that aren't currently visible
+    // (they might be in visibility timeout)
+    for (const trackingMsg of results.tracking.abandon) {
+      if (trackingMsg.messageId && !visibleMessageIds.has(trackingMsg.messageId)) {
+        // Create a Message-like object from tracking data
+        const messageFromTracking: Message = {
+          MessageId: trackingMsg.messageId,
+          Body: trackingMsg.body,
+          MessageAttributes: {
+            sentBy: {
+              DataType: 'String',
+              StringValue: trackingMsg.sentBy || '',
+            },
+            messageDisposition: {
+              DataType: 'String',
+              StringValue: 'abandon',
+            },
+          },
+          Attributes: {
+            SentTimestamp: trackingMsg.sentAt ? new Date(trackingMsg.sentAt).getTime().toString() : undefined,
+          },
+        };
+        results.abandoned.push(messageFromTracking);
+      }
+    }
+
+    // Add deferred messages from tracking that aren't currently visible
+    for (const trackingMsg of results.tracking.defer) {
+      if (trackingMsg.messageId && !visibleMessageIds.has(trackingMsg.messageId)) {
+        // Create a Message-like object from tracking data
+        const messageFromTracking: Message = {
+          MessageId: trackingMsg.messageId,
+          Body: trackingMsg.body,
+          MessageAttributes: {
+            sentBy: {
+              DataType: 'String',
+              StringValue: trackingMsg.sentBy || '',
+            },
+            messageDisposition: {
+              DataType: 'String',
+              StringValue: 'defer',
+            },
+          },
+          Attributes: {
+            SentTimestamp: trackingMsg.sentAt ? new Date(trackingMsg.sentAt).getTime().toString() : undefined,
+          },
+        };
+        results.deferred.push(messageFromTracking);
+      }
     }
 
     return {

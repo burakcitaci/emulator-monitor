@@ -1,29 +1,90 @@
 import { useNavigate, useParams } from 'react-router';
-import { Button } from '../ui/button';
 import { ArrowLeft } from 'lucide-react';
-import { useTrackingMessagesByEmulator } from '../../hooks/api/tracking-messages';
-import { TrackingMessagesDataTable } from '../service-bus/TrackingMessagesDataTable';
 import { useGetSqsMessages } from '../../hooks/api/aws-sqs';
+import { SqsMessagesDataTable } from '../service-bus/SqsMessagesDataTable';
+import { LoadingSpinner } from '../ui/loading-spinner';
+import { AlertCircle } from 'lucide-react';
 
+function ErrorMessage({
+  icon,
+  title,
+  message,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+}) {
+  return (
+    <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
+      <div className="flex items-start gap-3">
+        {icon}
+        <div>
+          <p className="text-sm font-semibold text-destructive mb-1">{title}</p>
+          <p className="text-xs text-destructive/80">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getEmulatorName(emulator: string): string {
+  switch (emulator) {
+    case 'sqs':
+      return 'AWS SQS';
+    case 'azure-service-bus':
+      return 'Azure Service Bus';
+    case 'rabbitmq':
+      return 'RabbitMQ';
+    default:
+      return emulator;
+  }
+}
 export const Detail: React.FC = () => {
   const { emulator } = useParams();
   const navigate = useNavigate();
-  const { data: messages, isLoading, error } = useTrackingMessagesByEmulator(emulator || '');
   const { data: sqsMessages, isLoading: sqsMessagesLoading, error: sqsMessagesError } = useGetSqsMessages();
 
-  if (!emulator || isLoading || error) {
-    return <div>{error ? error.message : 'No emulator selected' + emulator || ''}</div>;
+  if (!emulator) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-sm text-muted-foreground">No emulator selected</div>
+      </div>
+    );
   }
 
   return (
-    <div>
-        <Button variant="outline" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /> Back</Button>
-      <h1>Detail {emulator}</h1>
-      {sqsMessages && sqsMessages.queueName ? <div className="p-6">
-        {sqsMessages.queueName} messages found</div>
-    : <div className="p-6">
-        <div className="text-center text-sm text-muted-foreground">No messages found</div>
-      </div>}
+    <div className="p-6 min-w-0">
+      <div className="flex flex-col gap-4 w-full flex-1 min-h-0 min-w-0">
+        <div className="flex items-center gap-4">
+          <div className="font-bold cursor-pointer" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-6 w-6 text-xl text-center  mr-2" /> 
+            
+          </div>
+          <h1 className="text-xl font-bold">Detail - {getEmulatorName(emulator)}</h1>
+        </div>
+
+        {emulator === 'sqs' ? (
+          sqsMessagesLoading ? (
+            <div className="flex items-center justify-center min-h-[200px]">
+              <LoadingSpinner />
+            </div>
+          ) : sqsMessagesError ? (
+            <ErrorMessage
+              icon={<AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />}
+              title="Failed to Load SQS Messages"
+              message={sqsMessagesError.message || 'Failed to load SQS messages'}
+            />
+          ) : sqsMessages ? (
+            <SqsMessagesDataTable data={sqsMessages} />
+          ) : (
+            <div className="text-center text-sm text-muted-foreground py-8">No SQS messages found</div>
+          )
+        ) : (
+          <div className="text-center text-sm text-muted-foreground py-8">
+            Detail view for {emulator} is not yet implemented
+          </div>
+        )}
+      </div>
     </div>
   );
 };
