@@ -35,7 +35,7 @@ export class MessageProcessor {
    * Creates a random delay between 0 and 2000ms to simulate processing time
    */
   static randomDelay(): Promise<void> {
-    const delayMs = Math.floor(Math.random() * 2000);
+    const delayMs = Math.floor(Math.random() * 5000);
     return new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
@@ -63,8 +63,10 @@ export class MessageProcessor {
     actions: DispositionActions<TMessage>,
   ): Promise<void> {
     const { messageId, disposition, queueName, receivedBy, emulatorType } = context;
+    console.log( emulatorType, "DISPOSITION", disposition);
     const normalizedDisposition = MessageProcessor.normalizeDisposition(disposition);
 
+    console.log( "NORMALIZED DISPOSITION", normalizedDisposition);
     this.logger.log(
       `[${emulatorType}] Processing message ${messageId} with disposition: ${normalizedDisposition}`,
     );
@@ -77,9 +79,11 @@ export class MessageProcessor {
       this.logger.error(`[${emulatorType}] Failed to mark message ${messageId} as received:`, error);
     }
 
+    console.log( "RANDOM DELAY");
     // Step 2: Random delay to simulate processing
     await MessageProcessor.randomDelay();
 
+    console.log( "EXECUTE DISPOSITION ACTION");
     // Step 3: Execute disposition action
     try {
       switch (normalizedDisposition) {

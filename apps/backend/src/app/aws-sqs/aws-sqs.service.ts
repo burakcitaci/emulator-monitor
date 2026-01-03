@@ -24,7 +24,7 @@ import { AppLogger } from '../common/logger.service';
 import { MessageService } from '../messages/messages.service';
 import { AwsSqsConnectionException } from '../common/exceptions';
 import { TrackingMessage } from '../messages/message.schema';
-import { MessageProcessor, DispositionActions, MessageDisposition } from '../common/message-processor';
+import { MessageProcessor, DispositionActions } from '../common/message-processor';
 
 @Injectable()
 export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
@@ -426,19 +426,20 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
     return error instanceof Error ? error.message : String(error);
   }
 
-  private isConnectionError(errorMessage: string, error: unknown): boolean {
-    return (
-      errorMessage.includes('ECONNREFUSED') ||
-      errorMessage.includes('connect') ||
-      errorMessage.includes('AggregateError') ||
-      errorMessage.includes('ENOTFOUND') ||
-      errorMessage.includes('ETIMEDOUT') ||
-      errorMessage.includes('getaddrinfo') ||
-      errorMessage.includes('EAI_AGAIN') ||
-      (error instanceof Error && error.name === 'AggregateError') ||
-      (error && typeof error === 'object' && 'errors' in error)
-    );
-  }
+private isConnectionError(errorMessage: string, error: unknown): boolean {
+  return (
+    errorMessage.includes('ECONNREFUSED') ||
+    errorMessage.includes('connect') ||
+    errorMessage.includes('AggregateError') ||
+    errorMessage.includes('ENOTFOUND') ||
+    errorMessage.includes('ETIMEDOUT') ||
+    errorMessage.includes('getaddrinfo') ||
+    errorMessage.includes('EAI_AGAIN') ||
+    (error instanceof Error && error.name === 'AggregateError') ||
+    Boolean(error && typeof error === 'object' && 'errors' in error)
+  );
+}
+
 
   private isQueueNotExistError(error: unknown, errorMessage: string): boolean {
     const errorName = (error as { name?: string })?.name || '';

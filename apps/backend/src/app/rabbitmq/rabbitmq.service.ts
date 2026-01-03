@@ -79,6 +79,27 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private getDeadLetterQueueName(queueName: string): string {
+    return `${queueName}.dlq`;
+  }
+
+  private async assertDeadLetterQueue(queueName: string): Promise<string> {
+    const dlqName = this.getDeadLetterQueueName(queueName);
+    if (this.queueCache.has(dlqName)) {
+      return dlqName;
+    }
+
+    try {
+      await this.channel.assertQueue(dlqName, { durable: true });
+      this.queueCache.add(dlqName);
+      this.logger.debug(`Dead-letter queue asserted: ${dlqName}`);
+      return dlqName;
+    } catch (error) {
+      this.logger.error(`Failed to assert dead-letter queue: ${dlqName}`, error);
+      throw new RabbitmqConnectionException(`Failed to assert dead-letter queue: ${dlqName}`);
+    }
+  }
+
   async sendMessage(dto: SendRabbitmqMessageDto) {
     const queueName = dto.queue ?? this.config.rabbitmqQueue;
     await this.assertQueue(queueName);
@@ -109,15 +130,37 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         throw new Error('Failed to send message - channel buffer full');
       }
 
-      await this.messageService.createTracking({
-        messageId,
-        body: typeof body === 'string' ? body : JSON.stringify(body),
-        sentBy: dto.sentBy ?? 'rabbitmq-api',
-        queue: queueName,
-        emulatorType: 'rabbitmq',
-        status: 'processing',
-        sentAt: new Date(),
-      });
+      // Check if tracking already exists for this messageId
+      const existingTracking = await this.messageService.findOneTrackingByMessageId(messageId);
+      
+      if (existingTracking) {
+        // Update existing tracking instead of creating a new one
+        await this.messageService.updateTrackingByMessageId(messageId, {
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+          sentBy: dto.sentBy ?? 'rabbitmq-api',
+          queue: queueName,
+          status: 'processing',
+          sentAt: new Date(),
+          // Reset disposition-related fields for the new message
+          disposition: undefined,
+          receivedAt: undefined,
+          receivedBy: undefined,
+        });
+        this.logger.log(`Updated existing tracking for RabbitMQ message ${messageId} in queue ${queueName}`);
+      } else {
+        // Create new tracking
+        await this.messageService.createTracking({
+          messageId,
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+          sentBy: dto.sentBy ?? 'rabbitmq-api',
+          queue: queueName,
+          receivedBy: undefined,
+          emulatorType: 'rabbitmq',
+          status: 'processing',
+          sentAt: new Date(),
+        });
+        this.logger.log(`Created new tracking for RabbitMQ message ${messageId} in queue ${queueName}`);
+      }
 
       this.logger.log(`Sent RabbitMQ message ${messageId} to queue ${queueName}`);
 
@@ -145,6 +188,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         message.properties.headers?.['messageDisposition'] as string,
       );
 
+      console.log("DISPOSITION", disposition);
       await this.messageProcessor.processMessage(
         message,
         {
@@ -167,6 +211,11 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Failed to receive message from queue ${queueName}`, error);
       throw new RabbitmqConnectionException(`Failed to receive message: ${errorMessage}`);
     }
+  }
+
+  async updateTracking(messageId: string, status: string, disposition: MessageDisposition): Promise<void> {
+    await this.messageService.updateTrackingByMessageId(messageId, { status, disposition });
+    this.logger.log(`Updated tracking for message ${messageId} to ${status} with disposition ${disposition}`);
   }
 
   async startConsuming(queueName: string): Promise<void> {
@@ -252,6 +301,9 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   }
 
   private createDispositionActions(queueName: string): DispositionActions<amqp.GetMessage | amqp.ConsumeMessage> {
+    console.log("QUEUE NAME", queueName);
+    console.log("CREATE DISPOSITION ACTIONS");
+    
     return {
       complete: async (message) => {
         this.channel.ack(message);
@@ -260,7 +312,47 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         this.channel.nack(message, false, true);
       },
       deadletter: async (message) => {
-        this.channel.nack(message, false, false);
+        try {
+          // Assert dead-letter queue exists
+          const dlqName = await this.assertDeadLetterQueue(queueName);
+          
+          // Publish message to dead-letter queue with original properties
+          const dlqOptions: amqp.Options.Publish = {
+            messageId: message.properties.messageId,
+            persistent: true,
+            headers: {
+              ...message.properties.headers,
+              'x-original-queue': queueName,
+              'x-dead-letter-reason': 'deadletter-disposition',
+            },
+            ...(message.properties.expiration && { expiration: message.properties.expiration }),
+            ...(message.properties.priority !== undefined && { priority: message.properties.priority }),
+          };
+
+          const sent = this.channel.sendToQueue(dlqName, message.content, dlqOptions);
+          if (!sent) {
+            this.logger.warn(`Failed to send message to dead-letter queue ${dlqName} - channel buffer full`);
+          } else {
+            this.logger.log(`Message published to dead-letter queue ${dlqName} for queue ${queueName}`);
+          }
+
+          // Update tracking to reflect DLQ queue name
+          const messageId = this.extractMessageId(message);
+          if (messageId) {
+            try {
+              // Update queue name in tracking document using messageId
+              await this.messageService.updateTrackingByMessageId(messageId, { queue: dlqName });
+              this.logger.log(`Updated tracking queue to ${dlqName} for dead-lettered message ${messageId}`);
+            } catch (error) {
+              this.logger.error(`Failed to update tracking for dead-lettered message ${messageId}:`, error);
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Failed to dead-letter message:`, error);
+        } finally {
+          // Always nack the original message (reject without requeue)
+          this.channel.nack(message, false, false);
+        }
       },
       defer: async (message) => {
         this.channel.nack(message, false, true);
@@ -279,12 +371,17 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     existingMessage: { disposition?: string } | null,
     message: amqp.GetMessage | amqp.ConsumeMessage,
   ): MessageDisposition {
+    // Prioritize message headers over database disposition
+    // This ensures that if a message is resent with a new disposition,
+    // it uses the new value instead of the old one stored in the database
+    const headerDisposition = message.properties.headers?.['messageDisposition'] as string;
+    if (headerDisposition) {
+      return MessageProcessor.normalizeDisposition(headerDisposition);
+    }
     if (existingMessage?.disposition) {
       return MessageProcessor.normalizeDisposition(existingMessage.disposition);
     }
-    return MessageProcessor.normalizeDisposition(
-      message.properties.headers?.['messageDisposition'] as string,
-    );
+    return 'complete';
   }
 
   private async createOrphanedMessageTracking(
@@ -407,4 +504,96 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       },
     };
   }
+  async getMessagesForWorker() {
+  const queueName = this.config.rabbitmqQueue;
+  await this.assertQueue(queueName);
+
+  const results = {
+    queueMessages: [] as Array<{
+      messageId: string;
+      body: string;
+      properties: amqp.Message['properties'];
+    }>,
+    tracking: {
+      processing: [] as any[],
+      complete: [] as any[],
+      abandon: [] as any[],
+      deadletter: [] as any[],
+      defer: [] as any[],
+    },
+  };
+
+  // Peek messages from queue using checkQueue (non-destructive)
+  try {
+    const queueInfo = await this.channel.checkQueue(queueName);
+    this.logger.log(`Queue ${queueName} has ${queueInfo.messageCount} messages`);
+
+    // Only peek if there are messages
+    if (queueInfo.messageCount > 0) {
+      const messagesToPeek = Math.min(10, queueInfo.messageCount);
+      const tempMessages: Array<amqp.GetMessage> = [];
+
+      // Get messages without auto-ack
+      for (let i = 0; i < messagesToPeek; i++) {
+        const message = await this.channel.get(queueName, { noAck: false });
+        if (!message) break;
+
+        const messageId = this.extractMessageId(message);
+        results.queueMessages.push({
+          messageId,
+          body: message.content.toString(),
+          properties: message.properties,
+        });
+        tempMessages.push(message);
+      }
+
+      // Requeue all messages in reverse order to maintain original queue order
+      for (let i = tempMessages.length - 1; i >= 0; i--) {
+        this.channel.nack(tempMessages[i], false, true);
+      }
+
+      // Add a small delay to allow messages to be requeued
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  } catch (error) {
+    this.logger.error(`Failed to peek messages from queue ${queueName}:`, error);
+  }
+
+  // Get tracking messages
+  try {
+    const trackingMessages = await this.messageService.findTrackingMessagesByEmulator('rabbitmq');
+
+    results.tracking.processing = trackingMessages.filter(
+      (msg) => msg.status === 'processing' && msg.queue === queueName,
+    );
+    results.tracking.complete = trackingMessages.filter(
+      (msg) => msg.status === 'received' && msg.disposition === 'complete' && msg.queue === queueName,
+    );
+    results.tracking.abandon = trackingMessages.filter(
+      (msg) => msg.status === 'received' && msg.disposition === 'abandon' && msg.queue === queueName,
+    );
+    results.tracking.deadletter = trackingMessages.filter(
+      (msg) => msg.status === 'received' && msg.disposition === 'deadletter' && msg.queue === queueName,
+    );
+    results.tracking.defer = trackingMessages.filter(
+      (msg) => msg.status === 'received' && msg.disposition === 'defer' && msg.queue === queueName,
+    );
+  } catch (error) {
+    this.logger.error(`Failed to get tracking messages: ${error}`);
+  }
+
+  return {
+    queueName,
+    queueMessages: results.queueMessages,
+    trackingMessages: results.tracking,
+    summary: {
+      queue: results.queueMessages.length,
+      processing: results.tracking.processing.length,
+      complete: results.tracking.complete.length,
+      abandon: results.tracking.abandon.length,
+      deadletter: results.tracking.deadletter.length,
+      defer: results.tracking.defer.length,
+    },
+  };
+}
 }

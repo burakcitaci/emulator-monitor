@@ -71,7 +71,6 @@ export const Messages: React.FC = () => {
     const sqs = messages.filter((m) => m.emulatorType === 'sqs').length;
     const azureServiceBus = messages.filter((m) => m.emulatorType === 'azure-service-bus').length;
     const rabbitmq = messages.filter((m) => m.emulatorType === 'rabbitmq').length;
-
     return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus, rabbitmq };
   }, [messages]);
 
