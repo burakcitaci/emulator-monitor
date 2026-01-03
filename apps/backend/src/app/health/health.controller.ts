@@ -6,7 +6,6 @@ import {
 } from '@nestjs/terminus';
 import { ServiceBusHealthIndicator } from '../service-bus/service-bus.health';
 import { AwsSqsHealthIndicator } from '../aws-sqs/aws-sqs.health';
-import { RabbitmqHealthIndicator } from '../rabbitmq/rabbitmq.health';
 
 @Controller('health')
 export class HealthController {
@@ -15,7 +14,6 @@ export class HealthController {
     private readonly mongoose: MongooseHealthIndicator,
     private readonly serviceBus: ServiceBusHealthIndicator,
     private readonly awsSqs: AwsSqsHealthIndicator,
-    private readonly rabbitmq: RabbitmqHealthIndicator,
   ) {}
 
   @Get()
@@ -26,7 +24,6 @@ export class HealthController {
       () => this.mongoose.pingCheck('messageTrackingDb', { connection: 'MessageTrackingDb' }),
       () => this.serviceBus.isHealthy(),
       () => this.awsSqs.isHealthy(),
-      () => this.rabbitmq.isHealthy(),
     ]);
   }
 }

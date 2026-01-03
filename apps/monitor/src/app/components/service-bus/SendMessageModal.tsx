@@ -21,9 +21,7 @@ import {
 import { Button } from '../ui/button';
 import { useSendServiceBusMessage } from '../../hooks/api/service-bus';
 import { useSendSqsMessage, useAwsSqsConfig } from '../../hooks/api/aws-sqs';
-import { useSendRabbitmqMessage, useRabbitmqConfig } from '../../hooks/api/rabbitmq';
-
-type ServiceType = 'service-bus' | 'sqs' | 'rabbitmq';
+type ServiceType = 'service-bus' | 'sqs';
 
 interface SendMessageModalProps {
   open: boolean;
@@ -45,22 +43,14 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
   const [messageGroupId, setMessageGroupId] = useState('');
   const [messageDeduplicationId, setMessageDeduplicationId] = useState('');
   const [delaySeconds, setDelaySeconds] = useState<number | undefined>(undefined);
-  // RabbitMQ-specific fields
-  const [expiration, setExpiration] = useState<number | undefined>(undefined);
-  const [priority, setPriority] = useState<number | undefined>(undefined);
-
   const sendServiceBusMutation = useSendServiceBusMessage();
   const sendSqsMutation = useSendSqsMessage();
-  const sendRabbitmqMutation = useSendRabbitmqMessage();
   const { data: awsSqsConfig } = useAwsSqsConfig();
-  const { data: rabbitmqConfig } = useRabbitmqConfig();
 
   const sendMutation = 
     serviceType === 'service-bus' 
       ? sendServiceBusMutation 
-      : serviceType === 'sqs'
-      ? sendSqsMutation
-      : sendRabbitmqMutation;
+      : sendSqsMutation;
 
   const generateRandomJson = () => {
     const sampleData = {
@@ -81,9 +71,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
     const prefixes = 
       serviceType === 'service-bus' 
         ? ['service-bus', 'api', 'worker', 'scheduler', 'processor', 'handler']
-        : serviceType === 'sqs'
-        ? ['aws-sqs', 'lambda', 'worker', 'scheduler', 'processor', 'handler']
-        : ['rabbitmq', 'api', 'worker', 'scheduler', 'processor', 'handler'];
+        : ['aws-sqs', 'lambda', 'worker', 'scheduler', 'processor', 'handler'];
     const suffixes = ['api', 'service', 'worker', 'processor', 'handler', 'client'];
     const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
     const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
@@ -130,27 +118,12 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
           messageDisposition: messageDisposition,
         };
         await sendSqsMutation.mutateAsync(messagePayload);
-      } else {
-        // RabbitMQ
-        const messagePayload = {
-          queue: queue === '__default__' 
-            ? (rabbitmqConfig?.queueName || undefined)
-            : queue.trim() || undefined,
-          body: body.trim(),
-          sentBy: sentBy.trim() || undefined,
-          expiration: expiration !== undefined ? expiration : undefined,
-          priority: priority !== undefined ? priority : undefined,
-          messageDisposition: messageDisposition,
-        };
-        await sendRabbitmqMutation.mutateAsync(messagePayload);
       }
 
       const serviceName = 
         serviceType === 'service-bus' 
           ? 'Azure Service Bus' 
-          : serviceType === 'sqs'
-          ? 'AWS SQS'
-          : 'RabbitMQ';
+          : 'AWS SQS';
       toast.success('Message simulated successfully', {
         description: `The message has been enqueued to ${serviceName}.`,
       });
@@ -163,8 +136,6 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
       setMessageGroupId('');
       setMessageDeduplicationId('');
       setDelaySeconds(undefined);
-      setExpiration(undefined);
-      setPriority(undefined);
       onOpenChange(false);
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -183,9 +154,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
             Simulate sending a message to {
               serviceType === 'service-bus' 
                 ? 'Azure Service Bus' 
-                : serviceType === 'sqs'
-                ? 'AWS SQS'
-                : 'RabbitMQ'
+                : 'AWS SQS'
             }. The message will be tracked.
           </SheetDescription>
         </SheetHeader>
@@ -201,8 +170,6 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
                 setMessageGroupId('');
                 setMessageDeduplicationId('');
                 setDelaySeconds(undefined);
-                setExpiration(undefined);
-                setPriority(undefined);
               }}>
                 <SelectTrigger id="serviceType">
                   <SelectValue placeholder="Select service type" />
@@ -210,7 +177,6 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
                 <SelectContent>
                   <SelectItem value="service-bus">Azure Service Bus</SelectItem>
                   <SelectItem value="sqs">AWS SQS</SelectItem>
-                  <SelectItem value="rabbitmq">RabbitMQ</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -276,9 +242,7 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
                 placeholder={
                   serviceType === 'service-bus' 
                     ? 'service-bus-api' 
-                    : serviceType === 'sqs'
-                    ? 'aws-sqs-api'
-                    : 'rabbitmq-api'
+                    : 'aws-sqs-api'
                 }
                 value={sentBy}
                 onChange={(e) => setSentBy(e.target.value)}
@@ -365,59 +329,6 @@ export const SendMessageModal: React.FC<SendMessageModalProps> = ({
                   />
                   <p className="text-xs text-muted-foreground">
                     The number of seconds to delay the message (0-900). Messages become available after this delay.
-                  </p>
-                </div>
-              </>
-            )}
-            {serviceType === 'rabbitmq' && (
-              <>
-                <div className="grid gap-2">
-                  <Label htmlFor="disposition">Message Disposition</Label>
-                  <Select value={messageDisposition} onValueChange={(value: 'complete' | 'abandon' | 'deadletter' | 'defer') => setMessageDisposition(value)}>
-                    <SelectTrigger id="disposition">
-                      <SelectValue placeholder="Select message disposition" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="complete">Complete</SelectItem>
-                      <SelectItem value="abandon">Abandon</SelectItem>
-                      <SelectItem value="deadletter">Dead Letter</SelectItem>
-                      <SelectItem value="defer">Defer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {messageDisposition === 'complete' && 'Message will be acknowledged and removed from the queue.'}
-                    {messageDisposition === 'abandon' && 'Message will be rejected and requeued for reprocessing.'}
-                    {messageDisposition === 'deadletter' && 'Message will be rejected without requeue (will go to dead-letter queue if configured).'}
-                    {messageDisposition === 'defer' && 'Message will be rejected and requeued (deferred).'}
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="expiration">Expiration (TTL in milliseconds, optional)</Label>
-                  <Input
-                    id="expiration"
-                    type="number"
-                    min="0"
-                    placeholder="60000"
-                    value={expiration ?? ''}
-                    onChange={(e) => setExpiration(e.target.value ? parseInt(e.target.value, 10) : undefined)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Message time-to-live in milliseconds. Message will expire after this duration.
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="priority">Priority (0-255, optional)</Label>
-                  <Input
-                    id="priority"
-                    type="number"
-                    min="0"
-                    max="255"
-                    placeholder="0"
-                    value={priority ?? ''}
-                    onChange={(e) => setPriority(e.target.value ? parseInt(e.target.value, 10) : undefined)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Message priority (0-255). Higher priority messages are delivered first.
                   </p>
                 </div>
               </>

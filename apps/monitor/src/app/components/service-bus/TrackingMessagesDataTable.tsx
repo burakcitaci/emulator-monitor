@@ -106,7 +106,7 @@ const createColumns = (
       const emulatorType = row.original.emulatorType;
       const displayText = emulatorType === 'azure-service-bus' ? 'Azure SB' :
                          emulatorType === 'sqs' ? 'SQS' :
-                         emulatorType === 'rabbitmq' ? 'RabbitMQ' : emulatorType || '-';
+                         emulatorType || '-';
 
       return (
         <div className="text-xs">
@@ -363,11 +363,10 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
     ).map(value => ({ label: value, value }));
 
     const emulatorTypeOptions = Array.from(
-      new Set(safeMessages.map(m => m.emulatorType).filter((v): v is 'sqs' | 'azure-service-bus' | 'rabbitmq' => Boolean(v)))
-    ).map((value: 'sqs' | 'azure-service-bus' | 'rabbitmq') => ({
+      new Set(safeMessages.map(m => m.emulatorType).filter((v): v is 'sqs' | 'azure-service-bus' => Boolean(v)))
+    ).map((value: 'sqs' | 'azure-service-bus') => ({
       label: value === 'azure-service-bus' ? 'Azure Service Bus' :
-             value === 'sqs' ? 'SQS' :
-             value === 'rabbitmq' ? 'RabbitMQ' : value,
+             value === 'sqs' ? 'SQS' : value,
       value
     }));
 
@@ -443,7 +442,6 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
                   <Badge variant="outline" className="text-xs">
                     {selectedMessage?.emulatorType === 'azure-service-bus' ? 'Azure SB' :
                      selectedMessage?.emulatorType === 'sqs' ? 'SQS' :
-                     selectedMessage?.emulatorType === 'rabbitmq' ? 'RabbitMQ' :
                      selectedMessage?.emulatorType || 'Unknown'}
                   </Badge>
                 </div>

@@ -33,8 +33,6 @@ function getEmulatorName(emulator: string): string {
       return 'AWS SQS';
     case 'azure-service-bus':
       return 'Azure Service Bus';
-    case 'rabbitmq':
-      return 'RabbitMQ';
     default:
       return emulator;
   }

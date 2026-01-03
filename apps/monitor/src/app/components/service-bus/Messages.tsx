@@ -70,8 +70,7 @@ export const Messages: React.FC = () => {
     // Emulator statistics
     const sqs = messages.filter((m) => m.emulatorType === 'sqs').length;
     const azureServiceBus = messages.filter((m) => m.emulatorType === 'azure-service-bus').length;
-    const rabbitmq = messages.filter((m) => m.emulatorType === 'rabbitmq').length;
-    return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus, rabbitmq };
+    return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus };
   }, [messages]);
 
   // Extract queues and topics from config
@@ -168,12 +167,6 @@ export const Messages: React.FC = () => {
               <CardContent className="p-4 cursor-pointer hover:bg-accent transition-colors">
                 <div className="text-xs text-muted-foreground mb-1">Azure SB</div>
                 <div className="text-xl font-bold">{stats.azureServiceBus}</div>
-              </CardContent>
-            </Card>
-            <Card onClick={() => navigate('/rabbitmq')}>
-              <CardContent className="p-4 cursor-pointer hover:bg-accent transition-colors">
-                <div className="text-xs text-muted-foreground mb-1">RabbitMQ</div>
-                <div className="text-xl font-bold">{stats.rabbitmq}</div>
               </CardContent>
             </Card>
             <Card>

@@ -18,10 +18,6 @@ import {
   AwsSqsMessagesResponse,
   AwsSqsMessagesData,
   awsSqsMessagesResponseSchema,
-  SendRabbitmqMessage,
-  ReceiveRabbitmqMessage,
-  RabbitmqConfig,
-  rabbitmqConfigSchema,
 } from './schemas';
 
 // API Response types
@@ -375,60 +371,6 @@ class ApiClient {
     return response.data;
   }
 
-  // RabbitMQ API
-  async sendRabbitmqMessage(message: SendRabbitmqMessage) {
-    const response = await this.request(
-      '/rabbitmq/messages',
-      {
-        method: 'POST',
-        body: JSON.stringify(message),
-      },
-      sendMessageResponseSchema
-    );
-
-    if (!isApiResponse<{ queueName: string; messageId: string }>(response) || !response.success || !response.data) {
-      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to send RabbitMQ message') : 'Invalid response format');
-    }
-
-    return response.data;
-  }
-
-  async receiveRabbitmqMessage(message: ReceiveRabbitmqMessage) {
-    const response = await this.request(
-      '/rabbitmq/messages/receive',
-      {
-        method: 'POST',
-        body: JSON.stringify(message),
-      },
-      apiResponseSchema(
-        z.object({
-          queueName: z.string(),
-          messageId: z.string(),
-          body: z.string(),
-          properties: z.record(z.string(), z.any()).optional(),
-        }).nullable()
-      )
-    );
-
-    return response;
-  }
-
-  async getRabbitmqConfig(): Promise<RabbitmqConfig> {
-    const response = await this.request(
-      '/rabbitmq/config',
-      undefined,
-      z.object({
-        success: z.boolean(),
-        data: rabbitmqConfigSchema,
-      })
-    );
-
-    if (!isApiResponse<RabbitmqConfig>(response) || !response.success || !response.data) {
-      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch RabbitMQ config') : 'Invalid response format');
-    }
-
-    return response.data;
-  }
 }
 
 export const apiClient = new ApiClient();

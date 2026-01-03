@@ -34,7 +34,7 @@ export class TrackingMessage {
   @Prop({ enum: ['complete', 'abandon', 'deadletter', 'defer'] })
   disposition?: string;
 
-  @Prop({ required: true, enum: ['sqs', 'azure-service-bus', 'rabbitmq'], default: 'azure-service-bus' })
+  @Prop({ required: true, enum: ['sqs', 'azure-service-bus'], default: 'azure-service-bus' })
   emulatorType?: string;
 }
 

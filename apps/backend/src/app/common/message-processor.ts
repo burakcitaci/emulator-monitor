@@ -8,7 +8,7 @@ export interface ProcessMessageContext {
   disposition: MessageDisposition;
   queueName: string;
   receivedBy: string;
-  emulatorType: 'sqs' | 'azure-service-bus' | 'rabbitmq';
+  emulatorType: 'sqs' | 'azure-service-bus';
 }
 
 export interface DispositionActions<TMessage> {
