@@ -7,6 +7,6 @@ export {
   Messages,
   TrackingMessagesDataTable,
   TrackingMessageDetailModal,
-} from './service-bus';
+} from './messages';
 
 // Container components

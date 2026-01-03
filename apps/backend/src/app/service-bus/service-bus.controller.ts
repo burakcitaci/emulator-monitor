@@ -27,6 +27,15 @@ export class ServiceBusController {
     return result;
   }
 
+  @Get('messages')
+  async getMessages() {
+    const result = await this.serviceBusService.getMessages();
+    return {
+      success: true,
+      data: result,
+    };
+  }
+  
   @Get('config')
   getConfiguration() {
     return {

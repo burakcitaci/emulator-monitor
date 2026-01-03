@@ -4,7 +4,7 @@ import {
   SidebarProvider,
 } from './components/ui/sidebar';
 import { Routes, Route } from 'react-router';
-import { Messages } from './components/service-bus/Messages';
+import { Messages } from './components/messages/Messages';
 import { AppSidebar } from './components/containers/ContainerSidebar';
 import { SiteHeader } from './components/common/SiteHeader';
 import { useSidebarState } from './hooks/useSidebarState';

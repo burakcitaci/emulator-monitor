@@ -243,3 +243,50 @@ export const awsSqsMessagesResponseSchema = z.union([
 ]);
 
 export type AwsSqsMessagesResponse = z.infer<typeof awsSqsMessagesResponseSchema>;
+
+// Azure Service Bus Message schema (similar to AWS SQS Message)
+export const azureServiceBusMessageSchema = z.object({
+  messageId: z.string().optional(),
+  body: z.string().optional(),
+  contentType: z.string().optional(),
+  subject: z.string().optional(),
+  sessionId: z.string().optional(),
+  replyTo: z.string().optional(),
+  timeToLive: z.number().optional(),
+  scheduledEnqueueTime: z.coerce.date().optional(),
+  applicationProperties: z.record(z.string(), z.any()).optional(),
+});
+
+export type AzureServiceBusMessage = z.infer<typeof azureServiceBusMessageSchema>;
+
+// Azure Service Bus Messages Data schema
+const serviceBusMessagesDataSchema = z.object({
+  namespace: z.string(),
+  queueName: z.string(),
+  dlqMessages: z.array(azureServiceBusMessageSchema),
+  abandonedMessages: z.array(azureServiceBusMessageSchema),
+  deferredMessages: z.array(azureServiceBusMessageSchema),
+  trackingMessages: z.object({
+    deadletter: z.array(trackingMessageSchema),
+    abandon: z.array(trackingMessageSchema),
+    defer: z.array(trackingMessageSchema),
+  }),
+  summary: z.object({
+    dlq: z.number(),
+    abandoned: z.number(),
+    deferred: z.number(),
+    trackingDeadletter: z.number(),
+    trackingAbandon: z.number(),
+    trackingDefer: z.number(),
+  }),
+});
+
+export type ServiceBusMessagesData = z.infer<typeof serviceBusMessagesDataSchema>;
+
+// Azure Service Bus Messages Response schema - handle both wrapped and unwrapped responses
+export const azureServiceBusMessagesResponseSchema = z.union([
+  apiResponseSchema(serviceBusMessagesDataSchema),
+  serviceBusMessagesDataSchema,
+]);
+
+export type ServiceBusMessagesResponse = z.infer<typeof azureServiceBusMessagesResponseSchema>;

@@ -8,6 +8,7 @@ import {
   ServiceBusMessage,
   ServiceBusReceiver,
   ServiceBusSender,
+  ServiceBusReceivedMessage,
 } from '@azure/service-bus';
 import { randomUUID } from 'crypto';
 import { SERVICE_BUS_CLIENT } from './service-bus.constants';
@@ -16,6 +17,7 @@ import { ReceiveServiceBusMessageDto } from './dto/receive-service-bus-message.d
 import { AppConfigService } from '../common/app-config.service';
 import { AppLogger } from '../common/logger.service';
 import { MessageService } from '../messages/messages.service';
+import { TrackingMessage } from '../messages/message.schema';
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy {
@@ -136,6 +138,65 @@ export class ServiceBusService implements OnModuleDestroy {
     }
   }
 
+  async getMessages() {
+    const queueName = this.config.serviceBusQueue;
+    const namespace = this.config.serviceBusNamespace;
+
+    const results = {
+      dlq: [] as ServiceBusReceivedMessage[],
+      abandoned: [] as ServiceBusReceivedMessage[],
+      deferred: [] as ServiceBusReceivedMessage[],
+      tracking: {
+        deadletter: [] as TrackingMessage[],
+        abandon: [] as TrackingMessage[],
+        defer: [] as TrackingMessage[],
+      },
+    };
+
+    // Get DLQ messages
+    await this.fetchDlqMessages(queueName, results);
+
+    // Get tracking messages
+    try {
+      const trackingMessages = await this.messageService.findTrackingMessagesByEmulator('azure-service-bus');
+      results.tracking.deadletter = trackingMessages.filter(
+        (msg) => msg.disposition === 'deadletter' && msg.queue === queueName,
+      );
+      results.tracking.abandon = trackingMessages.filter(
+        (msg) => msg.disposition === 'abandon' && msg.queue === queueName,
+      );
+      results.tracking.defer = trackingMessages.filter(
+        (msg) => msg.disposition === 'defer' && msg.queue === queueName,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to get tracking messages: ${error}`);
+    }
+
+    // Get visible messages from main queue
+    await this.fetchVisibleMessages(queueName, results);
+
+    // Note: Unlike SQS, we can't easily reconstruct ServiceBusReceivedMessage from tracking data
+    // Messages that are in tracking but not visible in the queue will be shown
+    // via the trackingMessages section in the response
+
+    return {
+      namespace,
+      queueName,
+      dlqMessages: results.dlq.map((msg) => this.messageToDto(msg)),
+      abandonedMessages: results.abandoned.map((msg) => this.messageToDto(msg)),
+      deferredMessages: results.deferred.map((msg) => this.messageToDto(msg)),
+      trackingMessages: results.tracking,
+      summary: {
+        dlq: results.dlq.length,
+        abandoned: results.abandoned.length,
+        deferred: results.deferred.length,
+        trackingDeadletter: results.tracking.deadletter.length,
+        trackingAbandon: results.tracking.abandon.length,
+        trackingDefer: results.tracking.defer.length,
+      },
+    };
+  }
+
   async ping(): Promise<void> {
     // Service Bus sender is ready to use immediately after creation
     // This ping method verifies we can create a sender without errors
@@ -159,6 +220,111 @@ export class ServiceBusService implements OnModuleDestroy {
     const sender = this.client.createSender(queueName);
     this.senders.set(queueName, sender);
     return sender;
+  }
+
+  private async fetchDlqMessages(
+    queueName: string,
+    results: { dlq: ServiceBusReceivedMessage[] },
+  ) {
+    try {
+      // Create receiver for dead-letter queue
+      const dlqReceiver = this.client.createReceiver(queueName, {
+        receiveMode: 'peekLock',
+        subQueueType: 'deadLetter',
+      });
+
+      try {
+        // Peek messages from DLQ (peek doesn't lock them)
+        const peekedMessages = await dlqReceiver.peekMessages(10);
+        if (peekedMessages.length > 0) {
+          // Receive them to get full message details
+          const receivedMessages = await dlqReceiver.receiveMessages(10, {
+            maxWaitTimeInMs: 1000,
+          });
+          results.dlq = receivedMessages;
+          // Abandon them so they stay in DLQ
+          for (const msg of receivedMessages) {
+            await dlqReceiver.abandonMessage(msg);
+          }
+        }
+      } finally {
+        await dlqReceiver.close();
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get DLQ messages: ${error}`);
+    }
+  }
+
+  private async fetchVisibleMessages(
+    queueName: string,
+    results: { dlq: ServiceBusReceivedMessage[]; abandoned: ServiceBusReceivedMessage[]; deferred: ServiceBusReceivedMessage[] },
+  ) {
+    try {
+      const receiver = this.createReceiver(queueName);
+      try {
+        // Peek messages to see what's available without locking/processing them
+        const peekedMessages = await receiver.peekMessages(10);
+        
+        if (peekedMessages.length > 0) {
+          // Receive messages to get full details and check their disposition
+          // We'll receive, check, and then abandon/defer/deadletter based on tracking
+          const receivedMessages = await receiver.receiveMessages(10, {
+            maxWaitTimeInMs: 1000,
+          });
+
+          for (const message of receivedMessages) {
+            const messageId = message.messageId?.toString();
+            if (messageId) {
+              const tracking = await this.messageService.findOneTrackingByMessageId(messageId);
+              const disposition =
+                tracking?.disposition ||
+                (message.applicationProperties?.messageDisposition as string)?.toLowerCase();
+
+              if (disposition === 'abandon') {
+                results.abandoned.push(message);
+                // Abandon to keep it in queue
+                await receiver.abandonMessage(message);
+              } else if (disposition === 'defer') {
+                results.deferred.push(message);
+                // Defer to keep it deferred
+                await receiver.deferMessage(message);
+              } else if (disposition === 'deadletter') {
+                results.dlq.push(message);
+                // Deadletter to move to DLQ
+                await receiver.deadLetterMessage(message);
+              } else {
+                // No specific disposition or 'complete', abandon to keep it visible
+                results.abandoned.push(message);
+                await receiver.abandonMessage(message);
+              }
+            } else {
+              // No messageId, abandon to keep it visible
+              results.abandoned.push(message);
+              await receiver.abandonMessage(message);
+            }
+          }
+        }
+      } finally {
+        await receiver.close();
+      }
+    } catch (error) {
+      this.logger.error(`Failed to receive messages from queue: ${error}`);
+    }
+  }
+
+
+  private messageToDto(message: ServiceBusReceivedMessage) {
+    return {
+      messageId: message.messageId?.toString(),
+      body: typeof message.body === 'string' ? message.body : JSON.stringify(message.body),
+      contentType: message.contentType,
+      subject: message.subject,
+      sessionId: message.sessionId,
+      replyTo: message.replyTo,
+      timeToLive: message.timeToLive,
+      scheduledEnqueueTime: message.scheduledEnqueueTimeUtc,
+      applicationProperties: message.applicationProperties,
+    };
   }
 
   async onModuleDestroy() {

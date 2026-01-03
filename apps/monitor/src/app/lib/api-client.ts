@@ -18,6 +18,9 @@ import {
   AwsSqsMessagesResponse,
   AwsSqsMessagesData,
   awsSqsMessagesResponseSchema,
+  ServiceBusMessagesData,
+  azureServiceBusMessagesResponseSchema,
+  ServiceBusMessagesResponse,
 } from './schemas';
 
 // API Response types
@@ -148,6 +151,39 @@ class ApiClient {
 
     throw new ApiError(500, 'Invalid response format from AWS SQS messages endpoint');
   }
+  // Azure Service Bus API
+// Replace the incomplete getServiceBusMessages method in your ApiClient class with this:
+
+async getServiceBusMessages(): Promise<ServiceBusMessagesData> {
+  const response = await this.request<ServiceBusMessagesResponse>(
+    '/service-bus/messages',
+    undefined,
+    azureServiceBusMessagesResponseSchema
+  );
+
+  // Handle wrapped response format
+  if (isApiResponse<ServiceBusMessagesData>(response)) {
+    if (!response.success) {
+      throw new ApiError(500, response.message || 'Failed to fetch Service Bus messages');
+    }
+    if (!response.data) {
+      throw new ApiError(500, 'No data returned from Service Bus messages endpoint');
+    }
+    return response.data;
+  }
+
+  // Handle unwrapped response format (direct data)
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    'namespace' in response &&
+    'queueName' in response
+  ) {
+    return response as ServiceBusMessagesData;
+  }
+
+  throw new ApiError(500, 'Invalid response format from Service Bus messages endpoint');
+}
   // Tracking Messages API
   async getTrackingMessages(): Promise<TrackingMessage[]> {
     const response = await this.request<

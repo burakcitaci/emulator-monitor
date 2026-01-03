@@ -1,19 +1,19 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { VirtualizedDataTable } from './data-table/VirtualizedDataTable';
-import { DataTableColumnHeader } from './data-table/DataTableColumnHeader';
-import { AwsSqsMessage, AwsSqsMessagesData } from '../../lib/schemas';
+import { Badge } from '../../ui/badge';
+import { Button } from '../../ui/button';
+import { VirtualizedDataTable } from '../../messages/data-table/VirtualizedDataTable';
+import { DataTableColumnHeader } from '../../messages/data-table/DataTableColumnHeader';
+import { AwsSqsMessage, AwsSqsMessagesData } from '../../../lib/schemas';
 import { TrackingMessage } from '@e2e-monitor/entities';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from '../ui/sheet';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+} from '../../ui/sheet';
+import { Card, CardContent } from '../../ui/card';
 
 // Helper function to format body content
 const formatBody = (body: unknown): string => {
@@ -57,7 +57,6 @@ type SqsMessageRow = {
 };
 
 // Convert TrackingMessage to SqsMessageRow
-// Handle the case where API returns null values that need to be converted to undefined
 const trackingToRow = (msg: {
   messageId: string;
   body?: string | null;
@@ -273,29 +272,42 @@ export const SqsMessagesDataTable: React.FC<SqsMessagesDataTableProps> = ({
     setIsBodyExpanded(false);
   }, []);
 
-  // Convert messages to rows and merge tracking messages with queue messages
-  const dlqRows = React.useMemo(() => {
-    const queueRows = data.dlqMessages.map(sqsMessageToRow);
-    const trackingRows = data.trackingMessages.deadletter.map(trackingToRow);
-    return [...queueRows, ...trackingRows];
-  }, [data.dlqMessages, data.trackingMessages.deadletter]);
-
-  const abandonedRows = React.useMemo(() => {
-    const queueRows = data.abandonedMessages.map(sqsMessageToRow);
-    const trackingRows = data.trackingMessages.abandon.map(trackingToRow);
-    return [...queueRows, ...trackingRows];
-  }, [data.abandonedMessages, data.trackingMessages.abandon]);
-
-  const deferredRows = React.useMemo(() => {
-    const queueRows = data.deferredMessages.map(sqsMessageToRow);
-    const trackingRows = data.trackingMessages.defer.map(trackingToRow);
-    return [...queueRows, ...trackingRows];
-  }, [data.deferredMessages, data.trackingMessages.defer]);
+  // Combine all messages into a single array
+  const allRows = React.useMemo(() => {
+    const dlqQueueRows = data.dlqMessages.map(sqsMessageToRow);
+    const dlqTrackingRows = data.trackingMessages.deadletter.map(trackingToRow);
+    
+    const abandonedQueueRows = data.abandonedMessages.map(sqsMessageToRow);
+    const abandonedTrackingRows = data.trackingMessages.abandon.map(trackingToRow);
+    
+    const deferredQueueRows = data.deferredMessages.map(sqsMessageToRow);
+    const deferredTrackingRows = data.trackingMessages.defer.map(trackingToRow);
+    
+    return [
+      ...dlqQueueRows,
+      ...dlqTrackingRows,
+      ...abandonedQueueRows,
+      ...abandonedTrackingRows,
+      ...deferredQueueRows,
+      ...deferredTrackingRows,
+    ];
+  }, [
+    data.dlqMessages,
+    data.trackingMessages.deadletter,
+    data.abandonedMessages,
+    data.trackingMessages.abandon,
+    data.deferredMessages,
+    data.trackingMessages.defer,
+  ]);
 
   const columns = React.useMemo(
     () => createColumns(handleMessageSelect, data),
     [handleMessageSelect, data],
   );
+
+  const totalMessages = data.summary.dlq + data.summary.trackingDeadletter +
+                        data.summary.abandoned + data.summary.trackingAbandon +
+                        data.summary.deferred + data.summary.trackingDefer;
 
   return (
     <>
@@ -331,66 +343,21 @@ export const SqsMessagesDataTable: React.FC<SqsMessagesDataTableProps> = ({
           </Card>
         </div>
 
-        {/* Message Sections */}
-        <div className="space-y-6">
-          {/* DLQ Messages */}
-          {dlqRows.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>DLQ Messages ({data.summary.dlq + data.summary.trackingDeadletter})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="w-full min-w-0 flex-1 min-h-0">
-                  <VirtualizedDataTable
-                    columns={columns}
-                    data={dlqRows}
-                    searchKey="body"
-                    searchPlaceholder="Search DLQ messages..."
-                    estimateSize={48}
-                    overscan={5}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Abandoned Messages */}
-          {abandonedRows.length > 0 && (
+        {/* Single Combined Table */}
+        <Card>
+          <CardContent className="p-4">
             <div className="w-full min-w-0 flex-1 min-h-0">
-                  <VirtualizedDataTable
-                    columns={columns}
-                    data={abandonedRows}
-                    searchKey="body"
-                    searchPlaceholder="Search abandoned messages..."
-                    estimateSize={48}
-                    overscan={5}
-                  />
-                </div>
-          )}
-
-          {/* Deferred Messages */}
-          {deferredRows.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Deferred Messages ({data.summary.deferred + data.summary.trackingDefer})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="w-full min-w-0 flex-1 min-h-0">
-                  <VirtualizedDataTable
-                    columns={columns}
-                    data={deferredRows}
-                    searchKey="body"
-                    searchPlaceholder="Search deferred messages..."
-                    estimateSize={48}
-                    overscan={5}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-      
-        </div>
+              <VirtualizedDataTable
+                columns={columns}
+                data={allRows}
+                searchKey="body"
+                searchPlaceholder={`Search all messages (${totalMessages} total)...`}
+                estimateSize={48}
+                overscan={5}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Detail Modal */}
@@ -483,4 +450,3 @@ export const SqsMessagesDataTable: React.FC<SqsMessagesDataTableProps> = ({
     </>
   );
 };
-

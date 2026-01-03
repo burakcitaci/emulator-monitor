@@ -7,6 +7,7 @@ import { trackingMessageKeys } from './tracking-messages';
 export const serviceBusKeys = {
   all: ['service-bus'] as const,
   config: () => [...serviceBusKeys.all, 'config'] as const,
+  messages: () => [...serviceBusKeys.all, 'messages'] as const,
 };
 
 // Hooks
@@ -48,5 +49,12 @@ export const useReceiveServiceBusMessage = () => {
       // Invalidate tracking messages to refresh the list
       queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
     },
+  });
+};
+
+export const useGetServiceBusMessages = () => {
+  return useQuery({
+    queryKey: serviceBusKeys.messages(),
+    queryFn: () => apiClient.getServiceBusMessages(),
   });
 };

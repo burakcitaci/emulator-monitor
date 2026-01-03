@@ -1,9 +1,11 @@
 import { useNavigate, useParams } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
 import { useGetSqsMessages } from '../../hooks/api/aws-sqs';
-import { SqsMessagesDataTable } from '../service-bus/SqsMessagesDataTable';
+import { SqsMessagesDataTable } from './aws-sqs';
 import { LoadingSpinner } from '../ui/loading-spinner';
 import { AlertCircle } from 'lucide-react';
+import { AzureSbDetail } from './azure-sb';
+import { useGetServiceBusMessages } from '../../hooks/api/service-bus';
 
 function ErrorMessage({
   icon,
@@ -41,7 +43,7 @@ export const Detail: React.FC = () => {
   const { emulator } = useParams();
   const navigate = useNavigate();
   const { data: sqsMessages, isLoading: sqsMessagesLoading, error: sqsMessagesError } = useGetSqsMessages();
-
+  const { data: azureSbMessages, isLoading: azureSbMessagesLoading, error: azureSbMessagesError } = useGetServiceBusMessages();
   if (!emulator) {
     return (
       <div className="p-6">
@@ -78,9 +80,7 @@ export const Detail: React.FC = () => {
             <div className="text-center text-sm text-muted-foreground py-8">No SQS messages found</div>
           )
         ) : (
-          <div className="text-center text-sm text-muted-foreground py-8">
-            Detail view for {emulator} is not yet implemented
-          </div>
+          <AzureSbDetail data={azureSbMessages} />
         )}
       </div>
     </div>
