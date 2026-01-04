@@ -261,23 +261,17 @@ export type AzureServiceBusMessage = z.infer<typeof azureServiceBusMessageSchema
 
 // Azure Service Bus Messages Data schema
 const serviceBusMessagesDataSchema = z.object({
-  namespace: z.string(),
-  queueName: z.string(),
-  dlqMessages: z.array(azureServiceBusMessageSchema),
-  abandonedMessages: z.array(azureServiceBusMessageSchema),
-  deferredMessages: z.array(azureServiceBusMessageSchema),
   trackingMessages: z.object({
     deadletter: z.array(trackingMessageSchema),
     abandon: z.array(trackingMessageSchema),
     defer: z.array(trackingMessageSchema),
+    complete: z.array(trackingMessageSchema),
   }),
   summary: z.object({
-    dlq: z.number(),
-    abandoned: z.number(),
-    deferred: z.number(),
     trackingDeadletter: z.number(),
     trackingAbandon: z.number(),
     trackingDefer: z.number(),
+    trackingComplete: z.number(),
   }),
 });
 

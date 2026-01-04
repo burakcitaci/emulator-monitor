@@ -47,6 +47,10 @@ export const useTrackingMessagesByEmulator = (emulator: string) => {
     staleTime: 5000, // 5 seconds - consider data stale quickly for monitoring
   });
 };
+
+
+// Update ALL three mutation hooks in your tracking-messages hook file:
+
 export const useCreateTrackingMessage = () => {
   const queryClient = useQueryClient();
 
@@ -54,7 +58,8 @@ export const useCreateTrackingMessage = () => {
     mutationFn: (message: Partial<TrackingMessage>) =>
       apiClient.createTrackingMessage(message),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.lists() });
+      // Invalidate all tracking message queries
+      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
     },
   });
 };
@@ -66,8 +71,8 @@ export const useUpdateTrackingMessage = () => {
     mutationFn: ({ id, message }: { id: string; message: Partial<TrackingMessage> }) =>
       apiClient.updateTrackingMessage(id, message),
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.detail(id) });
+      // Invalidate all tracking message queries
+      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
     },
   });
 };
@@ -78,7 +83,8 @@ export const useDeleteTrackingMessage = () => {
   return useMutation({
     mutationFn: (id: string) => apiClient.deleteTrackingMessage(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.lists() });
+      // Invalidate all tracking message queries
+      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
     },
   });
 };

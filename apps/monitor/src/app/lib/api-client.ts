@@ -169,6 +169,8 @@ async getServiceBusMessages(): Promise<ServiceBusMessagesData> {
     if (!response.data) {
       throw new ApiError(500, 'No data returned from Service Bus messages endpoint');
     }
+
+    console.log('Service Bus messages:', response.data);
     return response.data;
   }
 

@@ -32,9 +32,26 @@ export const useSendServiceBusMessage = () => {
   return useMutation({
     mutationFn: (message: SendServiceBusMessage) =>
       apiClient.sendMessage(message),
+    onSuccess: async () => {
+      // Single invalidation only - remove the setTimeout
+      await queryClient.invalidateQueries({
+        queryKey: serviceBusKeys.messages(),
+        refetchType: 'active',
+      });
+    },
+  });
+};
+
+export const useDeleteServiceBusMessage = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteTrackingMessage(id),
     onSuccess: () => {
-      // Invalidate tracking messages to refresh the list
-      queryClient.invalidateQueries({ queryKey: trackingMessageKeys.all });
+      // Be specific - only invalidate messages, not all service-bus keys
+      queryClient.invalidateQueries({ 
+        queryKey: serviceBusKeys.messages() 
+      });
     },
   });
 };
@@ -55,6 +72,8 @@ export const useReceiveServiceBusMessage = () => {
 export const useGetServiceBusMessages = () => {
   return useQuery({
     queryKey: serviceBusKeys.messages(),
-    queryFn: () => apiClient.getServiceBusMessages(),
+    queryFn: async () => {
+      return apiClient.getServiceBusMessages();
+    },
   });
 };
