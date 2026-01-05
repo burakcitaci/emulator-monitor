@@ -1,5 +1,4 @@
-import { useNavigate, useParams } from 'react-router';
-import { ArrowLeft } from 'lucide-react';
+import { useParams } from 'react-router';
 import { useGetSqsMessages } from '../../hooks/api/aws-sqs';
 import { SqsMessagesDataTable } from './aws-sqs';
 import { LoadingSpinner } from '../ui/loading-spinner';
@@ -28,19 +27,9 @@ function ErrorMessage({
   );
 }
 
-function getEmulatorName(emulator: string): string {
-  switch (emulator) {
-    case 'sqs':
-      return 'AWS SQS';
-    case 'azure-service-bus':
-      return 'Azure Service Bus';
-    default:
-      return emulator;
-  }
-}
+
 export const Detail: React.FC = () => {
   const { emulator } = useParams();
-  const navigate = useNavigate();
   const { data: sqsMessages, isLoading: sqsMessagesLoading, error: sqsMessagesError } = useGetSqsMessages();
    if (!emulator) {
     return (
@@ -53,14 +42,6 @@ export const Detail: React.FC = () => {
   return (
     <div className="p-6 min-w-0">
       <div className="flex flex-col gap-4 w-full flex-1 min-h-0 min-w-0">
-        <div className="flex items-center gap-4">
-          <div className="font-bold cursor-pointer" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-6 w-6 text-xl text-center  mr-2" /> 
-            
-          </div>
-          <h1 className="text-xl font-bold">Detail - {getEmulatorName(emulator)}</h1>
-        </div>
-
         {emulator === 'sqs' ? (
           sqsMessagesLoading ? (
             <div className="flex items-center justify-center min-h-[200px]">

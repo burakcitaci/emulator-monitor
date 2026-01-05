@@ -19,18 +19,16 @@ import {
   SelectValue,
 } from '../../../ui/select';
 import { Button } from '../../../ui/button';
-import { useSendServiceBusMessage } from '../../../../hooks/api/service-bus';
+import { useSendServiceBusMessage, useServiceBusConfig } from '../../../../hooks/api/service-bus';
 
 interface SendMessageModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  destinations: string[];
 }
 
 export const AzureSbSendMessageModal: React.FC<SendMessageModalProps> = ({
   open,
   onOpenChange,
-  destinations,
 }) => {
   const [queue, setQueue] = useState('__default__');
   const [body, setBody] = useState('');
@@ -38,7 +36,26 @@ export const AzureSbSendMessageModal: React.FC<SendMessageModalProps> = ({
   const [messageDisposition, setMessageDisposition] = useState<'complete' | 'abandon' | 'deadletter' | 'defer'>('complete');
   
   const sendServiceBusMutation = useSendServiceBusMessage();
-
+  const { data: config } = useServiceBusConfig();
+  // Extract queues and topics from config
+  const destinations = React.useMemo(() => {
+    if (!config?.UserConfig?.Namespaces) return [];
+    const allDestinations: string[] = [];
+    config.UserConfig.Namespaces.forEach((namespace) => {
+      if (namespace.Queues) {
+        namespace.Queues.forEach((q) => {
+          allDestinations.push(q.Name);
+        });
+      }
+      if (namespace.Topics) {
+        namespace.Topics.forEach((t) => {
+          allDestinations.push(t.Name);
+        });
+      }
+    });
+    return allDestinations.sort();
+  }, [config]);
+  
   const generateRandomJson = () => {
     const sampleData = {
       id: Math.random().toString(36).substring(7),

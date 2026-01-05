@@ -5,9 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider } from 'next-themes';
 import { ActiveThemeProvider } from './components/common/theme';
-import { Toaster } from './components/ui/sonner';
+
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LoadingSpinner } from './components/ui/loading-spinner';
+import { Toaster } from './components/ui/sonner';
+
 
 interface ProvidersProps {
   children: React.ReactNode;
