@@ -97,62 +97,8 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async getMessages() {
-    const queueName = this.config.awsSqsQueueName;
-    const queueUrl = await this.getOrCreateQueueUrl(queueName);
-
-    const results = {
-      dlq: [] as Message[],
-      abandoned: [] as Message[],
-      deferred: [] as Message[],
-      tracking: {
-        deadletter: [] as TrackingMessage[],
-        abandon: [] as TrackingMessage[],
-        defer: [] as TrackingMessage[],
-      },
-    };
-
-    // Get DLQ messages
-    await this.fetchDlqMessages(queueUrl, queueName, results);
-
-    // Get tracking messages
-    try {
-      const trackingMessages = await this.messageService.findTrackingMessagesByEmulator('sqs');
-      results.tracking.deadletter = trackingMessages.filter(
-        (msg) => msg.disposition === 'deadletter' && msg.queue === queueName,
-      );
-      results.tracking.abandon = trackingMessages.filter(
-        (msg) => msg.disposition === 'abandon' && msg.queue === queueName,
-      );
-      results.tracking.defer = trackingMessages.filter(
-        (msg) => msg.disposition === 'defer' && msg.queue === queueName,
-      );
-    } catch (error) {
-      this.logger.error(`Failed to get tracking messages: ${error}`);
-    }
-
-    // Get visible messages from main queue
-    await this.fetchVisibleMessages(queueUrl, results);
-
-    // Add tracking messages not currently visible
-    this.addTrackingMessagesNotVisible(results);
-
-    return {
-      queueName,
-      queueUrl,
-      dlqMessages: results.dlq,
-      abandonedMessages: results.abandoned,
-      deferredMessages: results.deferred,
-      trackingMessages: results.tracking,
-      summary: {
-        dlq: results.dlq.length,
-        abandoned: results.abandoned.length,
-        deferred: results.deferred.length,
-        trackingDeadletter: results.tracking.deadletter.length,
-        trackingAbandon: results.tracking.abandon.length,
-        trackingDefer: results.tracking.defer.length,
-      },
-    };
+  async getMessages(): Promise<TrackingMessage[]> {
+    return await this.messageService.findTrackingMessagesByEmulator('sqs');
   }
 
   async receiveMessage(dto: ReceiveSqsMessageDto) {

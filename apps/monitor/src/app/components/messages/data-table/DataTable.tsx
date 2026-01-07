@@ -76,6 +76,7 @@ export function DataTable<TData, TValue>({
         table={table}
         searchKey={searchKey}
         searchPlaceholder={searchPlaceholder}
+        onAdd={() => console.log('add')}
       />
       <div className="rounded-sm border overflow-x-auto">
         <Table className="w-full">

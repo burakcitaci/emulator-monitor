@@ -210,36 +210,32 @@ export const awsSqsMessageSchema = z.object({
   ).optional(),
 });
 
-export type AwsSqsMessage = z.infer<typeof awsSqsMessageSchema>;
+export const awsTrackingMessageSchema = z.object({
+  messageId: z.string().optional(),
+  body: z.string().optional(),
+  sentBy: z.string().optional(),
+  sentAt: z.date().optional(),
+  queue: z.string().optional(),
+  receivedBy: z.string().optional(),
+  receivedAt: z.date().optional(),
+  status: z.enum(['sent', 'processing', 'received']).optional(),
+  disposition: z.enum(['complete', 'abandon', 'deadletter', 'defer']).optional(),
+  emulatorType: z.enum(['sqs', 'azure-service-bus']).optional(),
+});
 
-// AWS SQS Messages Data schema
+export type AwsTrackingMessage = z.infer<typeof awsTrackingMessageSchema>;
+
 const awsSqsMessagesDataSchema = z.object({
-  queueName: z.string(),
-  queueUrl: z.string(),
-  dlqMessages: z.array(awsSqsMessageSchema),
-  abandonedMessages: z.array(awsSqsMessageSchema),
-  deferredMessages: z.array(awsSqsMessageSchema),
-  trackingMessages: z.object({
-    deadletter: z.array(trackingMessageSchema),
-    abandon: z.array(trackingMessageSchema),
-    defer: z.array(trackingMessageSchema),
-  }),
-  summary: z.object({
-    dlq: z.number(),
-    abandoned: z.number(),
-    deferred: z.number(),
-    trackingDeadletter: z.number(),
-    trackingAbandon: z.number(),
-    trackingDefer: z.number(),
-  }),
+  data: z.array(awsTrackingMessageSchema),
 });
 
 export type AwsSqsMessagesData = z.infer<typeof awsSqsMessagesDataSchema>;
 
-// AWS SQS Messages Response schema - handle both wrapped and unwrapped responses
+// AWS SQS Messages Response schema - handle both wrapped array format and object format
 export const awsSqsMessagesResponseSchema = z.union([
-  apiResponseSchema(awsSqsMessagesDataSchema),
-  awsSqsMessagesDataSchema,
+  apiResponseSchema(z.array(trackingMessageSchema)), // Backend returns { success: true, data: TrackingMessage[] }
+  apiResponseSchema(awsSqsMessagesDataSchema), // Alternative format with queueName/queueUrl
+  awsSqsMessagesDataSchema, // Direct object format
 ]);
 
 export type AwsSqsMessagesResponse = z.infer<typeof awsSqsMessagesResponseSchema>;

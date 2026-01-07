@@ -26,6 +26,7 @@ import {
 } from '../../ui/table';
 import { DataTablePagination } from './DataTablePagination';
 import { DataTableToolbar } from './DataTableToolbar';
+import { cn } from '../../../lib/utils';
 
 interface VirtualizedDataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -34,6 +35,7 @@ interface VirtualizedDataTableProps<TData, TValue> {
   searchPlaceholder?: string;
   estimateSize?: number;
   overscan?: number;
+  onAdd?: () => void;
 }
 
 export function VirtualizedDataTable<TData, TValue>({
@@ -43,12 +45,13 @@ export function VirtualizedDataTable<TData, TValue>({
   searchPlaceholder = 'Search...',
   estimateSize = 48, // Estimated row height in pixels
   overscan = 5,
+  onAdd,
 }: Readonly<VirtualizedDataTableProps<TData, TValue>>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
+    [],
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
@@ -93,6 +96,7 @@ export function VirtualizedDataTable<TData, TValue>({
         table={table}
         searchKey={searchKey}
         searchPlaceholder={searchPlaceholder}
+        onAdd={onAdd}
       />
       <div
         ref={tableContainerRef}
@@ -111,13 +115,16 @@ export function VirtualizedDataTable<TData, TValue>({
                     <TableHead
                       key={header.id}
                       colSpan={header.colSpan}
-                      className="h-8 px-3 text-xs font-medium"
+                      className={cn(
+                        'h-8 px-3 text-xs font-medium',
+                        header.column.id === 'actions' && 'text-right',
+                      )}
                     >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext()
+                            header.getContext(),
                           )}
                     </TableHead>
                   );
@@ -136,10 +143,13 @@ export function VirtualizedDataTable<TData, TValue>({
                       data-state={row.getIsSelected() && 'selected'}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="py-1.5 px-3 text-xs">
+                        <TableCell
+                          key={cell.id}
+                          className="py-1.5 px-3 text-xs"
+                        >
                           {flexRender(
                             cell.column.columnDef.cell,
-                            cell.getContext()
+                            cell.getContext(),
                           )}
                         </TableCell>
                       ))}

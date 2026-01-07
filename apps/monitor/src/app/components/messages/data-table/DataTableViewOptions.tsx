@@ -1,6 +1,6 @@
 import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu';
 import { Table } from '@tanstack/react-table';
-import { Settings2 } from 'lucide-react';
+import { Plus, Settings2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import {
   DropdownMenu,
@@ -12,34 +12,53 @@ import {
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
+  onAdd?: () => void;
 }
 
 export function DataTableViewOptions<TData>({
   table,
+  onAdd,
 }: DataTableViewOptionsProps<TData>) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <div className="flex items-center gap-2">
+      {/* ADD BUTTON — standalone */}
+      {onAdd && (
         <Button
           variant="outline"
           size="sm"
-          className="ml-auto hidden h-7 px-2 text-xs lg:flex"
+          className="flex items-center gap-2"
+          onClick={onAdd}
         >
-          <Settings2 className="mr-1 h-3 w-3" />
-          View
+          <Plus className="h-3 w-3" />
+          Create
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[140px]">
-        <DropdownMenuLabel className="text-xs">Toggle columns</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {table
-          .getAllColumns()
-          .filter(
-            (column) =>
-              typeof column.accessorFn !== 'undefined' && column.getCanHide()
-          )
-          .map((column) => {
-            return (
+      )}
+      {/* VIEW DROPDOWN */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Settings2 className="h-3 w-3" />
+            View
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" className="w-[140px]">
+          <DropdownMenuLabel className="text-xs">
+            Toggle columns
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+
+          {table
+            .getAllColumns()
+            .filter(
+              (column) =>
+                typeof column.accessorFn !== 'undefined' && column.getCanHide(),
+            )
+            .map((column) => (
               <DropdownMenuCheckboxItem
                 key={column.id}
                 className="capitalize text-xs"
@@ -48,9 +67,9 @@ export function DataTableViewOptions<TData>({
               >
                 {column.id}
               </DropdownMenuCheckboxItem>
-            );
-          })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

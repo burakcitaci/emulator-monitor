@@ -21,6 +21,7 @@ import {
   ServiceBusMessagesData,
   azureServiceBusMessagesResponseSchema,
   ServiceBusMessagesResponse,
+  AwsTrackingMessage,
 } from './schemas';
 
 // API Response types
@@ -128,7 +129,18 @@ class ApiClient {
       awsSqsMessagesResponseSchema
     );
 
-    // Handle wrapped response format
+    // Handle wrapped response format with array of tracking messages
+    if (isApiResponse<TrackingMessage[]>(response)) {
+      if (!response.success) {
+        throw new ApiError(500, response.message || 'Failed to fetch AWS SQS messages');
+      }
+         
+      return {
+        data: response.data as AwsTrackingMessage[]
+      };
+    }
+
+    // Handle wrapped response format with AwsSqsMessagesData object
     if (isApiResponse<AwsSqsMessagesData>(response)) {
       if (!response.success) {
         throw new ApiError(500, response.message || 'Failed to fetch AWS SQS messages');
@@ -136,6 +148,7 @@ class ApiClient {
       if (!response.data) {
         throw new ApiError(500, 'No data returned from AWS SQS messages endpoint');
       }
+     
       return response.data;
     }
 

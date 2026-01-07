@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { SendSqsMessage, ReceiveSqsMessage } from '../../lib/schemas';
 import { trackingMessageKeys } from './tracking-messages';
+import { toast } from 'sonner';
 
 // Query keys
 export const awsSqsKeys = {
@@ -39,6 +40,22 @@ export const useSendSqsMessage = () => {
   });
 };
 
+export const useDeleteSqsMessage = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteTrackingMessage(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: awsSqsKeys.messages() });
+    },
+    onError: (error) => {
+      console.error('Failed to delete message:', error);
+      toast.error('Failed to delete message', {
+        description: 'Please try again.',
+      });
+    },
+  });
+};
 export const useReceiveSqsMessage = () => {
   const queryClient = useQueryClient();
   
@@ -56,5 +73,13 @@ export const useGetSqsMessages = () => {
   return useQuery({
     queryKey: awsSqsKeys.messages(),
     queryFn: () => apiClient.getAwsSqsMessages(),
+    staleTime: 5000,
+    refetchInterval: 3000,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 };

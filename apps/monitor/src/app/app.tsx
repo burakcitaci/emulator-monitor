@@ -9,10 +9,16 @@ import { AppSidebar } from './components/containers/ContainerSidebar';
 import { SiteHeader } from './components/common/SiteHeader';
 import { useSidebarState } from './hooks/useSidebarState';
 import { Detail } from './components/detail';
+import MessagingResources from './features/messaging-resources';
 
 
 export function App() {
   const { isOpen } = useSidebarState();
+
+ const NAV_ITEMS = [
+  { title: "Messaging Monitor", url: "/" },
+  { title: "Messaging Resources", url: "/messaging-resources" },
+]
 
   return (
     <SidebarProvider
@@ -25,10 +31,11 @@ export function App() {
     >
       <AppSidebar />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader items={NAV_ITEMS} />
           <div className="flex flex-1 flex-col min-w-0">
             <Routes>
               <Route path="/" element={<Messages />} />
+              <Route path="/messaging-resources" element={<MessagingResources />} />
               <Route path="/:emulator" element={<Detail />} />
             </Routes>
         </div>

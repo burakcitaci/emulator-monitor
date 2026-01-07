@@ -9,12 +9,14 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   searchKey?: string;
   searchPlaceholder?: string;
+  onAdd?: () => void;
 }
 
 export function DataTableToolbar<TData>({
   table,
   searchKey,
   searchPlaceholder = 'Search...',
+  onAdd,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
@@ -50,7 +52,7 @@ export function DataTableToolbar<TData>({
             className="h-7 text-xs w-full sm:w-[120px] lg:w-[200px]"
           />
         )}
-        <DataTableViewOptions table={table} />
+        <DataTableViewOptions table={table} onAdd={onAdd} />
       </div>
     </div>
   );

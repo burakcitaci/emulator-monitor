@@ -1,452 +1,239 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Eye, ChevronDown, ChevronUp } from 'lucide-react';
-import React, { useState } from 'react';
-import { Badge } from '../../ui/badge';
-import { Button } from '../../ui/button';
+// -----------------------------
+// External imports
+// -----------------------------
+import { useCallback, useMemo, useState } from 'react';
+
+// -----------------------------
+// UI components
+// -----------------------------
 import { VirtualizedDataTable } from '../../messages/data-table/VirtualizedDataTable';
-import { DataTableColumnHeader } from '../../messages/data-table/DataTableColumnHeader';
-import { AwsSqsMessage, AwsSqsMessagesData } from '../../../lib/schemas';
-import { TrackingMessage } from '@e2e-monitor/entities';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '../../ui/sheet';
-import { Card, CardContent } from '../../ui/card';
 
-// Helper function to format body content
-const formatBody = (body: unknown): string => {
-  if (typeof body === 'string') {
-    try {
-      const parsed = JSON.parse(body);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return body;
-    }
-  } else if (typeof body === 'object' && body !== null) {
-    return JSON.stringify(body, null, 2);
+// -----------------------------
+// API hooks
+// -----------------------------
+import { useDeleteSqsMessage, useGetSqsMessages } from '../../../hooks/api/aws-sqs';
+
+// -----------------------------
+// Local components
+// -----------------------------
+import { AwsSqsSendMessageModal } from './components/SendMessageModal';
+
+// -----------------------------
+// Types
+// -----------------------------
+import { Option, SqsMessageRow, TrackingMessage } from './lib/message.entities';
+import { Statistics } from './components/StatisticsCards';
+import { createColumns } from './components/MessageTableColumns';
+import MessageDetailModal from './components/MessageDetailModal';
+import { Row } from '@tanstack/react-table';
+import { toast } from 'sonner';
+
+
+export const SqsMessagesDataTable = () => {
+  // -----------------------------
+  // Hooks
+  // -----------------------------
+  const { data: messages, isLoading, error } = useGetSqsMessages();
+
+  // -----------------------------
+  // State
+  // -----------------------------
+    const deleteMutation = useDeleteSqsMessage();
+
+const handleMessageDelete = useCallback(async (messageId: string) => {
+  try {
+    await deleteMutation.mutateAsync(messageId);
+    toast.success('Message deleted successfully', {
+      description: 'The tracking message has been removed.',
+    });
+  } catch (error) {
+    console.error('Failed to delete message:', error);
+    toast.error('Failed to delete message', {
+      description: 'Please try again.',
+    });
   }
-  return String(body || 'No body content');
-};
+}, [deleteMutation]); 
 
-// Helper Components
-const InfoBlock: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded break-words">{value}</p>
-  </div>
-);
-
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div>
-    <h3 className="text-sm font-semibold text-gray-800 mb-2">{title}</h3>
-    {children}
-  </div>
-);
-
-// Convert AwsSqsMessage to a format suitable for the table
-type SqsMessageRow = {
-  messageId: string;
-  body: string;
-  sentBy?: string;
-  sentAt?: Date;
-  disposition: string;
-  receiptHandle?: string;
-  source: 'queue' | 'tracking';
-};
-
-// Convert TrackingMessage to SqsMessageRow
-const trackingToRow = (msg: {
-  messageId: string;
-  body?: string | null;
-  sentBy?: string | null;
-  sentAt?: Date | string | null;
-  disposition?: string | null;
-}): SqsMessageRow => ({
-  messageId: msg.messageId,
-  body: msg.body || '',
-  sentBy: msg.sentBy ?? undefined,
-  sentAt: msg.sentAt ? new Date(msg.sentAt) : undefined,
-  disposition: msg.disposition || 'unknown',
-  source: 'tracking',
-});
-
-// Convert AwsSqsMessage to SqsMessageRow
-const sqsMessageToRow = (msg: AwsSqsMessage): SqsMessageRow => {
-  const sentBy = msg.MessageAttributes?.sentBy?.StringValue;
-  const disposition = msg.MessageAttributes?.messageDisposition?.StringValue || 'unknown';
-  const sentTimestamp = msg.Attributes?.SentTimestamp;
-  const sentAt = sentTimestamp ? new Date(parseInt(sentTimestamp)) : undefined;
-
-  return {
-    messageId: msg.MessageId || '',
-    body: msg.Body || '',
-    sentBy,
-    sentAt,
-    disposition,
-    receiptHandle: msg.ReceiptHandle,
-    source: 'queue',
-  };
-};
-
-const createColumns = (
-  onMessageSelect: (message: SqsMessageRow, originalMessage: AwsSqsMessage | TrackingMessage) => void,
-  data: AwsSqsMessagesData,
-): ColumnDef<SqsMessageRow>[] => [
-  {
-    accessorKey: 'messageId',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Message ID" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <div className="text-xs truncate max-w-48 font-mono">
-          {row.original.messageId || '-'}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: 'sentBy',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Sent By" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <div className="text-xs truncate max-w-32">
-          {row.original.sentBy || '-'}
-        </div>
-      );
-    },
-  },
-  {
-    id: 'source',
-    accessorKey: 'source',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Source" />
-    ),
-    cell: ({ row }) => {
-      const source = row.original.source;
-      return (
-        <Badge
-          variant={source === 'queue' ? 'default' : 'secondary'}
-          className="text-xs px-2 py-0.5 h-5"
-        >
-          {source === 'queue' ? 'Queue' : 'Tracking'}
-        </Badge>
-      );
-    },
-  },
-  {
-    id: 'disposition',
-    accessorKey: 'disposition',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Disposition" />
-    ),
-    cell: ({ row }) => {
-      const disposition = row.original.disposition;
-      const variantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-        complete: 'default',
-        abandon: 'secondary',
-        deadletter: 'destructive',
-        defer: 'outline',
-      };
-      
-      return (
-        <Badge
-          variant={variantMap[disposition] || 'secondary'}
-          className="text-xs px-2 py-0.5 h-5"
-        >
-          {disposition.charAt(0).toUpperCase() + disposition.slice(1)}
-        </Badge>
-      );
-    },
-  },
-  {
-    accessorKey: 'body',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Body" />
-    ),
-    cell: ({ row }) => {
-      const body = row.original.body;
-      let bodyText = 'N/A';
-
-      if (typeof body === 'string') {
-        bodyText = body;
-      } else if (typeof body === 'object' && body !== null) {
-        const isEmpty = Object.keys(body).length === 0;
-        bodyText = isEmpty ? '{}' : JSON.stringify(body, null, 2);
-      }
-
-      return (
-        <div className="max-w-48 truncate text-xs leading-tight">
-          {bodyText}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: 'sentAt',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Sent At" />
-    ),
-    cell: ({ row }) => {
-      const timestamp = row.original.sentAt;
-      return (
-        <div className="text-xs text-muted-foreground whitespace-nowrap">
-          {timestamp ? timestamp.toLocaleString() : 'N/A'}
-        </div>
-      );
-    },
-  },
-  {
-    id: 'actions',
-    cell: ({ row }) => {
-      return (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={() => {
-              // Find the original message from the data
-              const sqsMessage = data.dlqMessages.find(m => m.MessageId === row.original.messageId) ||
-                                data.abandonedMessages.find(m => m.MessageId === row.original.messageId) ||
-                                data.deferredMessages.find(m => m.MessageId === row.original.messageId);
-              
-              if (sqsMessage) {
-                onMessageSelect(row.original, sqsMessage);
-                return;
-              }
-
-              // Find tracking message and normalize null values
-              const trackingMsg = data.trackingMessages.deadletter.find(m => m.messageId === row.original.messageId) ||
-                                 data.trackingMessages.abandon.find(m => m.messageId === row.original.messageId) ||
-                                 data.trackingMessages.defer.find(m => m.messageId === row.original.messageId);
-              
-              if (trackingMsg) {
-                // Normalize null values to undefined for TrackingMessage type
-                const normalizedTrackingMsg: TrackingMessage = {
-                  ...trackingMsg,
-                  queue: trackingMsg.queue ?? undefined,
-                  receivedAt: trackingMsg.receivedAt ?? undefined,
-                  receivedBy: trackingMsg.receivedBy ?? undefined,
-                  disposition: trackingMsg.disposition ?? undefined,
-                  emulatorType: trackingMsg.emulatorType ?? undefined,
-                };
-                onMessageSelect(row.original, normalizedTrackingMsg);
-              }
-            }}
-          >
-            <Eye className="h-3 w-3" />
-          </Button>
-        </div>
-      );
-    },
-  },
-];
-
-interface SqsMessagesDataTableProps {
-  data: AwsSqsMessagesData;
-}
-
-export const SqsMessagesDataTable: React.FC<SqsMessagesDataTableProps> = ({
-  data,
-}) => {
-  const [selectedMessage, setSelectedMessage] = useState<SqsMessageRow | null>(null);
-  const [selectedOriginalMessage, setSelectedOriginalMessage] = useState<AwsSqsMessage | TrackingMessage | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<SqsMessageRow | null>(
+    null,
+  );
+  const [selectedOriginalMessage, setSelectedOriginalMessage] =
+    useState<TrackingMessage | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBodyExpanded, setIsBodyExpanded] = useState(false);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
 
-  const handleMessageSelect = React.useCallback((message: SqsMessageRow, originalMessage: AwsSqsMessage | TrackingMessage) => {
-    setSelectedMessage(message);
-    setSelectedOriginalMessage(originalMessage);
-    setIsModalOpen(true);
-  }, []);
+  // -----------------------------
+  // Callbacks
+  // -----------------------------
+  const handleMessageSelect = useCallback(
+    (originalMessage: TrackingMessage) => {
+      setSelectedOriginalMessage(originalMessage);
+      setIsModalOpen(true);
+    },
+    [],
+  );
 
-  const handleModalClose = React.useCallback(() => {
+  const handleModalClose = useCallback(() => {
     setIsModalOpen(false);
     setSelectedMessage(null);
     setSelectedOriginalMessage(null);
     setIsBodyExpanded(false);
   }, []);
 
-  // Combine all messages into a single array
-  const allRows = React.useMemo(() => {
-    const dlqQueueRows = data.dlqMessages.map(sqsMessageToRow);
-    const dlqTrackingRows = data.trackingMessages.deadletter.map(trackingToRow);
-    
-    const abandonedQueueRows = data.abandonedMessages.map(sqsMessageToRow);
-    const abandonedTrackingRows = data.trackingMessages.abandon.map(trackingToRow);
-    
-    const deferredQueueRows = data.deferredMessages.map(sqsMessageToRow);
-    const deferredTrackingRows = data.trackingMessages.defer.map(trackingToRow);
-    
-    return [
-      ...dlqQueueRows,
-      ...dlqTrackingRows,
-      ...abandonedQueueRows,
-      ...abandonedTrackingRows,
-      ...deferredQueueRows,
-      ...deferredTrackingRows,
-    ];
-  }, [
-    data.dlqMessages,
-    data.trackingMessages.deadletter,
-    data.abandonedMessages,
-    data.trackingMessages.abandon,
-    data.deferredMessages,
-    data.trackingMessages.defer,
-  ]);
 
-  const columns = React.useMemo(
-    () => createColumns(handleMessageSelect, data),
-    [handleMessageSelect, data],
+  // -----------------------------
+  // Derived data
+  // -----------------------------
+  const allRows = useMemo(() => {
+    if (!messages) return [];
+    return messages.data;
+  }, [messages]);
+
+  const receivedByOptions = useMemo(() => {
+    if (!messages?.data) return [] as Option[];
+
+    return Array.from(
+      new Set(messages.data.map((message) => message.receivedBy)),
+    ).map((receivedBy) => ({
+        label: receivedBy,
+        value: receivedBy,
+      })) as Option[];
+  }, [messages]);
+
+  const receivedByFilterFn = useMemo(() => {
+    return (row: Row<SqsMessageRow>, id: string, value: unknown) => {
+      if (!value || !Array.isArray(value)) return true;
+      return value.includes(row.original.receivedBy);
+    };
+  }, []);
+
+  const sentByOptions = useMemo(() => {
+    if (!messages?.data) return [] as Option[];
+
+    return Array.from(
+      new Set(messages.data.map((message) => message.sentBy)),
+    ).map((sentBy) => ({
+        label: sentBy,
+        value: sentBy,
+      })) as Option[];
+  }, [messages]);
+
+  const sentByFilterFn = useMemo(() => {
+    return (row: Row<SqsMessageRow>, id: string, value: unknown) => {
+      if (!value || !Array.isArray(value)) return true;
+      return value.includes(row.original.sentBy);
+    };
+  }, []);
+
+  const dispositionFilterFn = useMemo(() => {
+    return (row: Row<SqsMessageRow>, id: string, value: unknown) => {
+      if (!value || !Array.isArray(value)) return true;
+      return value.includes(row.original.disposition);
+    };
+  }, []);
+  const dispositionOptions = useMemo(() => {
+    if (!messages?.data) return [] as Option[];
+
+    return Array.from(
+      new Set(messages.data.map((message) => message.disposition)),
+    ).map((disposition) => ({
+        label: disposition,
+        value: disposition,
+      })) as Option[];
+  }, [messages]);
+
+  const columns = useMemo(
+    () =>
+      createColumns(
+        handleMessageSelect,
+        handleMessageDelete,
+        sentByOptions,
+        receivedByOptions,
+        dispositionOptions,
+        sentByFilterFn,
+        receivedByFilterFn,
+        dispositionFilterFn,
+      ),
+    [
+      handleMessageSelect,
+      handleMessageDelete,
+      sentByOptions,
+      receivedByOptions,
+      sentByFilterFn,
+      receivedByFilterFn,
+      dispositionFilterFn,
+      dispositionOptions,
+    ],
   );
 
-  const totalMessages = data.summary.dlq + data.summary.trackingDeadletter +
-                        data.summary.abandoned + data.summary.trackingAbandon +
-                        data.summary.deferred + data.summary.trackingDefer;
+  const totalMessages = messages ? messages.data.length : 0;
 
+  // -----------------------------
+  // Render guards
+  // -----------------------------
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Error: {error.message}</p>
+      </div>
+    );
+  }
+
+  if (!messages) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">No data available</p>
+      </div>
+    );
+  }
+
+  // -----------------------------
+  // Render
+  // -----------------------------
   return (
     <>
       <div className="space-y-4">
-        {/* Summary Cards */}
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-xs text-muted-foreground mb-1">DLQ Messages</div>
-              <div className="text-xl font-bold">{data.summary.dlq + data.summary.trackingDeadletter}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {data.summary.dlq} from queue, {data.summary.trackingDeadletter} from tracking
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-xs text-muted-foreground mb-1">Abandoned</div>
-              <div className="text-xl font-bold">{data.summary.abandoned + data.summary.trackingAbandon}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {data.summary.abandoned} from queue, {data.summary.trackingAbandon} from tracking
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-xs text-muted-foreground mb-1">Deferred</div>
-              <div className="text-xl font-bold">{data.summary.deferred + data.summary.trackingDefer}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {data.summary.deferred} from queue, {data.summary.trackingDefer} from tracking
-              </div>
-            </CardContent>
-          </Card>
+
+        {/* Summary */}
+        <Statistics messages={messages} />
+
+        {/* Table */}
+        <div className="w-full min-w-0 flex-1 min-h-0">
+          <VirtualizedDataTable
+            columns={columns}
+            data={allRows as SqsMessageRow[]}
+            searchKey="body"
+            searchPlaceholder={`Search all messages (${totalMessages} total)...`}
+            estimateSize={48}
+            overscan={5}
+            onAdd={() => setSendModalOpen(true)}
+          />
         </div>
 
-        {/* Single Combined Table */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="w-full min-w-0 flex-1 min-h-0">
-              <VirtualizedDataTable
-                columns={columns}
-                data={allRows}
-                searchKey="body"
-                searchPlaceholder={`Search all messages (${totalMessages} total)...`}
-                estimateSize={48}
-                overscan={5}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* Modals */}
+        <AwsSqsSendMessageModal
+          open={sendModalOpen}
+          onOpenChange={setSendModalOpen}
+        />
       </div>
 
-      {/* Detail Modal */}
-      <Sheet open={isModalOpen} onOpenChange={handleModalClose}>
-        <SheetContent className="w-2/6 sm:max-w-4xl overflow-hidden">
-          <SheetHeader>
-            <SheetTitle className="text-lg font-semibold">
-              <div className='flex items-center justify-between px-4'>
-                <div className="flex items-center gap-2">
-                  <label className="block text-sm font-bold uppercase text-gray-700 mb-1">SQS Message Details</label>
-                  <Badge variant="outline" className="text-xs">SQS</Badge>
-                </div>
-                {selectedMessage && (
-                  <Badge variant={selectedMessage.disposition === 'abandon' ? 'secondary' : 'default'} className="text-sm">
-                    {selectedMessage.disposition.charAt(0).toUpperCase() + selectedMessage.disposition.slice(1)}
-                  </Badge>
-                )}
-              </div>
-            </SheetTitle>
-          </SheetHeader>
-
-          {selectedMessage && (
-            <div className="overflow-y-auto max-h-[calc(90vh-100px)] space-y-6 p-4">
-              {/* Top Section */}
-              <div className="grid grid-cols-2 gap-4">
-                <InfoBlock label="Message ID" value={<span className="font-mono text-xs">{selectedMessage.messageId}</span>} />
-                <InfoBlock label="Sent By" value={selectedMessage.sentBy || 'N/A'} />
-              </div>
-
-              {/* Timestamps */}
-              <Section title="Timestamps">
-                <div className="grid grid-cols-1 gap-4">
-                  <InfoBlock label="Sent At" value={selectedMessage.sentAt ? selectedMessage.sentAt.toLocaleString() : 'N/A'} />
-                </div>
-              </Section>
-
-              {/* Message Body */}
-              <Section title="Message Body">
-                {selectedMessage.body ? (
-                  <>
-                    <div className="flex justify-end mb-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsBodyExpanded(!isBodyExpanded)}
-                        className="h-6 px-2 text-xs"
-                      >
-                        {isBodyExpanded ? (
-                          <>
-                            <ChevronUp className="h-3 w-3 mr-1" /> Hide Body
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-3 w-3 mr-1" /> Show Body
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <div
-                      className={`overflow-hidden transition-all duration-300 ${
-                        isBodyExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-                      }`}
-                    >
-                      <pre className="text-xs text-gray-900 bg-gray-50 p-4 rounded overflow-x-auto whitespace-pre-wrap">
-                        {formatBody(selectedMessage.body)}
-                      </pre>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded">No body content</div>
-                )}
-              </Section>
-
-              {/* Additional Info for Tracking Messages */}
-              {selectedOriginalMessage && '_id' in selectedOriginalMessage && (
-                <Section title="Tracking Information">
-                  <div className="grid grid-cols-2 gap-4">
-                    <InfoBlock label="Status" value={selectedOriginalMessage.status || 'N/A'} />
-                    <InfoBlock label="Received By" value={selectedOriginalMessage.receivedBy || 'N/A'} />
-                    {selectedOriginalMessage.receivedAt && (
-                      <InfoBlock label="Received At" value={new Date(selectedOriginalMessage.receivedAt).toLocaleString()} />
-                    )}
-                  </div>
-                </Section>
-              )}
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      <MessageDetailModal
+        isModalOpen={isModalOpen}
+        handleModalClose={handleModalClose}
+        selectedMessage={selectedMessage as SqsMessageRow}
+        selectedOriginalMessage={selectedOriginalMessage as TrackingMessage}
+        isBodyExpanded={isBodyExpanded}
+        setIsBodyExpanded={setIsBodyExpanded}
+      />
     </>
   );
 };

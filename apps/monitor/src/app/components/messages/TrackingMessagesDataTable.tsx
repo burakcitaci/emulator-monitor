@@ -1,5 +1,5 @@
 import { ColumnDef, Row } from '@tanstack/react-table';
-import { Eye, Trash, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -68,13 +68,9 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 
 interface TrackingMessagesDataTableProps {
   messages: TrackingMessage[] | undefined;
-  onMessageDelete: (messageId: string) => void;
-  isDeleting?: boolean;
 }
 
 const createColumns = (
-  onMessageDelete: (messageId: string) => void,
-  onMessageSelect: (message: TrackingMessage) => void,
   sentByOptions: Option[],
   receivedByOptions: Option[],
   emulatorTypeOptions: Option[],
@@ -82,7 +78,6 @@ const createColumns = (
   receivedByFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
   emulatorTypeFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
   statusFilterFn: (row: Row<TrackingMessage>, id: string, value: unknown) => boolean,
-  isDeleting: boolean,
 ): ColumnDef<TrackingMessage>[] => [
   {
     accessorKey: 'queue',
@@ -300,51 +295,16 @@ const createColumns = (
       );
     },
   },
-  {
-    id: 'actions',
-    cell: ({ row }) => {
-      return (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={() => onMessageSelect(row.original)}
-          >
-            <Eye className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            disabled={isDeleting}
-            onClick={() =>
-              onMessageDelete(row.original.messageId)
-            }
-          >
-            <Trash className="h-3 w-3" />
-          </Button>
-        </div>
-      );
-    },
-  },
 ];
 
 export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps> = ({
   messages,
-  onMessageDelete,
-  isDeleting = false,
 }) => {
   // Ensure messages is always an array - wrapped in useMemo to fix ESLint warning
   const safeMessages = React.useMemo(() => messages || [], [messages]);
   const [selectedMessage, setSelectedMessage] = useState<TrackingMessage | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBodyExpanded, setIsBodyExpanded] = useState(false);
-
-  const handleMessageSelect = React.useCallback((message: TrackingMessage) => {
-    setSelectedMessage(message);
-    setIsModalOpen(true);
-  }, []);
 
   const handleModalClose = React.useCallback(() => {
     setIsModalOpen(false);
@@ -397,8 +357,7 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
   const columns = React.useMemo(
     () =>
       createColumns(
-        onMessageDelete,
-        handleMessageSelect,
+
         filterOptions.sentByOptions,
         filterOptions.receivedByOptions,
         filterOptions.emulatorTypeOptions,
@@ -406,11 +365,9 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
         receivedByFilterFn,
         emulatorTypeFilterFn,
         statusFilterFn,
-        isDeleting,
+       
       ),
     [
-      onMessageDelete,
-      handleMessageSelect,
       filterOptions.sentByOptions,
       filterOptions.receivedByOptions,
       filterOptions.emulatorTypeOptions,
@@ -418,7 +375,6 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
       receivedByFilterFn,
       emulatorTypeFilterFn,
       statusFilterFn,
-      isDeleting,
     ],
   );
 
@@ -431,6 +387,7 @@ export const TrackingMessagesDataTable: React.FC<TrackingMessagesDataTableProps>
         searchPlaceholder="Search message body..."
         estimateSize={48}
         overscan={5}
+        
       />
       <Sheet open={isModalOpen} onOpenChange={handleModalClose}>
         <SheetContent className="w-2/6 sm:max-w-4xl overflow-hidden">

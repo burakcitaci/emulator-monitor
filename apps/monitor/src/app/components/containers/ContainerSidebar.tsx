@@ -2,11 +2,14 @@
 
 import * as React from "react"
 import {
+  IconDashboard,
   IconInnerShadowTop,
+  IconMessageCircle,
   } from "@tabler/icons-react"
 
 import { Sidebar,SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarContent, SidebarFooter } from "../ui/sidebar"
 import { NavMain } from "./nav-main"
+import { Separator } from "../ui/separator"
 
 
 
@@ -17,7 +20,17 @@ const data = {
     email: "m@example.com",
     avatar: "/avatars/shadcn.jpg",
   },
-  navMain: [],
+  navMain: [
+    {
+    title: "Main",
+    url: "/",
+    icon: IconDashboard,
+  },
+    {
+    title: "Messaging Resources",
+    url: "/messaging-resources",
+    icon: IconMessageCircle,
+  }],
   navClouds: [],
   navSecondary: [],
   documents: [],
@@ -38,6 +51,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <span className="text-base font-semibold">E2E Monitor</span>
               </a>
             </SidebarMenuButton>
+            <Separator orientation="horizontal"  className="h-1 data-[orientation=horizontal]:w-full" />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

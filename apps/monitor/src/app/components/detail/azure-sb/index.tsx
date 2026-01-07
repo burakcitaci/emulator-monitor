@@ -27,7 +27,6 @@ import { createColumns } from './components/MessageTableColumns';
 // Types
 // -----------------------------
 import { ServiceBusMessageRow, TrackingMessage } from './lib/message.entities';
-import { MessageDetailHeader } from './components/MessageDetailHeader';
 import MessageDetailModal from './components/MessageDetailModal';
 
 export const AzureSbDetail = () => {
@@ -134,8 +133,7 @@ export const AzureSbDetail = () => {
   return (
     <>
       <div className="space-y-4">
-        {/* Header */}
-        <MessageDetailHeader setSendModalOpen={setSendModalOpen} />
+       
         {/* Summary */}
         <Statistics messages={messages} />
 
@@ -148,6 +146,7 @@ export const AzureSbDetail = () => {
             searchPlaceholder={`Search all messages (${totalMessages} total)...`}
             estimateSize={48}
             overscan={5}
+            onAdd={() => console.log('add')}
           />
         </div>
 

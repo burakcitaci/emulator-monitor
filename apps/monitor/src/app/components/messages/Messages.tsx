@@ -1,15 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TrackingMessagesDataTable } from './TrackingMessagesDataTable';
-import { useTrackingMessages, useDeleteTrackingMessage } from '../../hooks/api';
-import { AlertCircle, Send } from 'lucide-react';
+import { useTrackingMessages } from '../../hooks/api';
+import { AlertCircle } from 'lucide-react';
 import { TrackingMessage } from '@e2e-monitor/entities';
-import { ToastAction } from '../ui/toast';
-import { toast } from 'sonner';
 import { LoadingSpinner } from '../ui/loading-spinner';
 import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { useServiceBusConfig } from '../../hooks/api/service-bus';
-import { SendMessageModal } from './SendMessageModal';
 import { useNavigate } from 'react-router';
 
 function ErrorMessage({
@@ -42,10 +37,6 @@ export const Messages: React.FC = () => {
   } = useTrackingMessages();
 
   const navigate = useNavigate();
-  const deleteMutation = useDeleteTrackingMessage();
-  const [sendModalOpen, setSendModalOpen] = useState(false);
-
-  const { data: config } = useServiceBusConfig();
 
   // Transform messages to convert null to undefined for receivedAt, receivedBy, queue, disposition, and emulatorType
   const transformedMessages: TrackingMessage[] = React.useMemo(() => {
@@ -73,47 +64,7 @@ export const Messages: React.FC = () => {
     return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus };
   }, [messages]);
 
-  // Extract queues and topics from config
-  const destinations = React.useMemo(() => {
-    if (!config?.UserConfig?.Namespaces) return [];
-    const allDestinations: string[] = [];
-    config.UserConfig.Namespaces.forEach((namespace) => {
-      if (namespace.Queues) {
-        namespace.Queues.forEach((q) => {
-          allDestinations.push(q.Name);
-        });
-      }
-      if (namespace.Topics) {
-        namespace.Topics.forEach((t) => {
-          allDestinations.push(t.Name);
-        });
-      }
-    });
-    return allDestinations.sort();
-  }, [config]);
 
-
-  const handleMessageDelete = async (messageId: string) => {
-    try {
-      await deleteMutation.mutateAsync(messageId);
-      toast.success('Message deleted successfully', {
-        description: 'The tracking message has been removed.',
-      });
-    } catch (error) {
-      console.error('Failed to delete message:', error);
-      toast.error('Failed to delete message', {
-        description: 'Please try again.',
-        action: (
-          <ToastAction
-            altText="Try again"
-            onClick={() => handleMessageDelete(messageId)}
-          >
-            Try again
-          </ToastAction>
-        ),
-      });
-    }
-  };
 
   if (isLoading) {
     return (
@@ -141,13 +92,6 @@ export const Messages: React.FC = () => {
             />
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Button onClick={() => setSendModalOpen(true)}>
-              <Send className="mr-2 h-4 w-4" />
-              Simulate Message
-            </Button>
-          </div>
 
           {/* Statistics Cards */}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
@@ -200,18 +144,9 @@ export const Messages: React.FC = () => {
           <div className="w-full min-w-0 flex-1 min-h-0">
             <TrackingMessagesDataTable
               messages={transformedMessages}
-              onMessageDelete={handleMessageDelete}
-              isDeleting={deleteMutation.isPending}
             />
           </div>
         </div>
-
-      {/* Modals */}
-      <SendMessageModal
-        open={sendModalOpen}
-        onOpenChange={setSendModalOpen}
-        destinations={destinations}
-      />
     </div>
   );
 };
