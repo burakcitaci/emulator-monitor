@@ -55,7 +55,7 @@ export function SiteHeader({ items }: { items: NavItem[] }) {
     } else if (title === 'Azure Service Bus') {
       return (
         <div
-          className="flex items-center gap-4 font-bold cursor-pointer"
+          className="flex items-center gap-4 cursor-pointer"
           onClick={() => navigate(-1)}
         > 
           <ArrowLeft className="size-5" />
@@ -66,7 +66,7 @@ export function SiteHeader({ items }: { items: NavItem[] }) {
     } else if (title === 'Messaging Resources') {
       return (
         <div
-          className="flex items-center gap-4 font-bold cursor-pointer"
+          className="flex items-center gap-4 cursor-pointer"
           onClick={() => navigate(-1)}
         >
           {title}
@@ -93,7 +93,7 @@ export function SiteHeader({ items }: { items: NavItem[] }) {
             className="mx-2 data-[orientation=vertical]:h-4"
           />
 
-          <div className="text-xl font-bold flex items-center gap-2 font-medium">
+          <div className="text-lg font-default flex items-center gap-2 font-medium">
            
             {handleNavigateBack(getItemTitle(currentItem?.url ?? ''))}
           </div>

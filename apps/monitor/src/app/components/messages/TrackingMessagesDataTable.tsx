@@ -244,30 +244,6 @@ const createColumns = (
     },
   },
   {
-    accessorKey: 'body',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Body" />
-    ),
-    cell: ({ row }) => {
-      const body = row.original.body;
-
-      let bodyText = 'N/A';
-
-      if (typeof body === 'string') {
-        bodyText = body;
-      } else if (typeof body === 'object' && body !== null) {
-        const isEmpty = Object.keys(body).length === 0;
-        bodyText = isEmpty ? '{}' : JSON.stringify(body, null, 2);
-      }
-
-      return (
-        <div className="max-w-48 truncate text-xs leading-tight">
-          {bodyText}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: 'sentAt',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Sent At" />

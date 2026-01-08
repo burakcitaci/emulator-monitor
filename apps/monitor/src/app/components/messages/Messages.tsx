@@ -53,15 +53,13 @@ export const Messages: React.FC = () => {
   // Calculate statistics by disposition and emulator
   const stats = React.useMemo(() => {
     const total = messages.length;
-    const complete = messages.filter((m) => m.disposition === 'complete').length;
-    const abandon = messages.filter((m) => m.disposition === 'abandon').length;
-    const deadletter = messages.filter((m) => m.disposition === 'deadletter').length;
-    const defer = messages.filter((m) => m.disposition === 'defer').length;
+
+
 
     // Emulator statistics
     const sqs = messages.filter((m) => m.emulatorType === 'sqs').length;
     const azureServiceBus = messages.filter((m) => m.emulatorType === 'azure-service-bus').length;
-    return { total, complete, abandon, deadletter, defer, sqs, azureServiceBus };
+    return { total, sqs, azureServiceBus };
   }, [messages]);
 
 
@@ -113,31 +111,6 @@ export const Messages: React.FC = () => {
                 <div className="text-xl font-bold">{stats.azureServiceBus}</div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">Complete</div>
-                <div className="text-xl font-bold">{stats.complete}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">Abandon</div>
-                <div className="text-xl font-bold">{stats.abandon}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">Dead Letter</div>
-                <div className="text-xl font-bold">{stats.deadletter}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground mb-1">Defer</div>
-                <div className="text-xl font-bold">{stats.defer}</div>
-              </CardContent>
-            </Card>
-           
           </div>
 
           {/* Table */}

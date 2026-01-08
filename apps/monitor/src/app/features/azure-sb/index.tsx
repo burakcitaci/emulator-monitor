@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState } from 'react';
 // -----------------------------
 // UI components
 // -----------------------------
-import { VirtualizedDataTable } from '../../messages/data-table/VirtualizedDataTable';
+import { VirtualizedDataTable } from '../../components/messages/data-table/VirtualizedDataTable';
 
 // -----------------------------
 // API hooks
@@ -14,7 +14,7 @@ import { VirtualizedDataTable } from '../../messages/data-table/VirtualizedDataT
 import {
   useDeleteServiceBusMessage,
   useGetServiceBusMessages,
-} from '../../../hooks/api/service-bus';
+} from '../../hooks/api/service-bus';
 
 // -----------------------------
 // Local components

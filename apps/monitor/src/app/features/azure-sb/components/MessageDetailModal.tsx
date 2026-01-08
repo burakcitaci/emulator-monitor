@@ -1,9 +1,9 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { Badge } from "../../../ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../../ui/sheet"
+import { Badge } from "../../../components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../../components/ui/sheet"
 import { formatBody } from "./messageTable.utils";
 import { InfoBlock, Section } from "./MessageDetailSections";
-import { Button } from "../../../ui/button";
+import { Button } from "../../../components/ui/button";
 import { ServiceBusMessageRow, TrackingMessage } from "../lib/message.entities";
 
 const MessageDetailModal = ({

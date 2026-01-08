@@ -8,18 +8,18 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '../../../ui/sheet';
-import { Input } from '../../../ui/input';
-import { Label } from '../../../ui/label';
+} from '../../../components/ui/sheet';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../../../ui/select';
-import { Button } from '../../../ui/button';
-import { useSendServiceBusMessage, useServiceBusConfig } from '../../../../hooks/api/service-bus';
+} from '../../../components/ui/select';
+import { Button } from '../../../components/ui/button';
+import { useSendServiceBusMessage, useServiceBusConfig } from '../../../hooks/api/service-bus';
 
 interface SendMessageModalProps {
   open: boolean;
@@ -117,14 +117,14 @@ export const AzureSbSendMessageModal: React.FC<SendMessageModalProps> = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-2/6 sm:max-w-4xl flex flex-col overflow-hidden">
+      <SheetContent>
         <SheetHeader className="flex-shrink-0">
           <SheetTitle>Simulate Message</SheetTitle>
           <SheetDescription>
             Simulate sending a message to Azure Service Bus. The message will be tracked.
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSendMessage} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <form onSubmit={handleSendMessage}>
           <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0 pr-2">
             <div className="grid gap-2">
               <Label htmlFor="queue">Queue Name (optional)</Label>

@@ -1,58 +1,38 @@
-// -----------------------------
-// External imports
-// -----------------------------
 import { useCallback, useMemo, useState } from 'react';
-
-// -----------------------------
-// UI components
-// -----------------------------
-import { VirtualizedDataTable } from '../../messages/data-table/VirtualizedDataTable';
-
-// -----------------------------
-// API hooks
-// -----------------------------
-import { useDeleteSqsMessage, useGetSqsMessages } from '../../../features/aws-sqs/hooks/aws-sqs';
-
-// -----------------------------
-// Local components
-// -----------------------------
-import { AwsSqsSendMessageModal } from './components/SendMessageModal';
-
-// -----------------------------
-// Types
-// -----------------------------
-import { Option, SqsMessageRow, TrackingMessage } from './lib/message.entities';
+import { VirtualizedDataTable } from '../../components/messages/data-table/VirtualizedDataTable';
+import {
+  useDeleteSqsMessage,
+  useGetSqsMessages,
+} from './hooks/aws-sqs';
+import { AwsSqsSendMessageSheet } from './components/SendMessageSheet';
+import { Option, SqsMessageRow, TrackingMessage } from './lib/entities';
 import { Statistics } from './components/StatisticsCards';
-import { createColumns } from './components/MessageTableColumns';
-import MessageDetailModal from './components/MessageDetailModal';
+import { createColumns } from './components/Columns';
+
 import { Row } from '@tanstack/react-table';
 import { toast } from 'sonner';
+import DetailSheet from './components/DetailSheet';
 
-
-export const SqsMessagesDataTable = () => {
-  // -----------------------------
-  // Hooks
-  // -----------------------------
+export const AwsSqsDetailPage = () => {
   const { data: messages, isLoading, error } = useGetSqsMessages();
+  const deleteMutation = useDeleteSqsMessage();
 
-  // -----------------------------
-  // State
-  // -----------------------------
-    const deleteMutation = useDeleteSqsMessage();
-
-const handleMessageDelete = useCallback(async (messageId: string) => {
-  try {
-    await deleteMutation.mutateAsync(messageId);
-    toast.success('Message deleted successfully', {
-      description: 'The tracking message has been removed.',
-    });
-  } catch (error) {
-    console.error('Failed to delete message:', error);
-    toast.error('Failed to delete message', {
-      description: 'Please try again.',
-    });
-  }
-}, [deleteMutation]); 
+  const handleMessageDelete = useCallback(
+    async (messageId: string) => {
+      try {
+        await deleteMutation.mutateAsync(messageId);
+        toast.success('Message deleted successfully', {
+          description: 'The tracking message has been removed.',
+        });
+      } catch (error) {
+        console.error('Failed to delete message:', error);
+        toast.error('Failed to delete message', {
+          description: 'Please try again.',
+        });
+      }
+    },
+    [deleteMutation],
+  );
 
   const [selectedMessage, setSelectedMessage] = useState<SqsMessageRow | null>(
     null,
@@ -62,10 +42,6 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBodyExpanded, setIsBodyExpanded] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
-
-  // -----------------------------
-  // Callbacks
-  // -----------------------------
   const handleMessageSelect = useCallback(
     (originalMessage: TrackingMessage) => {
       setSelectedOriginalMessage(originalMessage);
@@ -81,10 +57,6 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
     setIsBodyExpanded(false);
   }, []);
 
-
-  // -----------------------------
-  // Derived data
-  // -----------------------------
   const allRows = useMemo(() => {
     if (!messages) return [];
     return messages.data;
@@ -96,9 +68,9 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
     return Array.from(
       new Set(messages.data.map((message) => message.receivedBy)),
     ).map((receivedBy) => ({
-        label: receivedBy,
-        value: receivedBy,
-      })) as Option[];
+      label: receivedBy,
+      value: receivedBy,
+    })) as Option[];
   }, [messages]);
 
   const receivedByFilterFn = useMemo(() => {
@@ -114,9 +86,9 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
     return Array.from(
       new Set(messages.data.map((message) => message.sentBy)),
     ).map((sentBy) => ({
-        label: sentBy,
-        value: sentBy,
-      })) as Option[];
+      label: sentBy,
+      value: sentBy,
+    })) as Option[];
   }, [messages]);
 
   const sentByFilterFn = useMemo(() => {
@@ -138,9 +110,9 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
     return Array.from(
       new Set(messages.data.map((message) => message.disposition)),
     ).map((disposition) => ({
-        label: disposition,
-        value: disposition,
-      })) as Option[];
+      label: disposition,
+      value: disposition,
+    })) as Option[];
   }, [messages]);
 
   const columns = useMemo(
@@ -169,9 +141,6 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
 
   const totalMessages = messages ? messages.data.length : 0;
 
-  // -----------------------------
-  // Render guards
-  // -----------------------------
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -196,13 +165,9 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
     );
   }
 
-  // -----------------------------
-  // Render
-  // -----------------------------
   return (
-    <>
+    <div className="p-6">
       <div className="space-y-4">
-
         {/* Summary */}
         <Statistics messages={messages} />
 
@@ -220,13 +185,13 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
         </div>
 
         {/* Modals */}
-        <AwsSqsSendMessageModal
+        <AwsSqsSendMessageSheet
           open={sendModalOpen}
           onOpenChange={setSendModalOpen}
         />
       </div>
 
-      <MessageDetailModal
+      <DetailSheet
         isModalOpen={isModalOpen}
         handleModalClose={handleModalClose}
         selectedMessage={selectedMessage as SqsMessageRow}
@@ -234,6 +199,6 @@ const handleMessageDelete = useCallback(async (messageId: string) => {
         isBodyExpanded={isBodyExpanded}
         setIsBodyExpanded={setIsBodyExpanded}
       />
-    </>
+    </div>
   );
 };

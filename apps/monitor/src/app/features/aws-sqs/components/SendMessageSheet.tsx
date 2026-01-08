@@ -8,22 +8,22 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '../../../ui/sheet';
-import { Input } from '../../../ui/input';
-import { Label } from '../../../ui/label';
+} from '../../../components/ui/sheet';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../../../ui/select';
-import { Button } from '../../../ui/button';
+} from '../../../components/ui/select';
+import { Button } from '../../../components/ui/button';
 import {
   useSendSqsMessage,
   useAwsSqsConfig,
-} from '../../../../features/aws-sqs/hooks/aws-sqs';
-import { useServiceBusConfig } from '../../../../hooks/api/service-bus';
+} from '../hooks/aws-sqs';
+import { useServiceBusConfig } from '../../../hooks/api/service-bus';
 
 interface SendMessageModalProps {
   open: boolean;
@@ -36,7 +36,7 @@ type MessageDisposition =
   | 'defer';
 
 
-export const AwsSqsSendMessageModal: React.FC<SendMessageModalProps> = ({
+export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
   open,
   onOpenChange,
 }) => {

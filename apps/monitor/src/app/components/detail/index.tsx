@@ -1,6 +1,6 @@
 import { useParams } from 'react-router';
 import { SqsMessagesDataTable } from './aws-sqs';
-import { AzureSbDetail } from './azure-sb';
+import { AzureSbDetail } from '../../features/azure-sb';
 
 export const Detail: React.FC = () => {
   const { emulator } = useParams();

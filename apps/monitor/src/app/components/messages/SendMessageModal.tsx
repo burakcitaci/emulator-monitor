@@ -20,7 +20,7 @@ import {
 } from '../ui/select';
 import { Button } from '../ui/button';
 import { useSendServiceBusMessage } from '../../hooks/api/service-bus';
-import { useSendSqsMessage, useAwsSqsConfig } from '../../hooks/api/aws-sqs';
+import { useSendSqsMessage, useAwsSqsConfig } from '../../features/aws-sqs/hooks/aws-sqs';
 type ServiceType = 'service-bus' | 'sqs';
 
 interface SendMessageModalProps {

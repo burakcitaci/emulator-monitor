@@ -1,5 +1,5 @@
-import { Card, CardContent } from '../../../ui/card';
-import { ServiceBusMessagesData } from '../../../../lib/schemas';
+import { Card, CardContent } from '../../../components/ui/card';
+import { ServiceBusMessagesData } from '../../../lib/schemas';
 
 export const Statistics = ({
   messages,

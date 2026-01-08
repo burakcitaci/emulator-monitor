@@ -8,8 +8,9 @@ import { Messages } from './components/messages/Messages';
 import { AppSidebar } from './components/containers/ContainerSidebar';
 import { SiteHeader } from './components/common/SiteHeader';
 import { useSidebarState } from './hooks/useSidebarState';
-import { Detail } from './components/detail';
 import MessagingResources from './features/messaging-resources';
+import { AzureSbDetail } from './features/azure-sb';
+import { AwsSqsDetailPage } from './features/aws-sqs';
 
 
 export function App() {
@@ -36,7 +37,8 @@ export function App() {
             <Routes>
               <Route path="/" element={<Messages />} />
               <Route path="/messaging-resources" element={<MessagingResources />} />
-              <Route path="/:emulator" element={<Detail />} />
+              <Route path="/sqs" element={<AwsSqsDetailPage />} />
+              <Route path="/azure-service-bus" element={<AzureSbDetail />} />
             </Routes>
         </div>
       </SidebarInset>

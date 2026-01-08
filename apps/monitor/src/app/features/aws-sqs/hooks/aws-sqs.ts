@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, ApiError } from '../../lib/api-client';
-import { SendSqsMessage, ReceiveSqsMessage } from '../../lib/schemas';
-import { trackingMessageKeys } from './tracking-messages';
+import { apiClient, ApiError } from '../../../lib/api-client';
+import { SendSqsMessage, ReceiveSqsMessage } from '../../../lib/schemas';
+import { trackingMessageKeys } from '../../../hooks/api/tracking-messages';
 import { toast } from 'sonner';
 
 // Query keys
