@@ -19,14 +19,14 @@ import {
   SelectValue,
 } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
-import { useSendServiceBusMessage, useServiceBusConfig } from '../../../hooks/api/service-bus';
+import { useSendServiceBusMessage, useServiceBusConfig } from '../api/service-bus';
 
 interface SendMessageModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export const AzureSbSendMessageModal: React.FC<SendMessageModalProps> = ({
+export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
   open,
   onOpenChange,
 }) => {

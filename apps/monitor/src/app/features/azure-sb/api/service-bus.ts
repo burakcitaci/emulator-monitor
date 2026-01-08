@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, ApiError } from '../../lib/api-client';
-import { SendServiceBusMessage, ReceiveServiceBusMessage } from '../../lib/schemas';
+import { apiClient, ApiError } from '../../../lib/api-client';
+import { SendServiceBusMessage, ReceiveServiceBusMessage } from '../../../lib/schemas';
 import { toast } from 'sonner';
 
 

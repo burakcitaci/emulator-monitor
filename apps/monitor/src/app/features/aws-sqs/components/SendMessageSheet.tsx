@@ -23,7 +23,7 @@ import {
   useSendSqsMessage,
   useAwsSqsConfig,
 } from '../hooks/aws-sqs';
-import { useServiceBusConfig } from '../../../hooks/api/service-bus';
+import { useServiceBusConfig } from '../../azure-sb/api/service-bus';
 
 interface SendMessageModalProps {
   open: boolean;
@@ -126,7 +126,9 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
 
       onOpenChange(false);
     } catch (error) {
-      toast.error('Failed to simulate message');
+      toast.error('Failed to simulate message', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
     }
   };
 

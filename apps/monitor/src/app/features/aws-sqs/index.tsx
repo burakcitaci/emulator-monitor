@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { VirtualizedDataTable } from '../../components/messages/data-table/VirtualizedDataTable';
+import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
 import {
   useDeleteSqsMessage,
   useGetSqsMessages,

@@ -1,20 +1,14 @@
-import { ColumnDef, Row } from '@tanstack/react-table';
-import { Eye, Trash } from 'lucide-react';
-import { Badge } from '../../../ui/badge';
-import { Button } from '../../../ui/button';
-import { DataTableColumnHeader } from '../../../messages/data-table/DataTableColumnHeader';
-import { Option, SqsMessageRow, TrackingMessage } from '../lib/message.entities';
+import { ColumnDef } from "@tanstack/react-table";
+import { TrackingMessage } from "../../../lib/schemas";
+import { DataTableColumnHeader } from "../../../components/data-table/DataTableColumnHeader";
+import { Button } from "../../../components/ui/button";
+import { Eye, Trash } from "lucide-react";
+import { Badge } from "../../../components/ui/badge";
 
 export const createColumns = (
-  onMessageSelect: (message: TrackingMessage) => void,
+  onMessageSelect: (originalMessage: TrackingMessage) => void,
   onMessageDelete: (messageId: string) => void,
-  sentByOptions: Option[],
-  receivedByOptions: Option[],
-  dispositionOptions: Option[],
-  sentByFilterFn: (row: Row<SqsMessageRow>, id: string, value: unknown) => boolean,
-  receivedByFilterFn: (row: Row<SqsMessageRow>, id: string, value: unknown) => boolean,
-  dispositionFilterFn: (row: Row<SqsMessageRow>, id: string, value: unknown) => boolean
-): ColumnDef<SqsMessageRow>[] => [
+): ColumnDef<TrackingMessage>[] => [
   {
     accessorKey: 'messageId',
     header: ({ column }) => (
@@ -24,6 +18,19 @@ export const createColumns = (
       return (
         <div className="text-xs truncate max-w-48 font-mono">
           {row.original.messageId || '-'}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'queue',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Queue" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="text-xs truncate max-w-32">
+          {row.original.queue || '-'}
         </div>
       );
     },
@@ -40,52 +47,6 @@ export const createColumns = (
         </div>
       );
     },
-    enableColumnFilter: true,
-    filterFn: sentByFilterFn,
-    meta: {
-      variant: 'multiSelect',
-      label: 'Sent By',
-      options: sentByOptions,
-    },
-    
-  },
-  {
-    accessorKey: 'receivedBy',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Received By" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <div className="text-xs truncate max-w-32">
-          {row.original.receivedBy || '-'}
-        </div>
-      );
-    },
-     enableColumnFilter: true,
-    filterFn: receivedByFilterFn,
-    meta: {
-      variant: 'multiSelect',
-      label: 'Received By',
-      options: receivedByOptions,
-    },
-  },
-  {
-    id: 'source',
-    accessorKey: 'source',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Source" />
-    ),
-    cell: ({ row }) => {
-      const source = row.original.source;
-      return (
-        <Badge
-          variant={source === 'queue' ? 'default' : 'secondary'}
-          className="text-xs px-2 py-0.5 h-5"
-        >
-          {source === 'queue' ? 'Queue' : 'Tracking'}
-        </Badge>
-      );
-    },
   },
   {
     id: 'disposition',
@@ -94,32 +55,27 @@ export const createColumns = (
       <DataTableColumnHeader column={column} title="Disposition" />
     ),
     cell: ({ row }) => {
-      const disposition = row.original.disposition;
+      const disposition = row.original.disposition ?? 'undefined';
       const variantMap: Record<
         string,
         'default' | 'secondary' | 'destructive' | 'outline'
       > = {
         complete: 'default',
-        abandon: 'secondary',
         deadletter: 'destructive',
+        abandon: 'secondary',
         defer: 'outline',
       };
 
       return (
         <Badge
-          variant={variantMap[disposition] || 'secondary'}
+          variant={
+            variantMap[disposition as keyof typeof variantMap] || 'secondary'
+          }
           className="text-xs px-2 py-0.5 h-5"
         >
-          {disposition}
+          {disposition?.charAt(0).toUpperCase() + disposition?.slice(1)}
         </Badge>
       );
-    },
-    enableColumnFilter: true,
-    filterFn: dispositionFilterFn,
-    meta: {
-      variant: 'multiSelect',
-      label: 'Disposition',
-      options: dispositionOptions,
     },
   },
   {
@@ -154,10 +110,11 @@ export const createColumns = (
       const timestamp = row.original.sentAt;
       return (
         <div className="text-xs text-muted-foreground whitespace-nowrap">
-          {timestamp ? timestamp.toLocaleString() : 'N/A'}
+          {timestamp ? new Date(timestamp).toLocaleString() : 'N/A'}
         </div>
       );
     },
+    
   },
   {
     id: 'actions',
@@ -168,12 +125,7 @@ export const createColumns = (
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0"
-            onClick={() => {
-              // Assuming row.original has tracking message data
-              if ('_id' in row.original) {
-                onMessageSelect(row.original as TrackingMessage);
-              }
-            }}
+            onClick={() => onMessageSelect(row.original)}
           >
             <Eye className="h-3 w-3" />
           </Button>
@@ -181,9 +133,7 @@ export const createColumns = (
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0"
-            onClick={() => {
-              onMessageDelete(row.original.messageId);
-            }}
+            onClick={() => onMessageDelete(row.original.messageId)}
           >
             <Trash className="h-3 w-3" />
           </Button>

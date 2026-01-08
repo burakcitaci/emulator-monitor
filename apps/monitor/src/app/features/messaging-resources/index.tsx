@@ -1,5 +1,5 @@
     import { useState } from 'react';
-    import { VirtualizedDataTable } from '../../components/messages/data-table/VirtualizedDataTable';
+    import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
     import { DetailSheet } from './components/DetailSheet';
     import { MessagingResource, Provider, ResourceType } from './lib/entities';
     import { createColumns } from './components/Columns';

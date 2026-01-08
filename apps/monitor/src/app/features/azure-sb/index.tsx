@@ -1,45 +1,21 @@
-// -----------------------------
-// External imports
-// -----------------------------
 import { useCallback, useMemo, useState } from 'react';
-
-// -----------------------------
-// UI components
-// -----------------------------
-import { VirtualizedDataTable } from '../../components/messages/data-table/VirtualizedDataTable';
-
-// -----------------------------
-// API hooks
-// -----------------------------
+import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
 import {
   useDeleteServiceBusMessage,
   useGetServiceBusMessages,
-} from '../../hooks/api/service-bus';
-
-// -----------------------------
-// Local components
-// -----------------------------
-import { AzureSbSendMessageModal } from './components/SendMessageModal';
+} from './api/service-bus';
+import { SendMessageSheet } from './components/SendMessageSheet';
 import { Statistics } from './components/StatisticsCards';
-import { createColumns } from './components/MessageTableColumns';
+import { createColumns } from './components/Columns';
+import { ServiceBusMessageRow, TrackingMessage } from './lib/entities';
+import { DetailSheet } from './components/DetailSheet';
 
-// -----------------------------
-// Types
-// -----------------------------
-import { ServiceBusMessageRow, TrackingMessage } from './lib/message.entities';
-import MessageDetailModal from './components/MessageDetailModal';
+export const AzureSbDetailPage = () => {
 
-export const AzureSbDetail = () => {
-  // -----------------------------
-  // Hooks
-  // -----------------------------
   const deleteMutation = useDeleteServiceBusMessage();
 
   const { data: messages, isLoading, error } = useGetServiceBusMessages();
 
-  // -----------------------------
-  // State
-  // -----------------------------
   const [selectedMessage, setSelectedMessage] =
     useState<ServiceBusMessageRow | null>(null);
   const [selectedOriginalMessage, setSelectedOriginalMessage] =
@@ -48,9 +24,6 @@ export const AzureSbDetail = () => {
   const [isBodyExpanded, setIsBodyExpanded] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
 
-  // -----------------------------
-  // Callbacks
-  // -----------------------------
   const handleMessageSelect = useCallback(
     (originalMessage: TrackingMessage) => {
       setSelectedOriginalMessage(originalMessage);
@@ -150,14 +123,13 @@ export const AzureSbDetail = () => {
           />
         </div>
 
-        {/* Modals */}
-        <AzureSbSendMessageModal
+        <SendMessageSheet
           open={sendModalOpen}
           onOpenChange={setSendModalOpen}
         />
       </div>
 
-      <MessageDetailModal
+      <DetailSheet
         isModalOpen={isModalOpen}
         handleModalClose={handleModalClose}
         selectedMessage={selectedMessage as ServiceBusMessageRow}

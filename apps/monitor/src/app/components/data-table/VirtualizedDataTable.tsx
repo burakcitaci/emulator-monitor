@@ -23,10 +23,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../../ui/table';
+} from '../ui/table';
 import { DataTablePagination } from './DataTablePagination';
 import { DataTableToolbar } from './DataTableToolbar';
-import { cn } from '../../../lib/utils';
+import { cn } from '../../lib/utils';
 
 interface VirtualizedDataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];

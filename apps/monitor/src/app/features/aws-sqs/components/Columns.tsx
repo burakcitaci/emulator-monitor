@@ -2,7 +2,7 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { Eye, Trash } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
-import { DataTableColumnHeader } from '../../../components/messages/data-table/DataTableColumnHeader';
+import { DataTableColumnHeader } from '../../../components/data-table/DataTableColumnHeader';
 import { Option, SqsMessageRow, TrackingMessage } from '../lib/entities';
 
 export const createColumns = (

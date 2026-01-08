@@ -1,12 +1,13 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "../../../components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../../components/ui/sheet"
-import { formatBody } from "./messageTable.utils";
-import { InfoBlock, Section } from "./MessageDetailSections";
-import { Button } from "../../../components/ui/button";
-import { ServiceBusMessageRow, TrackingMessage } from "../lib/message.entities";
 
-const MessageDetailModal = ({
+import { InfoBlock, Section } from "./DetailSections";
+import { Button } from "../../../components/ui/button";
+import { ServiceBusMessageRow, TrackingMessage } from "../lib/entities";
+import { formatBody } from "../lib/utils";
+
+export const DetailSheet = ({
     isModalOpen,
     handleModalClose,
     selectedMessage,
@@ -164,5 +165,3 @@ const MessageDetailModal = ({
         </Sheet>
     );
 };
-
-export default MessageDetailModal;
