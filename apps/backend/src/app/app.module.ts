@@ -16,6 +16,7 @@ import { AwsSqsModule } from './aws-sqs/aws-sqs.module';
 import { HealthModule } from './health/health.module';
 import { LoggingInterceptor } from './common/logging.interceptor';
 import { HttpExceptionFilter } from './common/http-exception.filter';
+import { MessageResourcesModule } from './message-resources/message-resources.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
       connectionName: 'MessageTrackingDb',
     }),
     MessageModule,
+    MessageResourcesModule,
     ServiceBusModule,
     AwsSqsModule,
     HealthModule,
