@@ -3,12 +3,10 @@ import { Separator } from '../ui/separator';
 import { SidebarTrigger } from '../ui/sidebar';
 import { ModeToggle } from './mode-toggle';
 import { ThemeSelector } from './ThemeSelector';
-import { ArrowLeft, Icon, MessageCirclePlus, PlayIcon, Plus } from 'lucide-react';
-import { Button } from '../ui/button';
+import { ArrowLeft } from 'lucide-react';
 import {
   IconBrandAws,
   IconBrandAzure,
-  IconDashboard,
 } from '@tabler/icons-react';
 
 type NavItem = {
