@@ -1,24 +1,29 @@
 import React from 'react';
 import { useTrackingMessages } from '../../hooks/api';
 import { AlertCircle } from 'lucide-react';
-import { TrackingMessage } from '@e2e-monitor/entities';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { MessagesTable } from './components/MessagesTable';
 import { ErrorMessage } from './components/ErrorMessage';
 import { StatisticsCards } from './components/StatisticsCards';
+import { TrackingMessage } from '@e2e-monitor/entities';
 
 export const MessagesPage = () => {
   const { data: messages = [], isLoading, error } = useTrackingMessages();
 
-  // Transform messages to convert null to undefined for receivedAt, receivedBy, queue, disposition, and emulatorType
+  // Transform messages to convert null to undefined and ensure required fields
   const transformedMessages: TrackingMessage[] = React.useMemo(() => {
-    return messages.map((message) => ({
-      ...message,
-      receivedAt: message.receivedAt ?? undefined,
-      receivedBy: message.receivedBy ?? undefined,
+    return messages.map((message): TrackingMessage => ({
+      _id: message._id || '',
+      messageId: message.messageId || '',
+      body: message.body || '',
+      sentBy: message.sentBy || '',
+      sentAt: message.sentAt ? (typeof message.sentAt === 'string' ? new Date(message.sentAt) : message.sentAt) : new Date(),
+      status: (message.status as 'sent' | 'processing' | 'received') || 'sent',
       queue: message.queue ?? undefined,
-      disposition: message.disposition ?? undefined,
-      emulatorType: message.emulatorType ?? undefined,
+      receivedAt: message.receivedAt ? (typeof message.receivedAt === 'string' ? new Date(message.receivedAt) : message.receivedAt) : undefined,
+      receivedBy: message.receivedBy ?? undefined,
+      disposition: message.disposition as 'complete' | 'abandon' | 'deadletter' | 'defer' | undefined,
+      emulatorType: message.emulatorType as 'sqs' | 'azure-service-bus' | undefined,
     }));
   }, [messages]);
 

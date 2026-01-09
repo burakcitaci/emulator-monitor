@@ -166,8 +166,15 @@ export const AwsSqsDetailPage = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="space-y-4">
+    <>
+      <div className="p-6 space-y-4">
+        <div className="flex flex-col gap-1 mb-4">
+          <h1 className="text-2xl font-bold">AWS SQS</h1>
+          <h2 className="text-sm text-muted-foreground">
+            Manage your AWS SQS messages here.
+          </h2>
+        </div>
+
         {/* Summary */}
         <Statistics messages={messages} />
 
@@ -199,6 +206,6 @@ export const AwsSqsDetailPage = () => {
         isBodyExpanded={isBodyExpanded}
         setIsBodyExpanded={setIsBodyExpanded}
       />
-    </div>
+    </>
   );
 };

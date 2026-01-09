@@ -1,6 +1,12 @@
 import React from 'react';
 import { Card, CardContent } from '../../../components/ui/card';
-import { AwsSqsMessagesData } from '../../../lib/schemas';
+import { TrackingMessage } from '../../../lib/schemas';
+
+type AwsSqsMessagesData = {
+  data: TrackingMessage[];
+  queueName?: string;
+  queueUrl?: string;
+};
 
 interface StatisticsProps {
   messages: AwsSqsMessagesData;
@@ -21,7 +27,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ messages }) => {
         <CardContent className="p-4">
           <div className="text-xs text-muted-foreground mb-1">Completed</div>
           <div className="text-xl font-bold">
-            {messages.data.filter((message) => message.disposition === 'complete').length}
+            {messages.data.filter((message: TrackingMessage) => message.disposition === 'complete').length}
           </div>
         </CardContent>
       </Card>
@@ -31,7 +37,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ messages }) => {
             DLQ Messages
           </div>
           <div className="text-xl font-bold">
-            {messages.data.filter((message) => message.disposition === 'deadletter').length}
+            {messages.data.filter((message: TrackingMessage) => message.disposition === 'deadletter').length}
           </div>
         </CardContent>
       </Card>
@@ -41,7 +47,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ messages }) => {
             Abandoned
           </div>
           <div className="text-xl font-bold">
-            {messages.data.filter((message) => message.disposition === 'abandon').length}
+            {messages.data.filter((message: TrackingMessage) => message.disposition === 'abandon').length}
           </div>
         </CardContent>
       </Card>
@@ -49,7 +55,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ messages }) => {
         <CardContent className="p-4">
           <div className="text-xs text-muted-foreground mb-1">Deferred</div>
           <div className="text-xl font-bold">
-            {messages.data.filter((message) => message.disposition === 'defer').length}
+            {messages.data.filter((message: TrackingMessage) => message.disposition === 'defer').length}
           </div>
          
         </CardContent>

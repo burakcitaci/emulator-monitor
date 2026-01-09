@@ -1,18 +1,14 @@
+import { MessageResources } from '../../../lib/schemas';
+
 export enum Provider {
-  AWS = 'AWS',
-  AZURE = 'Azure',
+  AWS = 'aws',
+  AZURE = 'azure',
 }
 
 export enum ResourceType {
-  QUEUE = 'Queue',
-  TOPIC = 'Topic',
+  QUEUE = 'queue',
+  TOPIC = 'topic',
 }
 
-export type MessagingResource = {
-  id: string;
-  name: string;
-  provider: Provider;
-  type: ResourceType;
-  region: string;
-  status: 'active' | 'inactive';
-}
+// Re-export MessageResources as MessagingResource for consistency
+export type MessagingResource = MessageResources;

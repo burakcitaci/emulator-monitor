@@ -1,9 +1,10 @@
 import { IconBrandAws, IconBrandAzure } from "@tabler/icons-react";
-import { MessagingResource, Provider, ResourceType } from "../lib/entities";
+import { MessagingResource } from "../lib/entities";
 import { Badge } from "../../../components/ui/badge";
 import { Pause, Pencil, Play, Trash2 } from "lucide-react";
 
 import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from "../../../components/data-table/DataTableColumnHeader";
 
 export const createColumns = (
   handleActivate: (id: string) => void,
@@ -12,15 +13,20 @@ export const createColumns = (
 ): ColumnDef<MessagingResource>[] => {
   return [
     {
-      header: 'Name',
+       header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Name" />
+    ),
       accessorKey: 'name',
+      
       cell: ({ row }) => <div>{row.original.name}</div>,
     },
     {
-      header: 'Provider',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Provider" />
+      ),
       accessorKey: 'provider',
       enableColumnFilter: true,
-      filterFn: (row, _id, value: Provider[]) =>
+      filterFn: (row, _id, value: Array<'aws' | 'azure'>) =>
         value.includes(row.original.provider),
       meta: {
         variant: 'multiSelect',
@@ -31,17 +37,19 @@ export const createColumns = (
         ],
       },
       cell: ({ row }) =>
-        row.original.provider === Provider.AWS ? (
-          <IconBrandAws />
+        row.original.provider === 'aws' ? (
+          <IconBrandAws className="h-5 w-5" />
         ) : (
-          <IconBrandAzure />
+          <IconBrandAzure className="h-5 w-5" />
         ),
     },
     {
-      header: 'Type',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Type" />
+      ),
       accessorKey: 'type',
       enableColumnFilter: true,
-      filterFn: (row, _id, value: ResourceType[]) =>
+      filterFn: (row, _id, value: Array<'queue' | 'topic'>) =>
         value.includes(row.original.type),
       meta: {
         variant: 'multiSelect',
@@ -54,7 +62,9 @@ export const createColumns = (
       cell: ({ row }) => <div>{row.original.type}</div>,
     },
     {
-      header: 'Status',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
       accessorKey: 'status',
       enableColumnFilter: true,
       filterFn: (row, _id, value: Array<'active' | 'inactive'>) =>
@@ -70,7 +80,6 @@ export const createColumns = (
       cell: ({ row }) => <div>{row.original.status}</div>,
     },
     {
-      header: 'Actions',
       id: 'actions', // 👈 better than accessorKey for non-data columns
       cell: ({ row }) => (
         <div className="flex gap-2 justify-end">
@@ -80,9 +89,9 @@ export const createColumns = (
             onClick={() => handleActivate(row.original.id)}
           >
             {row.original.status === 'active' ? (
-              <Pause className="h-5 w-3" />
+              <Pause className="h-4 w-3" />
             ) : (
-              <Play className="h-5 w-3" />
+              <Play className="h-4 w-3" />
             )}
           </Badge>
           <Badge
@@ -90,14 +99,14 @@ export const createColumns = (
             className="cursor-pointer"
             onClick={() => handleEdit(row.original)}
           >
-            <Pencil className="h-5 w-3" />
+            <Pencil className="h-4 w-3" />
           </Badge>
           <Badge
             variant="outline"
             className="cursor-pointer"
             onClick={() => handleDelete(row.original.id)}
           >
-            <Trash2 className="h-5 w-3" />
+            <Trash2 className="h-4 w-3" />
           </Badge>
         </div>
       ),

@@ -7,8 +7,9 @@ import {
 import { SendMessageSheet } from './components/SendMessageSheet';
 import { Statistics } from './components/StatisticsCards';
 import { createColumns } from './components/Columns';
-import { ServiceBusMessageRow, TrackingMessage } from './lib/entities';
+import { Option, ServiceBusMessageRow, TrackingMessage } from './lib/entities';
 import { DetailSheet } from './components/DetailSheet';
+import { Row } from '@tanstack/react-table';
 
 export const AzureSbDetailPage = () => {
 
@@ -55,23 +56,94 @@ export const AzureSbDetailPage = () => {
   // -----------------------------
   const allRows = useMemo(() => {
     if (!messages) return [];
-
-    const { complete, deadletter, abandon, defer } = messages.trackingMessages;
-
-    return [...complete, ...deadletter, ...abandon, ...defer];
+    return messages.data.map((message): ServiceBusMessageRow => ({
+      messageId: message.messageId || '',
+      body: message.body || '',
+      sentBy: message.sentBy || undefined,
+      receivedBy: message.receivedBy || undefined,
+      sentAt: message.sentAt ? (typeof message.sentAt === 'string' ? new Date(message.sentAt) : message.sentAt) : undefined,
+      disposition: message.disposition || '',
+      source: 'tracking' as const,
+    }));
   }, [messages]);
 
+  const receivedByOptions = useMemo(() => {
+    if (!messages?.data) return [] as Option[];
+
+    return Array.from(
+      new Set(messages.data.map((message) => message.receivedBy)),
+    ).map((receivedBy) => ({
+      label: receivedBy,
+      value: receivedBy,
+    })) as Option[];
+  }, [messages]);
+
+  const receivedByFilterFn = useMemo(() => {
+    return (row: Row<ServiceBusMessageRow>, id: string, value: unknown) => {
+      if (!value || !Array.isArray(value)) return true;
+      return value.includes(row.original.receivedBy);
+    };
+  }, []);
+
+  const sentByOptions = useMemo(() => {
+    if (!messages?.data) return [] as Option[];
+
+    return Array.from(
+      new Set(messages.data.map((message) => message.sentBy)),
+    ).map((sentBy) => ({
+      label: sentBy,
+      value: sentBy,
+    })) as Option[];
+  }, [messages]);
+
+  const sentByFilterFn = useMemo(() => {
+    return (row: Row<ServiceBusMessageRow>, id: string, value: unknown) => {
+      if (!value || !Array.isArray(value)) return true;
+      return value.includes(row.original.sentBy);
+    };
+  }, []);
+
+  const dispositionFilterFn = useMemo(() => {
+    return (row: Row<ServiceBusMessageRow>, id: string, value: unknown) => {
+      if (!value || !Array.isArray(value)) return true;
+      return value.includes(row.original.disposition);
+    };
+  }, []);
+  const dispositionOptions = useMemo(() => {
+    if (!messages?.data) return [] as Option[];
+
+    return Array.from(
+      new Set(messages.data.map((message) => message.disposition)),
+    ).map((disposition) => ({
+      label: disposition,
+      value: disposition,
+    })) as Option[];
+  }, [messages]);
   const columns = useMemo(
-    () => createColumns(handleMessageSelect, handleMessageDelete),
-    [handleMessageSelect, handleMessageDelete],
+    () =>
+      createColumns(
+        handleMessageSelect,
+        handleMessageDelete,
+        sentByOptions,
+        receivedByOptions,
+        dispositionOptions,
+        sentByFilterFn,
+        receivedByFilterFn,
+        dispositionFilterFn,
+      ),
+    [
+      handleMessageSelect,
+      handleMessageDelete,
+      sentByOptions,
+      receivedByOptions,
+      dispositionOptions,
+      sentByFilterFn,
+      receivedByFilterFn,
+      dispositionFilterFn,
+    ],
   );
 
-  const totalMessages = messages
-    ? messages.summary.trackingComplete +
-      messages.summary.trackingDeadletter +
-      messages.summary.trackingAbandon +
-      messages.summary.trackingDefer
-    : 0;
+  const totalMessages = messages ? messages.data.length : 0;
 
   // -----------------------------
   // Render guards
@@ -105,8 +177,15 @@ export const AzureSbDetailPage = () => {
   // -----------------------------
   return (
     <>
-      <div className="space-y-4">
-       
+    
+      <div className="p-6 space-y-4">
+       <div className="flex flex-col gap-1 mb-4">
+        <h1 className="text-2xl font-bold">Azure Service Bus</h1>
+        <h2 className="text-sm text-muted-foreground">
+          Manage your Azure Service Bus messages here.
+        </h2>
+      </div>
+
         {/* Summary */}
         <Statistics messages={messages} />
 

@@ -4,7 +4,7 @@ import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../../components/ui/sheet";
-import { MessagingResource, Provider, ResourceType } from "../lib/entities";
+import { MessagingResource } from "../lib/entities";
 
 interface DetailSheetProps {
   open: boolean;
@@ -38,7 +38,7 @@ export const DetailSheet = ({ open, setOpen, editing, form, setForm, handleSave 
                 <Label>Provider</Label>
                 <Select
                   value={form.provider}
-                  onValueChange={(v: Provider) =>
+                  onValueChange={(v: 'aws' | 'azure') =>
                     setForm({ ...form, provider: v })
                   }
                 >
@@ -56,7 +56,7 @@ export const DetailSheet = ({ open, setOpen, editing, form, setForm, handleSave 
                 <Label>Type</Label>
                 <Select
                   value={form.type}
-                  onValueChange={(v: ResourceType) =>
+                  onValueChange={(v: 'queue' | 'topic') =>
                     setForm({ ...form, type: v })
                   }
                 >

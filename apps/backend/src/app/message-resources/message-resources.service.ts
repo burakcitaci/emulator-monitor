@@ -15,7 +15,11 @@ export class MessageResourcesService {
     return this.messagingResourceModel.find().lean().exec();
   }
   async createMessageResource(dto: CreateMessageResourceDto): Promise<MessagingResource> {
-    return this.messagingResourceModel.create(dto);
+    const created = await this.messagingResourceModel.create({
+      id: crypto.randomUUID(),
+      ...dto,
+    });
+    return created.toObject();
   }
   async updateMessageResource(id: string, dto: UpdateMessageResourceDto): Promise<MessagingResource> {
     const result = await this.messagingResourceModel.findByIdAndUpdate(id, dto, { new: true }).lean().exec();

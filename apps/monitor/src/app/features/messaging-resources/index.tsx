@@ -1,119 +1,89 @@
-    import { useState } from 'react';
-    import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
-    import { DetailSheet } from './components/DetailSheet';
-    import { MessagingResource, Provider, ResourceType } from './lib/entities';
-    import { createColumns } from './components/Columns';
+import { useState } from 'react';
+import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
+import { DetailSheet } from './components/DetailSheet';
+import { MessagingResource, Provider, ResourceType } from './lib/entities';
+import { createColumns } from './components/Columns';
+import {
+  useCreateMessageResource,
+  useGetMessageResources,
+} from './api/messaging-resource';
 
-    const initialResources: MessagingResource[] = [
-      {
-        id: '1',
-        name: 'order-events',
-        provider: Provider.AWS,
-        type: ResourceType.QUEUE,
-        region: 'eu-central-1',
-        status: 'active',
-      },
-      {
-        id: '2',
-        name: 'billing-topic',
-        provider: Provider.AZURE,
-        type: ResourceType.TOPIC,
-        region: 'westeurope',
-        status: 'inactive',
-      },
-    ];
+export default function MessagingResources() {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<MessagingResource | null>(null);
+  const { data: messageResources } = useGetMessageResources();
+  const { mutate: createMessageResource } = useCreateMessageResource();
+  const [form, setForm] = useState<Omit<MessagingResource, 'id'>>({
+    name: '',
+    provider: Provider.AWS,
+    type: ResourceType.QUEUE,
+    status: 'active',
+  });
 
-    export default function MessagingResources() {
-      const [resources, setResources] =
-        useState<MessagingResource[]>(initialResources);
-      const [open, setOpen] = useState(false);
-      const [editing, setEditing] = useState<MessagingResource | null>(null);
+  const resetForm = () => {
+    setForm({
+      name: '',
+      provider: Provider.AWS,
+      type: ResourceType.QUEUE,
+      status: 'active',
+    });
+    setEditing(null);
+  };
 
-      const [form, setForm] = useState<Omit<MessagingResource, 'id'>>({
-        name: '',
-        provider: Provider.AWS,
-        type: ResourceType.QUEUE,
-        region: '',
-        status: 'active',
-      });
+  const handleSave = () => {
+    createMessageResource({
+      id: crypto.randomUUID(),
+      ...form,
+    });
+    resetForm();
+    setOpen(false);
+  };
 
-      const resetForm = () => {
-        setForm({
-          name: '',
-          provider: Provider.AWS,
-          type: ResourceType.QUEUE,
-          region: '',
-          status: 'active',
-        });
-        setEditing(null);
-      };
+  const handleEdit = (resource: MessagingResource) => {
+    setEditing(resource);
+    setForm({
+      name: resource.name,
+      provider: resource.provider,
+      type: resource.type,
+      status: resource.status,
+    });
+    setOpen(true);
+  };
 
-      const handleSave = () => {
-        if (editing) {
-          setResources((prev) =>
-            prev.map((r) => (r.id === editing.id ? { ...r, ...form } : r)),
-          );
-        } else {
-          setResources((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              ...form,
-            },
-          ]);
-        }
+  const handleDelete = (id: string) => {
+    console.log(id);
+  };
 
-        resetForm();
-        setOpen(false);
-      };
+  const handleActivate = (id: string) => {
+    console.log(id);
+  };
 
-      const handleEdit = (resource: MessagingResource) => {
-        setEditing(resource);
-        setForm({
-          name: resource.name,
-          provider: resource.provider,
-          type: resource.type,
-          region: resource.region,
-          status: resource.status,
-        });
-        setOpen(true);
-      };
+  return (
+    <div className="p-6 min-w-0">
+      <div className="flex flex-col gap-1 mb-4">
+        <h1 className="text-2xl font-bold">Queues and Topics</h1>
+        <h2 className="text-sm text-muted-foreground">
+          Manage your queues and topics here.
+        </h2>
+      </div>
 
-      const handleDelete = (id: string) => {
-        setResources((prev) => prev.filter((r) => r.id !== id));
-      };
-
-      const handleActivate = (id: string) => {
-        setResources((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, status: 'active' } : r)),
-        );
-      };
-      /* =======================
-        Render
-      ======================= */
-
-      return (
-        <div className="p-6 min-w-0">
-          <div className="flex flex-col gap-1 mb-4">
-            <h1 className="text-2xl font-bold">Queues and Topics</h1>
-            <h2 className="text-sm text-muted-foreground">
-              Manage your queues and topics here.
-            </h2>
-          </div>
-
-          <VirtualizedDataTable
-          columns={createColumns(handleActivate, handleEdit, handleDelete)}
-            data={resources}
-            onAdd={() => setOpen(true)}
-          />
-          <DetailSheet
-            open={open}
-            setOpen={setOpen}
-            editing={editing !== null}
-            form={{ ...form, id: crypto.randomUUID() }}
-            setForm={setForm}
-            handleSave={handleSave}
-          />
-        </div>
-      );
-    }
+      <VirtualizedDataTable
+        searchKey="name"
+        searchPlaceholder="Search resources..."
+        columns={createColumns(handleActivate, handleEdit, handleDelete)}
+        data={messageResources ?? [] as MessagingResource[]}
+        onAdd={() => setOpen(true)}
+        estimateSize={48}
+        overscan={5}
+      />
+      <DetailSheet
+        open={open}
+        setOpen={setOpen}
+        editing={editing !== null}
+        form={{ ...form, id: crypto.randomUUID() }}
+        setForm={setForm}
+        handleSave={handleSave}
+      />
+    </div>
+  );
+}

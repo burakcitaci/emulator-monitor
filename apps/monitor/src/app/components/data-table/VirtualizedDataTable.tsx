@@ -91,7 +91,7 @@ export function VirtualizedDataTable<TData, TValue>({
   });
 
   return (
-    <div className="w-full h-full flex flex-col space-y-2 min-h-0">
+    <div className="w-full h-full flex flex-col space-y-2 min-h-0 mt-8">
       <DataTableToolbar
         table={table}
         searchKey={searchKey}

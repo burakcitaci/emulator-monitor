@@ -51,7 +51,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <span className="text-base font-semibold">E2E Monitor</span>
               </a>
             </SidebarMenuButton>
-            <Separator orientation="horizontal"  className="h-1 data-[orientation=horizontal]:w-full" />
+            <Separator orientation="horizontal"  className="h-0.5 data-[orientation=horizontal]:w-full" />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

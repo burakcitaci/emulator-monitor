@@ -4,6 +4,5 @@ export type UpdateMessageResourceDto = {
   name?: string;
   provider?: Provider;
   type?: ResourceType;
-  region?: string;
   status?: 'active' | 'inactive';
 }

@@ -4,13 +4,13 @@ import { Document } from 'mongoose';
 export type MessagingResourceDocument = MessagingResource & Document;
 
 export enum Provider {
-  AWS = 'AWS',
-  AZURE = 'Azure',
+  AWS = 'aws',
+  AZURE = 'azure',
 }
 
 export enum ResourceType {
-  QUEUE = 'Queue',
-  TOPIC = 'Topic',
+  QUEUE = 'queue',
+  TOPIC = 'topic',
 }
 
 @Schema({ collection: 'MessagingResources', timestamps: true })
@@ -29,8 +29,6 @@ export class MessagingResource {
   @Prop({ required: true, enum: ResourceType })
   type!: ResourceType;
 
-  @Prop({ required: true })
-  region!: string;
 
   @Prop({
     required: true,

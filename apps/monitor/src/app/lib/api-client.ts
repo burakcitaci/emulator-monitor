@@ -16,13 +16,26 @@ import {
   AwsSqsConfig,
   awsSqsConfigSchema,
   AwsSqsMessagesResponse,
-  AwsSqsMessagesData,
   awsSqsMessagesResponseSchema,
-  ServiceBusMessagesData,
   azureServiceBusMessagesResponseSchema,
   ServiceBusMessagesResponse,
-  AwsTrackingMessage,
+  MessageResources,
+  messageResourcesResponseSchema,
+  messageResourceResponseSchema,
 } from './schemas';
+
+// Local types for API responses
+type AwsSqsMessagesData = {
+  data: TrackingMessage[];
+  queueName?: string;
+  queueUrl?: string;
+};
+
+type ServiceBusMessagesData = {
+  data: TrackingMessage[];
+  namespace?: string;
+  queueName?: string;
+};
 
 // API Response types
 type ApiResponse<T> = {
@@ -136,68 +149,47 @@ class ApiClient {
       }
          
       return {
-        data: response.data as AwsTrackingMessage[]
+        data: response.data || []
       };
     }
 
-    // Handle wrapped response format with AwsSqsMessagesData object
-    if (isApiResponse<AwsSqsMessagesData>(response)) {
-      if (!response.success) {
-        throw new ApiError(500, response.message || 'Failed to fetch AWS SQS messages');
-      }
-      if (!response.data) {
-        throw new ApiError(500, 'No data returned from AWS SQS messages endpoint');
-      }
-     
-      return response.data;
-    }
-
-    // Handle unwrapped response format (direct data)
-    if (
-      typeof response === 'object' &&
-      response !== null &&
-      'queueName' in response &&
-      'queueUrl' in response
-    ) {
-      return response as AwsSqsMessagesData;
+    // Handle unwrapped array format (direct array)
+    if (Array.isArray(response)) {
+      return {
+        data: response
+      };
     }
 
     throw new ApiError(500, 'Invalid response format from AWS SQS messages endpoint');
   }
   // Azure Service Bus API
-// Replace the incomplete getServiceBusMessages method in your ApiClient class with this:
+  async getServiceBusMessages(): Promise<ServiceBusMessagesData> {
+    const response = await this.request<ServiceBusMessagesResponse>(
+      '/service-bus/messages',
+      undefined,
+      azureServiceBusMessagesResponseSchema
+    );
 
-async getServiceBusMessages(): Promise<ServiceBusMessagesData> {
-  const response = await this.request<ServiceBusMessagesResponse>(
-    '/service-bus/messages',
-    undefined,
-    azureServiceBusMessagesResponseSchema
-  );
-
-  // Handle wrapped response format
-  if (isApiResponse<ServiceBusMessagesData>(response)) {
-    if (!response.success) {
-      throw new ApiError(500, response.message || 'Failed to fetch Service Bus messages');
+    // Handle wrapped response format with array of tracking messages
+    if (isApiResponse<TrackingMessage[]>(response)) {
+      if (!response.success) {
+        throw new ApiError(500, response.message || 'Failed to fetch Service Bus messages');
+      }
+         
+      return {
+        data: response.data || []
+      };
     }
-    if (!response.data) {
-      throw new ApiError(500, 'No data returned from Service Bus messages endpoint');
+
+    // Handle unwrapped array format (direct array)
+    if (Array.isArray(response)) {
+      return {
+        data: response
+      };
     }
 
-    return response.data;
+    throw new ApiError(500, 'Invalid response format from Service Bus messages endpoint');
   }
-
-  // Handle unwrapped response format (direct data)
-  if (
-    typeof response === 'object' &&
-    response !== null &&
-    'namespace' in response &&
-    'queueName' in response
-  ) {
-    return response as ServiceBusMessagesData;
-  }
-
-  throw new ApiError(500, 'Invalid response format from Service Bus messages endpoint');
-}
   // Tracking Messages API
   async getTrackingMessages(): Promise<TrackingMessage[]> {
     const response = await this.request<
@@ -421,6 +413,24 @@ async getServiceBusMessages(): Promise<ServiceBusMessagesData> {
     return response.data;
   }
 
+  // Message Resources API
+  async getMessageResources(): Promise<MessageResources[]> {
+    const response = await this.request('/message-resources/resources', undefined, messageResourcesResponseSchema);
+    if (!isApiResponse<MessageResources[]>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to fetch message resources') : 'Invalid response format');
+    }
+    return response.data;
+  }
+  async createMessageResource(resource: MessageResources): Promise<MessageResources> {
+    const response = await this.request('/message-resources/resources', {
+      method: 'POST',
+      body: JSON.stringify(resource),
+    }, messageResourceResponseSchema);
+    if (!isApiResponse<MessageResources>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to create message resource') : 'Invalid response format');
+    }
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();
