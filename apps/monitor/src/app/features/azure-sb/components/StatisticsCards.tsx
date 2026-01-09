@@ -5,6 +5,12 @@ type ServiceBusMessagesData = {
   data: TrackingMessage[];
   namespace?: string;
   queueName?: string;
+  summary?: {
+    trackingDeadletter: number;
+    trackingAbandon: number;
+    trackingDefer: number;
+    trackingComplete: number;
+  };
 };
 
 export const Statistics = ({
@@ -12,7 +18,8 @@ export const Statistics = ({
 }: {
   messages: ServiceBusMessagesData;
 }) => {
-  const summary = {
+  // Use summary if available, otherwise calculate from data
+  const summary = messages.summary || {
     trackingComplete: messages.data.filter((message: TrackingMessage) => message.disposition === 'complete').length,
     trackingDeadletter: messages.data.filter((message: TrackingMessage) => message.disposition === 'deadletter').length,
     trackingAbandon: messages.data.filter((message: TrackingMessage) => message.disposition === 'abandon').length,
