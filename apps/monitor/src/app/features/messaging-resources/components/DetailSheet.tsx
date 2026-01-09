@@ -1,10 +1,19 @@
 
+import { Shuffle } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../../components/ui/sheet";
 import { MessagingResource } from "../lib/entities";
+import { uniqueNamesGenerator, Config, adjectives, names, } from 'unique-names-generator';
+
+const config: Config = {
+  dictionaries: [adjectives, names],
+  separator: '-',
+  length: 2,
+  style: 'lowerCase',
+};
 
 interface DetailSheetProps {
   open: boolean;
@@ -25,12 +34,21 @@ export const DetailSheet = ({ open, setOpen, editing, form, setForm, handleSave 
           </SheetHeader>
 
           <div className="grid gap-4 mt-6">
-            <div>
-              <Label>Name</Label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="name">Name</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setForm({ ...form, name: uniqueNamesGenerator(config) })}
+                  className="h-7 text-xs"
+                >
+                  <Shuffle className="mr-1 h-3 w-3" />
+                  Random Name
+                </Button>
+              </div>
+              <Input id="name" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

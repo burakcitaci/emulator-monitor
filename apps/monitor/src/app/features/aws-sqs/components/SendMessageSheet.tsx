@@ -19,22 +19,27 @@ import {
   SelectValue,
 } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
+import { useSendSqsMessage, useAwsSqsConfig } from '../hooks/aws-sqs';
 import {
-  useSendSqsMessage,
-  useAwsSqsConfig,
-} from '../hooks/aws-sqs';
-import { useServiceBusConfig } from '../../azure-sb/api/service-bus';
+  uniqueNamesGenerator,
+  Config,
+  adjectives,
+  names,
+} from 'unique-names-generator';
+import { useGetMessageResources } from '../../messaging-resources/api/messaging-resource';
+
+const config: Config = {
+  dictionaries: [adjectives, names],
+  separator: '-',
+  length: 2,
+  style: 'lowerCase',
+};
 
 interface SendMessageModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-type MessageDisposition =
-  | 'complete'
-  | 'abandon'
-  | 'deadletter'
-  | 'defer';
-
+type MessageDisposition = 'complete' | 'abandon' | 'deadletter' | 'defer';
 
 export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
   open,
@@ -43,55 +48,12 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
   const [queue, setQueue] = useState('__default__');
   const [body, setBody] = useState('');
   const [sentBy, setSentBy] = useState('');
-  const [messageDisposition, setMessageDisposition] = useState<MessageDisposition>('complete');
+  const [messageDisposition, setMessageDisposition] =
+    useState<MessageDisposition>('complete');
 
-  const { data: config } = useServiceBusConfig();
+  const { data: messageResources } = useGetMessageResources();
   const sendSqsMutation = useSendSqsMessage();
   const { data: awsSqsConfig } = useAwsSqsConfig();
-
-  const destinations = React.useMemo(() => {
-    if (!config?.UserConfig?.Namespaces) return [];
-    const allDestinations: string[] = [];
-
-    config.UserConfig.Namespaces.forEach((namespace) => {
-      namespace.Queues?.forEach((q) => allDestinations.push(q.Name));
-      namespace.Topics?.forEach((t) => allDestinations.push(t.Name));
-    });
-
-    return allDestinations.sort();
-  }, [config]);
-
-  const generateRandomJson = () => {
-    const sampleData = {
-      id: Math.random().toString(36).substring(7),
-      timestamp: new Date().toISOString(),
-      event: ['created', 'updated', 'deleted', 'processed'][
-        Math.floor(Math.random() * 4)
-      ],
-      userId: Math.floor(Math.random() * 10000),
-      metadata: {
-        source: ['web', 'api', 'mobile', 'batch'][
-          Math.floor(Math.random() * 4)
-        ],
-        version: `v${Math.floor(Math.random() * 5) + 1}.${Math.floor(
-          Math.random() * 10,
-        )}`,
-      },
-      value: Math.floor(Math.random() * 1000),
-    };
-
-    setBody(JSON.stringify(sampleData, null, 2));
-  };
-
-  const generateRandomSender = () => {
-    const prefixes = ['aws-sqs', 'lambda', 'worker', 'scheduler', 'processor'];
-    const suffixes = ['api', 'service', 'worker', 'handler', 'client'];
-
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-
-    setSentBy(`${prefix}-${suffix}`);
-  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,8 +72,8 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
       const queueUrl = queueNameOrUrl?.startsWith('http')
         ? queueNameOrUrl
         : queueNameOrUrl
-        ? `http://localhost:4566/000000000000/${queueNameOrUrl}`
-        : undefined;
+          ? `http://localhost:4566/000000000000/${queueNameOrUrl}`
+          : undefined;
 
       await sendSqsMutation.mutateAsync({
         queueUrl,
@@ -127,15 +89,16 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
       onOpenChange(false);
     } catch (error) {
       toast.error('Failed to simulate message', {
-        description: error instanceof Error ? error.message : 'Please try again.',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
       });
     }
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-2/6 sm:max-w-4xl flex flex-col">
-        <SheetHeader>
+     <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent>
+        <SheetHeader className="flex-shrink-0">
           <SheetTitle>Simulate Message</SheetTitle>
           <SheetDescription>
             Simulate sending a message to AWS SQS. The message will be tracked.
@@ -155,14 +118,14 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
                   <SelectValue placeholder="Select a queue or leave empty for default" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">
-                    Default Queue
-                  </SelectItem>
-                  {destinations.map((destination) => (
-                    <SelectItem key={destination} value={destination}>
-                      {destination}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="__default__">Default Queue</SelectItem>
+                  {messageResources
+                    ?.filter((resource) => resource.type === 'queue')
+                    .map((resource) => (
+                      <SelectItem key={resource.id} value={resource.id}>
+                        {resource.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -177,7 +140,15 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={generateRandomJson}
+                  onClick={() =>
+                    setBody(
+                      JSON.stringify(
+                        { key: uniqueNamesGenerator(config) },
+                        null,
+                        2,
+                      ),
+                    )
+                  }
                   className="h-7 px-2 text-xs"
                 >
                   <Shuffle className="mr-1 h-3 w-3" />
@@ -196,30 +167,26 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
             </div>
 
             {/* Sent By (duplicated intentionally) */}
-            <div className="grid grid-cols-2 gap-4">
-              {[0, 1].map((i) => (
-                <div key={i} className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="sentBy">Sent By (optional)</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={generateRandomSender}
-                      className="h-7 px-2 text-xs"
-                    >
-                      <Shuffle className="mr-1 h-3 w-3" />
-                      Random
-                    </Button>
-                  </div>
-                  <Input
-                    id="sentBy"
-                    placeholder="aws-sqs-api"
-                    value={sentBy}
-                    onChange={(e) => setSentBy(e.target.value)}
-                  />
-                </div>
-              ))}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sentBy">Sent By (optional)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSentBy(uniqueNamesGenerator(config))}
+                  className="h-7 text-xs"
+                >
+                  <Shuffle className="mr-1 h-3 w-3" />
+                  Random Sender
+                </Button>
+              </div>
+              <Input
+                id="sentBy"
+                placeholder="service-bus-api"
+                value={sentBy}
+                onChange={(e) => setSentBy(e.target.value)}
+              />
             </div>
 
             {/* Disposition */}
@@ -227,7 +194,9 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
               <Label htmlFor="disposition">Message Disposition</Label>
               <Select
                 value={messageDisposition}
-                onValueChange={(value: MessageDisposition) => setMessageDisposition(value)}
+                onValueChange={(value: MessageDisposition) =>
+                  setMessageDisposition(value)
+                }
               >
                 <SelectTrigger id="disposition">
                   <SelectValue />

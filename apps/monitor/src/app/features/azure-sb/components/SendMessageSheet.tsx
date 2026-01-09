@@ -19,7 +19,16 @@ import {
   SelectValue,
 } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
-import { useSendServiceBusMessage, useServiceBusConfig } from '../api/service-bus';
+import { useSendServiceBusMessage } from '../api/service-bus';
+import { useGetMessageResources } from '../../messaging-resources/api/messaging-resource';
+import { uniqueNamesGenerator, Config, adjectives, names, } from 'unique-names-generator';
+
+const config: Config = {
+  dictionaries: [adjectives, names],
+  separator: '-',
+  length: 2,
+  style: 'lowerCase',
+};
 
 interface SendMessageModalProps {
   open: boolean;
@@ -35,49 +44,8 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
   const [sentBy, setSentBy] = useState('');
   const [messageDisposition, setMessageDisposition] = useState<'complete' | 'abandon' | 'deadletter' | 'defer'>('complete');
   
+  const { data: messageResources } = useGetMessageResources();
   const sendServiceBusMutation = useSendServiceBusMessage();
-  const { data: config } = useServiceBusConfig();
-  // Extract queues and topics from config
-  const destinations = React.useMemo(() => {
-    if (!config?.UserConfig?.Namespaces) return [];
-    const allDestinations: string[] = [];
-    config.UserConfig.Namespaces.forEach((namespace) => {
-      if (namespace.Queues) {
-        namespace.Queues.forEach((q) => {
-          allDestinations.push(q.Name);
-        });
-      }
-      if (namespace.Topics) {
-        namespace.Topics.forEach((t) => {
-          allDestinations.push(t.Name);
-        });
-      }
-    });
-    return allDestinations.sort();
-  }, [config]);
-  
-  const generateRandomJson = () => {
-    const sampleData = {
-      id: Math.random().toString(36).substring(7),
-      timestamp: new Date().toISOString(),
-      event: ['created', 'updated', 'deleted', 'processed'][Math.floor(Math.random() * 4)],
-      userId: Math.floor(Math.random() * 10000),
-      metadata: {
-        source: ['web', 'api', 'mobile', 'batch'][Math.floor(Math.random() * 4)],
-        version: `v${Math.floor(Math.random() * 5) + 1}.${Math.floor(Math.random() * 10)}`,
-      },
-      value: Math.floor(Math.random() * 1000),
-    };
-    setBody(JSON.stringify(sampleData, null, 2));
-  };
-
-  const generateRandomSender = () => {
-    const prefixes = ['service-bus', 'api', 'worker', 'scheduler', 'processor', 'handler'];
-    const suffixes = ['api', 'service', 'worker', 'processor', 'handler', 'client'];
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-    setSentBy(`${prefix}-${suffix}`);
-  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,8 +92,12 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
             Simulate sending a message to Azure Service Bus. The message will be tracked.
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSendMessage}>
-          <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0 pr-2">
+        <form
+          onSubmit={handleSendMessage}
+          className="flex flex-col flex-1 min-h-0"
+        >
+          <div className="grid gap-6 py-6 flex-1 min-h-0 pr-2">
+            {/* Queue */}
             <div className="grid gap-2">
               <Label htmlFor="queue">Queue Name (optional)</Label>
               <Select value={queue} onValueChange={setQueue}>
@@ -134,9 +106,9 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__default__">Default Queue</SelectItem>
-                  {destinations.map((destinationName) => (
-                    <SelectItem key={destinationName} value={destinationName}>
-                      {destinationName}
+                  {messageResources?.filter((resource) => resource.type === 'queue').map((resource) => (
+                    <SelectItem key={resource.id} value={resource.id}>
+                      {resource.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -151,7 +123,7 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={generateRandomJson}
+                  onClick={() => setBody(JSON.stringify({ key: uniqueNamesGenerator(config) }, null, 2))}
                   className="h-7 text-xs"
                 >
                   <Shuffle className="mr-1 h-3 w-3" />
@@ -174,7 +146,7 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={generateRandomSender}
+                  onClick={() => setSentBy(uniqueNamesGenerator(config))}
                   className="h-7 text-xs"
                 >
                   <Shuffle className="mr-1 h-3 w-3" />

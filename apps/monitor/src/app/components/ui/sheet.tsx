@@ -62,6 +62,8 @@ const SheetContent = React.forwardRef<
     <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
+      // Suppress the missing description warning as descriptions are optional
+      aria-describedby={undefined}
       {...props}
     >
       {children}
