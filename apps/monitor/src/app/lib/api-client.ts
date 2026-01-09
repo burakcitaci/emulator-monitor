@@ -429,6 +429,18 @@ class ApiClient {
     }
     return response.data;
   }
+
+  //Message Resources API
+  async updateMessageResource(resource: MessageResources): Promise<MessageResources> {
+    const response = await this.request(`/message-resources/resources/${resource.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(resource),
+    }, messageResourceResponseSchema);
+    if (!isApiResponse<MessageResources>(response) || !response.success || !response.data) {
+      throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to update message resource') : 'Invalid response format');
+    }
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -10,5 +10,4 @@ export enum ResourceType {
   TOPIC = 'topic',
 }
 
-// Re-export MessageResources as MessagingResource for consistency
 export type MessagingResource = MessageResources;

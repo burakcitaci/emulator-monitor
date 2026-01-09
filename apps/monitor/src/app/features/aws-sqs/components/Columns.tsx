@@ -16,19 +16,6 @@ export const createColumns = (
   dispositionFilterFn: (row: Row<SqsMessageRow>, id: string, value: unknown) => boolean
 ): ColumnDef<SqsMessageRow>[] => [
   {
-    accessorKey: 'messageId',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Message ID" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <div className="text-xs truncate max-w-48 font-mono">
-          {row.original.messageId || '-'}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: 'sentBy',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Sent By" />

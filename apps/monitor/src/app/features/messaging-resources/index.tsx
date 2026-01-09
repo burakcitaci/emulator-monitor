@@ -6,13 +6,17 @@ import { createColumns } from './components/Columns';
 import {
   useCreateMessageResource,
   useGetMessageResources,
+  useUpdateMessageResource,
 } from './api/messaging-resource';
 
 export default function MessagingResources() {
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<MessagingResource | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [currentResource, setCurrentResource] =
+    useState<MessagingResource | null>(null);
   const { data: messageResources } = useGetMessageResources();
   const { mutate: createMessageResource } = useCreateMessageResource();
+  const { mutate: updateMessageResource } = useUpdateMessageResource();
   const [form, setForm] = useState<Omit<MessagingResource, 'id'>>({
     name: '',
     provider: Provider.AWS,
@@ -27,20 +31,31 @@ export default function MessagingResources() {
       type: ResourceType.QUEUE,
       status: 'active',
     });
-    setEditing(null);
+    setEditing(false);
+    setCurrentResource(null);
   };
 
   const handleSave = () => {
-    createMessageResource({
-      id: crypto.randomUUID(),
-      ...form,
-    });
+    if (editing) {
+      if (!currentResource) return;
+      updateMessageResource({
+        id: currentResource.id,
+        ...form,
+      });
+    } else {
+      console.log(form);
+      createMessageResource({
+        id: crypto.randomUUID(),
+        ...form,
+      });
+    }
     resetForm();
     setOpen(false);
   };
 
   const handleEdit = (resource: MessagingResource) => {
-    setEditing(resource);
+    setEditing(true);
+    setCurrentResource(resource);
     setForm({
       name: resource.name,
       provider: resource.provider,
@@ -71,8 +86,13 @@ export default function MessagingResources() {
         searchKey="name"
         searchPlaceholder="Search resources..."
         columns={createColumns(handleActivate, handleEdit, handleDelete)}
-        data={messageResources ?? [] as MessagingResource[]}
-        onAdd={() => setOpen(true)}
+        data={messageResources ?? ([] as MessagingResource[])}
+        onAdd={() => {
+          setCurrentResource(null);
+          setEditing(false);
+          resetForm();
+          setOpen(true);
+        }}
         estimateSize={48}
         overscan={5}
       />
@@ -80,7 +100,7 @@ export default function MessagingResources() {
         open={open}
         setOpen={setOpen}
         editing={editing !== null}
-        form={{ ...form, id: crypto.randomUUID() }}
+        form={{ ...form, id: currentResource?.id ?? crypto.randomUUID() }}
         setForm={setForm}
         handleSave={handleSave}
       />

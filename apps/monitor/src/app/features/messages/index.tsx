@@ -10,23 +10,6 @@ import { TrackingMessage } from '@e2e-monitor/entities';
 export const MessagesPage = () => {
   const { data: messages = [], isLoading, error } = useTrackingMessages();
 
-  // Transform messages to convert null to undefined and ensure required fields
-  const transformedMessages: TrackingMessage[] = React.useMemo(() => {
-    return messages.map((message): TrackingMessage => ({
-      _id: message._id || '',
-      messageId: message.messageId || '',
-      body: message.body || '',
-      sentBy: message.sentBy || '',
-      sentAt: message.sentAt ? (typeof message.sentAt === 'string' ? new Date(message.sentAt) : message.sentAt) : new Date(),
-      status: (message.status as 'sent' | 'processing' | 'received') || 'sent',
-      queue: message.queue ?? undefined,
-      receivedAt: message.receivedAt ? (typeof message.receivedAt === 'string' ? new Date(message.receivedAt) : message.receivedAt) : undefined,
-      receivedBy: message.receivedBy ?? undefined,
-      disposition: message.disposition as 'complete' | 'abandon' | 'deadletter' | 'defer' | undefined,
-      emulatorType: message.emulatorType as 'sqs' | 'azure-service-bus' | undefined,
-    }));
-  }, [messages]);
-
   // Calculate statistics by disposition and emulator
   const stats = React.useMemo(() => {
     const total = messages.length;
@@ -49,6 +32,12 @@ export const MessagesPage = () => {
 
   return (
     <div className="p-6 min-w-0">
+      <div className="flex flex-col gap-1 mb-4">
+          <h1 className="text-2xl font-bold">Tracking Messages</h1>
+          <h2 className="text-sm text-muted-foreground">
+            Manage your tracking messages here.
+          </h2>
+        </div>
       <div className="flex flex-col gap-4 w-full flex-1 min-h-0 min-w-0">
         {/* Error Messages */}
         {error && (
@@ -71,7 +60,7 @@ export const MessagesPage = () => {
 
         {/* Table */}
         <div className="w-full min-w-0 flex-1 min-h-0">
-          <MessagesTable messages={transformedMessages} />
+          <MessagesTable messages={messages as TrackingMessage[]} />
         </div>
       </div>
     </div>

@@ -22,14 +22,14 @@ export class MessageResourcesService {
     return created.toObject();
   }
   async updateMessageResource(id: string, dto: UpdateMessageResourceDto): Promise<MessagingResource> {
-    const result = await this.messagingResourceModel.findByIdAndUpdate(id, dto, { new: true }).lean().exec();
+    const result = await this.messagingResourceModel.findOneAndUpdate({ id }, dto, { new: true }).lean().exec();
     if (!result) {
       throw new NotFoundException('Message resource not found');
     }
     return result;
   }
   async deleteMessageResource(id: string): Promise<MessagingResource> {
-    const result = await this.messagingResourceModel.findByIdAndDelete(id).lean().exec();
+    const result = await this.messagingResourceModel.findOneAndDelete({ id }).lean().exec();
     if (!result) {
       throw new NotFoundException('Message resource not found');
     }

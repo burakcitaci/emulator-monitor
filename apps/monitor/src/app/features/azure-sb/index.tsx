@@ -12,7 +12,6 @@ import { DetailSheet } from './components/DetailSheet';
 import { Row } from '@tanstack/react-table';
 
 export const AzureSbDetailPage = () => {
-
   const deleteMutation = useDeleteServiceBusMessage();
 
   const { data: messages, isLoading, error } = useGetServiceBusMessages();
@@ -59,7 +58,6 @@ export const AzureSbDetailPage = () => {
     if (!messages) return [];
     return messages.data;
   }, [messages]);
-
 
   const receivedByOptions = useMemo(() => {
     if (!messages?.data) return [] as Option[];
@@ -171,14 +169,13 @@ export const AzureSbDetailPage = () => {
   // -----------------------------
   return (
     <>
-    
       <div className="p-6 space-y-4">
-       <div className="flex flex-col gap-1 mb-4">
-        <h1 className="text-2xl font-bold">Azure Service Bus</h1>
-        <h2 className="text-sm text-muted-foreground">
-          Manage your Azure Service Bus messages here.
-        </h2>
-      </div>
+        <div className="flex flex-col gap-1 mb-4">
+          <h1 className="text-2xl font-bold">Azure Service Bus</h1>
+          <h2 className="text-sm text-muted-foreground">
+            Manage your Azure Service Bus messages here.
+          </h2>
+        </div>
 
         {/* Summary */}
         <Statistics messages={messages} />
