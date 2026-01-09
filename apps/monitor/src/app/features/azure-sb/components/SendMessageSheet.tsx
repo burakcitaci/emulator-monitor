@@ -172,16 +172,27 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
           <div className="grid gap-6 py-6 flex-1 min-h-0 pr-2">
             {/* Queue */}
             <div className="grid gap-2">
-              <Label htmlFor="queue">Queue Name (optional)</Label>
+              <Label htmlFor="queue">Queue / Topic (optional)</Label>
               <Select value={queue} onValueChange={setQueue}>
                 <SelectTrigger id="queue">
-                  <SelectValue placeholder="Select a queue or leave empty for default" />
+                  <SelectValue placeholder="Select a queue or topic or leave empty for default" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">Default Queue</SelectItem>
-                  {serviceBusConfig.Queues.map((queue) => (
-                    <SelectItem key={queue.Name} value={queue.Name}>
-                      {queue.Name}
+                  {[
+                    ...serviceBusConfig.Queues.map((q) => ({
+                      type: 'queue',
+                      name: q.Name,
+                    })),
+                    ...serviceBusConfig.Topics.map((t) => ({
+                      type: 'topic',
+                      name: t.Name,
+                    })),
+                  ].map((item) => (
+                    <SelectItem
+                      key={`${item.type}-${item.name}`}
+                      value={`${item.type}:${item.name}`}
+                    >
+                      {item.name} ({item.type})
                     </SelectItem>
                   ))}
                 </SelectContent>
