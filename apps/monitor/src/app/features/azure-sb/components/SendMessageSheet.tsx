@@ -20,8 +20,12 @@ import {
 } from '../../../components/ui/select';
 import { Button } from '../../../components/ui/button';
 import { useSendServiceBusMessage } from '../api/service-bus';
-import { useGetMessageResources } from '../../messaging-resources/api/messaging-resource';
-import { uniqueNamesGenerator, Config, adjectives, names, } from 'unique-names-generator';
+import {
+  uniqueNamesGenerator,
+  Config,
+  adjectives,
+  names,
+} from 'unique-names-generator';
 
 const config: Config = {
   dictionaries: [adjectives, names],
@@ -42,9 +46,10 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
   const [queue, setQueue] = useState('__default__');
   const [body, setBody] = useState('');
   const [sentBy, setSentBy] = useState('');
-  const [messageDisposition, setMessageDisposition] = useState<'complete' | 'abandon' | 'deadletter' | 'defer'>('complete');
-  
-  const { data: messageResources } = useGetMessageResources();
+  const [messageDisposition, setMessageDisposition] = useState<
+    'complete' | 'abandon' | 'deadletter' | 'defer'
+  >('complete');
+
   const sendServiceBusMutation = useSendServiceBusMessage();
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -62,7 +67,7 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
         sentBy: sentBy.trim() || undefined,
         messageDisposition: messageDisposition,
       };
-      
+
       await sendServiceBusMutation.mutateAsync(messagePayload);
 
       toast.success('Message simulated successfully', {
@@ -78,9 +83,76 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error('Failed to simulate message', {
-        description: error instanceof Error ? error.message : 'Please try again.',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
       });
     }
+  };
+
+  const serviceBusConfig = {
+    Topics: [
+      {
+        Name: 'system-messages',
+        Properties: {
+          DefaultMessageTimeToLive: 'PT1H',
+          DuplicateDetectionHistoryTimeWindow: 'PT20S',
+          RequiresDuplicateDetection: false,
+        },
+        Subscriptions: [
+          {
+            Name: 'funcapp-processor-dev',
+            DeadLetteringOnMessageExpiration: true,
+            MaxDeliveryCount: 10,
+          },
+        ],
+      },
+      {
+        Name: 'application-events',
+        Properties: {
+          DefaultMessageTimeToLive: 'PT1H',
+          DuplicateDetectionHistoryTimeWindow: 'PT30S',
+          RequiresDuplicateDetection: true,
+        },
+        Subscriptions: [
+          {
+            Name: 'analytics-processor',
+            DeadLetteringOnMessageExpiration: true,
+            MaxDeliveryCount: 5,
+          },
+          {
+            Name: 'logging-service',
+            DeadLetteringOnMessageExpiration: false,
+            MaxDeliveryCount: 3,
+          },
+        ],
+      },
+    ],
+    Queues: [
+      {
+        Name: 'orders-queue',
+        Properties: {
+          DefaultMessageTimeToLive: 'PT1H',
+          MaxDeliveryCount: 10,
+          DeadLetteringOnMessageExpiration: true,
+        },
+      },
+      {
+        Name: 'notifications-queue',
+        Properties: {
+          DefaultMessageTimeToLive: 'PT1H',
+          MaxDeliveryCount: 5,
+          DeadLetteringOnMessageExpiration: true,
+        },
+      },
+      {
+        Name: 'errm-policy-triggered',
+        Properties: {
+          DefaultMessageTimeToLive: 'PT1H',
+          MaxDeliveryCount: 3,
+          DeadLetteringOnMessageExpiration: true,
+        },
+      },
+    ],
   };
 
   return (
@@ -89,7 +161,8 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
         <SheetHeader className="flex-shrink-0">
           <SheetTitle>Simulate Message</SheetTitle>
           <SheetDescription>
-            Simulate sending a message to Azure Service Bus. The message will be tracked.
+            Simulate sending a message to Azure Service Bus. The message will be
+            tracked.
           </SheetDescription>
         </SheetHeader>
         <form
@@ -106,9 +179,9 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__default__">Default Queue</SelectItem>
-                  {messageResources?.filter((resource) => resource.type === 'queue').map((resource) => (
-                    <SelectItem key={resource.id} value={resource.id}>
-                      {resource.name}
+                  {serviceBusConfig.Queues.map((queue) => (
+                    <SelectItem key={queue.Name} value={queue.Name}>
+                      {queue.Name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -123,7 +196,15 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setBody(JSON.stringify({ key: uniqueNamesGenerator(config) }, null, 2))}
+                  onClick={() =>
+                    setBody(
+                      JSON.stringify(
+                        { key: uniqueNamesGenerator(config) },
+                        null,
+                        2,
+                      ),
+                    )
+                  }
                   className="h-7 text-xs"
                 >
                   <Shuffle className="mr-1 h-3 w-3" />
@@ -162,7 +243,12 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="disposition">Message Disposition</Label>
-              <Select value={messageDisposition} onValueChange={(value: 'complete' | 'abandon' | 'deadletter' | 'defer') => setMessageDisposition(value)}>
+              <Select
+                value={messageDisposition}
+                onValueChange={(
+                  value: 'complete' | 'abandon' | 'deadletter' | 'defer',
+                ) => setMessageDisposition(value)}
+              >
                 <SelectTrigger id="disposition">
                   <SelectValue placeholder="Select message disposition" />
                 </SelectTrigger>
@@ -174,10 +260,14 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {messageDisposition === 'complete' && 'Message will be completed and removed from the queue.'}
-                {messageDisposition === 'abandon' && 'Message will be abandoned and returned to the queue for reprocessing.'}
-                {messageDisposition === 'deadletter' && 'Message will be moved to the dead-letter queue.'}
-                {messageDisposition === 'defer' && 'Message will be deferred and can be received later using sequence number.'}
+                {messageDisposition === 'complete' &&
+                  'Message will be completed and removed from the queue.'}
+                {messageDisposition === 'abandon' &&
+                  'Message will be abandoned and returned to the queue for reprocessing.'}
+                {messageDisposition === 'deadletter' &&
+                  'Message will be moved to the dead-letter queue.'}
+                {messageDisposition === 'defer' &&
+                  'Message will be deferred and can be received later using sequence number.'}
               </p>
             </div>
           </div>
@@ -191,7 +281,12 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" variant="default" disabled={sendServiceBusMutation.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              variant="default"
+              disabled={sendServiceBusMutation.isPending}
+            >
               {sendServiceBusMutation.isPending ? (
                 'Simulating...'
               ) : (

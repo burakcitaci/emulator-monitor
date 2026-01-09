@@ -65,7 +65,6 @@ export const DetailSheet = ({ open, setOpen, editing, form, setForm, handleSave 
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="aws">AWS</SelectItem>
-                    <SelectItem value="azure">Azure</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

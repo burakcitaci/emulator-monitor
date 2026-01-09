@@ -8,6 +8,7 @@ import {
   useGetMessageResources,
   useUpdateMessageResource,
 } from './api/messaging-resource';
+import { serviceBusConfig } from './lib/utils';
 
 export default function MessagingResources() {
   const [open, setOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function MessagingResources() {
   const [currentResource, setCurrentResource] =
     useState<MessagingResource | null>(null);
   const { data: messageResources } = useGetMessageResources();
+
   const { mutate: createMessageResource } = useCreateMessageResource();
   const { mutate: updateMessageResource } = useUpdateMessageResource();
   const [form, setForm] = useState<Omit<MessagingResource, 'id'>>({
@@ -73,6 +75,23 @@ export default function MessagingResources() {
     console.log(id);
   };
 
+  const allMessageResources: MessagingResource[] = [
+    ...(messageResources ?? []),
+    ...serviceBusConfig.Topics.map((topic) => ({
+      id: `azure-topic-${topic.Name}`,
+      name: topic.Name,
+      provider: Provider.AZURE,
+      type: ResourceType.TOPIC,
+      status: 'active' as const,
+    })),
+    ...serviceBusConfig.Queues.map((queue) => ({
+      id: `azure-queue-${queue.Name}`,
+      name: queue.Name,
+      provider: Provider.AZURE,
+      type: ResourceType.QUEUE,
+      status: 'active' as const,
+    })),
+  ];
   return (
     <div className="p-6 min-w-0">
       <div className="flex flex-col gap-1 mb-4">
@@ -86,7 +105,7 @@ export default function MessagingResources() {
         searchKey="name"
         searchPlaceholder="Search resources..."
         columns={createColumns(handleActivate, handleEdit, handleDelete)}
-        data={messageResources ?? ([] as MessagingResource[])}
+        data={allMessageResources ?? []}
         onAdd={() => {
           setCurrentResource(null);
           setEditing(false);
