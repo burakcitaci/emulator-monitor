@@ -208,23 +208,7 @@ export type AwsSqsMessagesResponse = z.infer<typeof awsSqsMessagesResponseSchema
 
 // Azure Service Bus Messages Response schema - handle grouped messages structure
 export const azureServiceBusMessagesResponseSchema = z.union([
-  apiResponseSchema(
-    z.object({
-      trackingMessages: z.object({
-        deadletter: z.array(trackingMessageSchema),
-        abandon: z.array(trackingMessageSchema),
-        defer: z.array(trackingMessageSchema),
-        complete: z.array(trackingMessageSchema),
-      }),
-      summary: z.object({
-        trackingDeadletter: z.number(),
-        trackingAbandon: z.number(),
-        trackingDefer: z.number(),
-        trackingComplete: z.number(),
-      }),
-    })
-  ), // { success: true, data: { trackingMessages: {...}, summary: {...} } }
-  apiResponseSchema(z.array(trackingMessageSchema)), // { success: true, data: TrackingMessage[] }
+  apiResponseSchema(z.array(trackingMessageSchema)), // Backend returns { success: true, data: TrackingMessage[] }
   z.array(trackingMessageSchema), // Direct array format
 ]);
 

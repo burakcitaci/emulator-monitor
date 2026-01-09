@@ -33,14 +33,6 @@ type AwsSqsMessagesData = {
 
 type ServiceBusMessagesData = {
   data: TrackingMessage[];
-  namespace?: string;
-  queueName?: string;
-  summary?: {
-    trackingDeadletter: number;
-    trackingAbandon: number;
-    trackingDefer: number;
-    trackingComplete: number;
-  };
 };
 
 // API Response types
@@ -176,33 +168,10 @@ class ApiClient {
       azureServiceBusMessagesResponseSchema
     );
 
-    // Handle wrapped response format with grouped messages structure
-    if (isApiResponse<{ trackingMessages: { deadletter: TrackingMessage[]; abandon: TrackingMessage[]; defer: TrackingMessage[]; complete: TrackingMessage[] }; summary: { trackingDeadletter: number; trackingAbandon: number; trackingDefer: number; trackingComplete: number } }>(response)) {
-      if (!response.success) {
-        throw new ApiError(500, response.message || 'Failed to fetch Service Bus messages');
-      }
-      if (!response.data) {
-        throw new ApiError(500, 'No data returned from Service Bus messages endpoint');
-      }
-      
-      // Flatten all messages from grouped structure into a single array
-      const allMessages = [
-        ...response.data.trackingMessages.deadletter,
-        ...response.data.trackingMessages.abandon,
-        ...response.data.trackingMessages.defer,
-        ...response.data.trackingMessages.complete,
-      ];
-      
-      return {
-        data: allMessages,
-        summary: response.data.summary,
-      };
-    }
-
     // Handle wrapped response format with array of tracking messages
     if (isApiResponse<TrackingMessage[]>(response)) {
       if (!response.success) {
-        throw new ApiError(500, response.message || 'Failed to fetch Service Bus messages');
+        throw new ApiError(500, response.message || 'Failed to fetch AWS SQS messages');
       }
          
       return {

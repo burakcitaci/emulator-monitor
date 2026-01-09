@@ -54,18 +54,12 @@ export const AzureSbDetailPage = () => {
   // -----------------------------
   // Derived data
   // -----------------------------
+
   const allRows = useMemo(() => {
     if (!messages) return [];
-    return messages.data.map((message): ServiceBusMessageRow => ({
-      messageId: message.messageId || '',
-      body: message.body || '',
-      sentBy: message.sentBy || undefined,
-      receivedBy: message.receivedBy || undefined,
-      sentAt: message.sentAt ? (typeof message.sentAt === 'string' ? new Date(message.sentAt) : message.sentAt) : undefined,
-      disposition: message.disposition || '',
-      source: 'tracking' as const,
-    }));
+    return messages.data;
   }, [messages]);
+
 
   const receivedByOptions = useMemo(() => {
     if (!messages?.data) return [] as Option[];
@@ -193,12 +187,12 @@ export const AzureSbDetailPage = () => {
         <div className="w-full min-w-0 flex-1 min-h-0">
           <VirtualizedDataTable
             columns={columns}
-            data={allRows}
+            data={allRows as ServiceBusMessageRow[]}
             searchKey="body"
             searchPlaceholder={`Search all messages (${totalMessages} total)...`}
             estimateSize={48}
             overscan={5}
-            onAdd={() => console.log('add')}
+            onAdd={() => setSendModalOpen(true)}
           />
         </div>
 

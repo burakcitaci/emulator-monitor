@@ -170,6 +170,7 @@ export const createColumns = (
             className="h-6 w-6 p-0"
             onClick={() => {
               // Assuming row.original has tracking message data
+              console.log(row.original);
               if ('_id' in row.original) {
                 onMessageSelect(row.original as TrackingMessage);
               }

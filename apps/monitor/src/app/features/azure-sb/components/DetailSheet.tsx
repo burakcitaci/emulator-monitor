@@ -36,23 +36,18 @@ export const DetailSheet = ({
                                     Azure SB
                                 </Badge>
                             </div>
-                            {selectedMessage && (
-                                <Badge
-                                    variant={
-                                        selectedMessage.disposition === 'complete'
-                                            ? 'default'
-                                            : selectedMessage.disposition === 'deadletter'
-                                                ? 'destructive'
-                                                : selectedMessage.disposition === 'abandon'
-                                                    ? 'secondary'
-                                                    : 'outline'
-                                    }
-                                    className="text-sm"
-                                >
-                                    {selectedMessage.disposition.charAt(0).toUpperCase() +
-                                        selectedMessage.disposition.slice(1)}
-                                </Badge>
-                            )}
+                             {selectedOriginalMessage && (
+                <Badge
+                  variant={
+                    selectedOriginalMessage.disposition === 'abandon'
+                      ? 'secondary'
+                      : 'default'
+                  }
+                  className="text-sm"
+                >
+                  {selectedOriginalMessage.disposition}
+                </Badge>
+              )}
                         </div>
                     </SheetTitle>
                 </SheetHeader>

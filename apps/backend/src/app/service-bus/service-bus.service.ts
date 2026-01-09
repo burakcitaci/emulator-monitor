@@ -139,45 +139,7 @@ export class ServiceBusService implements OnModuleDestroy {
 
   async getMessages() {
 
-    const results = {
-      tracking: {
-        deadletter: [] as TrackingMessage[],
-        abandon: [] as TrackingMessage[],
-        defer: [] as TrackingMessage[],
-        complete: [] as TrackingMessage[],
-      },
-    };
-
-
-    // Get tracking messages
-    try {
-      const trackingMessages = await this.messageService.findTrackingMessagesByEmulator('azure-service-bus');
-      this.logger.log('Tracking messages for Azure Service Bus:', trackingMessages);
-      results.tracking.deadletter = trackingMessages.filter(
-        (msg) => msg.disposition === 'deadletter',
-      );
-      results.tracking.abandon = trackingMessages.filter(
-        (msg) => msg.disposition === 'abandon',
-      );
-      results.tracking.defer = trackingMessages.filter(
-        (msg) => msg.disposition === 'defer',
-      );
-      results.tracking.complete = trackingMessages.filter(
-        (msg) => msg.disposition === 'complete',
-      );
-    } catch (error) {
-      this.logger.error(`Failed to get tracking messages: ${error}`);
-    }
-
-    return {
-      trackingMessages: results.tracking,
-      summary: {
-        trackingDeadletter: results.tracking.deadletter.length,
-        trackingAbandon: results.tracking.abandon.length,
-        trackingDefer: results.tracking.defer.length,
-        trackingComplete: results.tracking.complete.length,
-      },
-    };
+   return await this.messageService.findTrackingMessagesByEmulator('azure-service-bus');
   }
 
   async ping(): Promise<void> {
