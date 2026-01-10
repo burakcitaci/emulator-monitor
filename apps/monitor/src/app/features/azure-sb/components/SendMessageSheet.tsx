@@ -26,6 +26,7 @@ import {
   adjectives,
   names,
 } from 'unique-names-generator';
+import { serviceBusConfig } from '@e2e-monitor/entities';
 
 const config: Config = {
   dictionaries: [adjectives, names],
@@ -87,72 +88,6 @@ export const SendMessageSheet: React.FC<SendMessageModalProps> = ({
           error instanceof Error ? error.message : 'Please try again.',
       });
     }
-  };
-
-  const serviceBusConfig = {
-    Topics: [
-      {
-        Name: 'system-messages',
-        Properties: {
-          DefaultMessageTimeToLive: 'PT1H',
-          DuplicateDetectionHistoryTimeWindow: 'PT20S',
-          RequiresDuplicateDetection: false,
-        },
-        Subscriptions: [
-          {
-            Name: 'funcapp-processor-dev',
-            DeadLetteringOnMessageExpiration: true,
-            MaxDeliveryCount: 10,
-          },
-        ],
-      },
-      {
-        Name: 'application-events',
-        Properties: {
-          DefaultMessageTimeToLive: 'PT1H',
-          DuplicateDetectionHistoryTimeWindow: 'PT30S',
-          RequiresDuplicateDetection: true,
-        },
-        Subscriptions: [
-          {
-            Name: 'analytics-processor',
-            DeadLetteringOnMessageExpiration: true,
-            MaxDeliveryCount: 5,
-          },
-          {
-            Name: 'logging-service',
-            DeadLetteringOnMessageExpiration: false,
-            MaxDeliveryCount: 3,
-          },
-        ],
-      },
-    ],
-    Queues: [
-      {
-        Name: 'orders-queue',
-        Properties: {
-          DefaultMessageTimeToLive: 'PT1H',
-          MaxDeliveryCount: 10,
-          DeadLetteringOnMessageExpiration: true,
-        },
-      },
-      {
-        Name: 'notifications-queue',
-        Properties: {
-          DefaultMessageTimeToLive: 'PT1H',
-          MaxDeliveryCount: 5,
-          DeadLetteringOnMessageExpiration: true,
-        },
-      },
-      {
-        Name: 'errm-policy-triggered',
-        Properties: {
-          DefaultMessageTimeToLive: 'PT1H',
-          MaxDeliveryCount: 3,
-          DeadLetteringOnMessageExpiration: true,
-        },
-      },
-    ],
   };
 
   return (
