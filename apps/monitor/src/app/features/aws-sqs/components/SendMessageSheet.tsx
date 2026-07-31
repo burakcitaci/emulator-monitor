@@ -120,9 +120,14 @@ export const AwsSqsSendMessageSheet: React.FC<SendMessageModalProps> = ({
                 <SelectContent>
                   <SelectItem value="__default__">Default Queue</SelectItem>
                   {messageResources
-                    ?.filter((resource) => resource.type === 'queue')
+                    ?.filter(
+                      (resource) =>
+                        resource.provider === 'aws' &&
+                        resource.type === 'queue' &&
+                        resource.status === 'active',
+                    )
                     .map((resource) => (
-                      <SelectItem key={resource.id} value={resource.id}>
+                      <SelectItem key={resource.id} value={resource.name}>
                         {resource.name}
                       </SelectItem>
                     ))}

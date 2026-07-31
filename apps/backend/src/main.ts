@@ -53,12 +53,12 @@ async function bootstrap() {
     );
 
     app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
+    app.enableShutdownHooks();
 
     await app.listen(port);
 
-    logger.log(`🚀 Application started on http://localhost:${port}/api`);
+    logger.log(`🚀 Application started on http://localhost:${port}/api/v1`);
     logger.log(`📊 Environment: ${configService.nodeEnv}`);
-    logger.log(`🐳 Docker Socket: ${configService.getDockerConfig().socketPath}`);
   } catch (error: unknown) {
     if (error instanceof Error) {
       logger.error(`❌ Failed to start application: ${error.message}`, error.stack);

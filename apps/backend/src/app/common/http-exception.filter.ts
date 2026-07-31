@@ -56,10 +56,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
-    if (exception instanceof Error) {
-      return exception.message;
-    }
-
-    return 'Unexpected error occurred';
+    return 'Internal server error';
   }
 }

@@ -7,11 +7,24 @@ import { Routes, Route } from 'react-router';
 import { AppSidebar } from './components/containers/ContainerSidebar';
 import { SiteHeader } from './components/common/SiteHeader';
 import { useSidebarState } from './hooks/useSidebarState';
-import MessagingResources from './features/messaging-resources';
-import { AzureSbDetailPage } from './features/azure-sb';
-import { AwsSqsDetailPage } from './features/aws-sqs';
-import { MessagesPage } from './features/messages';
-
+const MessagingResources = React.lazy(
+  () => import('./features/messaging-resources'),
+);
+const AzureSbDetailPage = React.lazy(() =>
+  import('./features/azure-sb').then((module) => ({
+    default: module.AzureSbDetailPage,
+  })),
+);
+const AwsSqsDetailPage = React.lazy(() =>
+  import('./features/aws-sqs').then((module) => ({
+    default: module.AwsSqsDetailPage,
+  })),
+);
+const MessagesPage = React.lazy(() =>
+  import('./features/messages').then((module) => ({
+    default: module.MessagesPage,
+  })),
+);
 
 export function App() {
   const { isOpen } = useSidebarState();

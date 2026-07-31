@@ -16,7 +16,6 @@ import { ReceiveServiceBusMessageDto } from './dto/receive-service-bus-message.d
 import { AppConfigService } from '../common/app-config.service';
 import { AppLogger } from '../common/logger.service';
 import { MessageService } from '../messages/messages.service';
-import { TrackingMessage } from '../messages/message.schema';
 
 @Injectable()
 export class ServiceBusService implements OnModuleDestroy {
@@ -49,10 +48,7 @@ export class ServiceBusService implements OnModuleDestroy {
       },
     };
 
-    await sender.sendMessages(serviceBusMessage);
-
-    try {
-      await this.messageService.createTracking({
+    const tracking = await this.messageService.createTracking({
         messageId,
         body: typeof body === 'string' ? body : JSON.stringify(body),
         sentBy: dto.sentBy ?? 'service-bus-api',
@@ -62,10 +58,12 @@ export class ServiceBusService implements OnModuleDestroy {
         emulatorType: 'azure-service-bus',
         // Don't set disposition until message is processed by worker
       });
-      this.logger.log(`Sent Service Bus message ${messageId} to ${queueName} and created tracking entry with status: processing`);
+
+    try {
+      await sender.sendMessages(serviceBusMessage);
     } catch (error) {
-      this.logger.error(`Failed to create tracking entry for message ${messageId} sent to ${queueName}:`, error);
-      // Don't throw - message was sent successfully, tracking failure shouldn't block the operation
+      await this.messageService.removeTracking(String(tracking._id));
+      throw error;
     }
 
     this.logger.log(`Sent Service Bus message ${messageId} to ${queueName}`);
@@ -79,22 +77,33 @@ export class ServiceBusService implements OnModuleDestroy {
     });
   }
 
+  createSubscriptionReceiver(
+    topicName: string,
+    subscriptionName: string,
+  ): ServiceBusReceiver {
+    return this.client.createReceiver(topicName, subscriptionName, {
+      receiveMode: 'peekLock',
+    });
+  }
+
   async receiveMessage(dto: ReceiveServiceBusMessageDto) {
     let entityName: string;
+    let receiver: ServiceBusReceiver;
 
     // Determine the entity to receive from
     if (dto.queue) {
       // Receiving from a queue
       entityName = dto.queue;
+      receiver = this.createReceiver(entityName);
     } else if (dto.topic && dto.subscription) {
       // Receiving from a topic subscription
       entityName = `${dto.topic}/subscriptions/${dto.subscription}`;
+      receiver = this.createSubscriptionReceiver(dto.topic, dto.subscription);
     } else {
       // Fallback to default queue
       entityName = this.config.serviceBusQueue;
+      receiver = this.createReceiver(entityName);
     }
-
-    const receiver = this.createReceiver(entityName);
 
     try {
       // Try to receive a message with a timeout
@@ -115,7 +124,11 @@ export class ServiceBusService implements OnModuleDestroy {
 
       if (messageId) {
         // Mark message as received in tracking
-        await this.messageService.markMessageReceived(messageId, dto.receivedBy);
+        await this.messageService.markMessageReceived(
+          messageId,
+          'azure-service-bus',
+          dto.receivedBy,
+        );
       }
 
       // Complete the message
@@ -143,9 +156,12 @@ export class ServiceBusService implements OnModuleDestroy {
   }
 
   async ping(): Promise<void> {
-    // Service Bus sender is ready to use immediately after creation
-    // This ping method verifies we can create a sender without errors
-    await this.getOrCreateSender(this.config.serviceBusQueue);
+    const receiver = this.createReceiver();
+    try {
+      await receiver.peekMessages(1);
+    } finally {
+      await receiver.close();
+    }
   }
 
   private parseBody(body: string): unknown {

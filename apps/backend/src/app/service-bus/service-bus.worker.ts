@@ -141,7 +141,10 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
 
   private async subscribeToTopic(topic: string, subscription: string, entityName: string) {
     try {
-      const receiver = this.serviceBusService.createReceiver(entityName);
+      const receiver = this.serviceBusService.createSubscriptionReceiver(
+        topic,
+        subscription,
+      );
       this.receivers.set(entityName, receiver);
 
       const handlers = this.createMessageHandlers(receiver, entityName, 'topic', topic, subscription);
@@ -174,6 +177,21 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
           return;
         }
 
+        await this.messageService.ensureTracking({
+          messageId,
+          body:
+            typeof message.body === 'string'
+              ? message.body
+              : JSON.stringify(message.body),
+          sentBy:
+            String(message.applicationProperties?.['sentBy'] ?? '') ||
+            'external-service-bus',
+          sentAt: message.enqueuedTimeUtc ?? new Date(),
+          status: 'processing',
+          queue: entityName,
+          emulatorType: 'azure-service-bus',
+        });
+
         const disposition = await this.getDisposition(messageId, message);
 
         await this.messageProcessor.processMessage(
@@ -200,7 +218,10 @@ export class ServiceBusWorker implements OnModuleInit, OnModuleDestroy {
     message: ServiceBusReceivedMessage,
   ): Promise<MessageDisposition> {
     // Check database first for existing disposition
-    const existingMessage = await this.messageService.findOneTrackingByMessageId(messageId);
+    const existingMessage = await this.messageService.findOneTrackingByMessageId(
+      messageId,
+      'azure-service-bus',
+    );
     if (existingMessage?.disposition) {
       return MessageProcessor.normalizeDisposition(existingMessage.disposition);
     }

@@ -168,7 +168,10 @@ export const createColumns = (
             size="sm"
             className="h-6 w-6 p-0"
             onClick={() => {
-              onMessageDelete(row.original.messageId);
+              onMessageDelete(
+                (row.original as TrackingMessage)._id ??
+                  row.original.messageId,
+              );
             }}
           >
             <Trash className="h-3 w-3" />

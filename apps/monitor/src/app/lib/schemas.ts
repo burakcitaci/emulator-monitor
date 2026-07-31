@@ -115,6 +115,15 @@ export const sendMessageResponseSchema = apiResponseSchema(
   })
 );
 
+export const sendSqsMessageResponseSchema = apiResponseSchema(
+  z.object({
+    queueName: z.string(),
+    queueUrl: z.string(),
+    messageId: z.string(),
+    md5OfBody: z.string().optional(),
+  })
+);
+
 export const deleteMessageResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
@@ -193,7 +202,6 @@ export const awsSqsConfigSchema = z.object({
   endpoint: z.string(),
   region: z.string(),
   queueName: z.string(),
-  accessKeyId: z.string(),
 });
 
 export type AwsSqsConfig = z.infer<typeof awsSqsConfigSchema>;

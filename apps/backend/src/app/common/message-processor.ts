@@ -1,5 +1,5 @@
-import { AppLogger } from './logger.service';
-import { MessageService } from '../messages/messages.service';
+import type { AppLogger } from './logger.service';
+import type { MessageService } from '../messages/messages.service';
 
 export type MessageDisposition = 'complete' | 'abandon' | 'deadletter' | 'defer';
 
@@ -40,14 +40,16 @@ export class MessageProcessor {
   }
 
   /**
-   * Normalizes disposition string to lowercase
+   * Normalizes a disposition string and rejects unsupported settlement actions.
+   * A missing disposition retains the existing default-complete behavior.
    */
   static normalizeDisposition(disposition: string | undefined | null): MessageDisposition {
-    const normalized = (disposition || 'complete').toLowerCase();
+    const normalized = (disposition ?? 'complete').trim().toLowerCase();
     if (['complete', 'abandon', 'deadletter', 'defer'].includes(normalized)) {
       return normalized as MessageDisposition;
     }
-    return 'complete';
+
+    throw new Error(`Unsupported message disposition: ${disposition}`);
   }
 
   /**
@@ -63,27 +65,27 @@ export class MessageProcessor {
     actions: DispositionActions<TMessage>,
   ): Promise<void> {
     const { messageId, disposition, queueName, receivedBy, emulatorType } = context;
-    console.log( emulatorType, "DISPOSITION", disposition);
     const normalizedDisposition = MessageProcessor.normalizeDisposition(disposition);
 
-    console.log( "NORMALIZED DISPOSITION", normalizedDisposition);
     this.logger.log(
       `[${emulatorType}] Processing message ${messageId} with disposition: ${normalizedDisposition}`,
     );
 
     // Step 1: Mark message as received
     try {
-      await this.messageService.markMessageReceived(messageId, receivedBy);
+      await this.messageService.markMessageReceived(
+        messageId,
+        emulatorType,
+        receivedBy,
+      );
       this.logger.log(`[${emulatorType}] Marked message ${messageId} as received`);
     } catch (error) {
       this.logger.error(`[${emulatorType}] Failed to mark message ${messageId} as received:`, error);
     }
 
-    console.log( "RANDOM DELAY");
     // Step 2: Random delay to simulate processing
     await MessageProcessor.randomDelay();
 
-    console.log( "EXECUTE DISPOSITION ACTION");
     // Step 3: Execute disposition action
     try {
       switch (normalizedDisposition) {
@@ -109,22 +111,24 @@ export class MessageProcessor {
         `[${emulatorType}] Failed to execute ${normalizedDisposition} for message ${messageId}:`,
         error,
       );
-      // Try to complete as fallback
-      try {
-        await actions.complete(message);
-        this.logger.log(`[${emulatorType}] Completed message ${messageId} as fallback`);
-      } catch (fallbackError) {
-        this.logger.error(`[${emulatorType}] Fallback complete also failed for ${messageId}:`, fallbackError);
-      }
+
+      // Leave the broker message unsettled so its native retry/dead-letter policy
+      // can recover it. Completing here would turn a transient settlement error
+      // into permanent message loss.
+      throw error;
     }
 
     // Step 4: Update disposition in database
     try {
-      await this.messageService.updateDisposition(messageId, normalizedDisposition, receivedBy);
+      await this.messageService.updateDisposition(
+        messageId,
+        emulatorType,
+        normalizedDisposition,
+        receivedBy,
+      );
       this.logger.log(`[${emulatorType}] Updated disposition for message ${messageId} to ${normalizedDisposition}`);
     } catch (error) {
       this.logger.error(`[${emulatorType}] Failed to update disposition for message ${messageId}:`, error);
     }
   }
 }
-

@@ -2,7 +2,27 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Monitor Application - Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the app before each test
+    await page.route('**/api/v1/tracked-messages/tracking', (route) => {
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [
+            {
+              _id: '507f1f77bcf86cd799439011',
+              messageId: 'message-1',
+              body: 'test message',
+              sentBy: 'smoke-test',
+              sentAt: '2026-01-01T00:00:00.000Z',
+              status: 'received',
+              disposition: 'complete',
+              emulatorType: 'sqs',
+            },
+          ],
+        }),
+      });
+    });
+
     await page.goto('/');
   });
 
@@ -23,8 +43,12 @@ test.describe('Monitor Application - Smoke Tests', () => {
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // Check for table headers
-    await expect(page.getByText('Sent By')).toBeVisible();
-    await expect(page.getByText('Status')).toBeVisible();
+    await expect(
+      page.getByRole('columnheader', { name: 'Sent By' })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('columnheader', { name: 'Status' })
+    ).toBeVisible();
   });
 
   test('should show search input', async ({ page }) => {
@@ -55,15 +79,13 @@ test.describe('Monitor Application - Smoke Tests', () => {
     await page.waitForSelector('table', { timeout: 10000 });
 
     const searchInput = page.getByPlaceholder(/search/i);
-    await searchInput.fill('test');
-
-    // Verify filtering is working (table should update)
-    await page.waitForTimeout(500); // Debounce wait
+    await searchInput.fill('azure');
+    await expect(page.getByText('No results.')).toBeVisible();
   });
 
   test('should display theme toggle', async ({ page }) => {
     // Check for theme toggle button
-    const themeToggle = page.locator('button[aria-label*="theme" i], button:has-text("Theme")');
+    const themeToggle = page.getByRole('button', { name: 'Toggle theme' });
     await expect(themeToggle).toBeVisible({ timeout: 5000 });
   });
 

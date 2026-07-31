@@ -1,4 +1,11 @@
-import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export enum MessageDisposition {
   COMPLETE = 'complete',
@@ -14,6 +21,7 @@ export class SendServiceBusMessageDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(262_144)
   body!: string;
 
   @IsOptional()

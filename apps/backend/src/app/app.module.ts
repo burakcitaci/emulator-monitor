@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ScheduleModule } from '@nestjs/schedule';
-import { TerminusModule } from '@nestjs/terminus';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import * as Joi from 'joi';
@@ -59,15 +57,6 @@ import { MessageResourcesModule } from './message-resources/message-resources.mo
           limit: config.throttleLimit,
         },
       ],
-    }),
-    TerminusModule,
-    ScheduleModule.forRoot(),
-    MongooseModule.forRootAsync({
-      inject: [AppConfigService],
-      useFactory: (config: AppConfigService) => ({
-        uri: config.mongoUri,
-        authSource: config.mongoAuthSource,
-      }),
     }),
     MongooseModule.forRootAsync({
       inject: [AppConfigService],

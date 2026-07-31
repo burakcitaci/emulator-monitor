@@ -1,7 +1,20 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { MessageService } from './messages.service';
-import { TrackingMessage } from './message.schema';
+import { EmulatorType, emulatorTypes } from './message.schema';
 import { AppLogger } from '../common/logger.service';
+import {
+  CreateTrackingMessageDto,
+  UpdateTrackingMessageDto,
+} from './dto/tracking-message.dto';
 
 @Controller('tracked-messages')
 export class MessagesController {
@@ -23,7 +36,12 @@ export class MessagesController {
   }
   @Get('tracking/emulator/:emulator')
   async getTrackingMessagesByEmulator(@Param('emulator') emulator: string) {
-    const result = await this.messagesService.findTrackingMessagesByEmulator(emulator);
+    if (!emulatorTypes.includes(emulator as EmulatorType)) {
+      throw new BadRequestException(`Unsupported emulator type: ${emulator}`);
+    }
+    const result = await this.messagesService.findTrackingMessagesByEmulator(
+      emulator as EmulatorType,
+    );
     this.logger.log(`Retrieved ${result.length} tracking messages for emulator ${emulator}`);
     return {
       success: true,
@@ -42,8 +60,11 @@ export class MessagesController {
   }
 
   @Post('tracking')
-  async createTrackingMessage(@Body() message: Partial<TrackingMessage>) {
-    const result = await this.messagesService.createTracking(message);
+  async createTrackingMessage(@Body() message: CreateTrackingMessageDto) {
+    const result = await this.messagesService.createTracking({
+      ...message,
+      sentAt: new Date(message.sentAt),
+    });
     this.logger.log(`Created tracking message ${result.messageId}`);
     return {
       success: true,
@@ -52,8 +73,16 @@ export class MessagesController {
   }
 
   @Put('tracking/:id')
-  async updateTrackingMessage(@Param('id') id: string, @Body() message: Partial<TrackingMessage>) {
-    const result = await this.messagesService.updateTracking(id, message);
+  async updateTrackingMessage(
+    @Param('id') id: string,
+    @Body() message: UpdateTrackingMessageDto,
+  ) {
+    const result = await this.messagesService.updateTracking(id, {
+      ...message,
+      receivedAt: message.receivedAt
+        ? new Date(message.receivedAt)
+        : undefined,
+    });
     this.logger.log(`Updated tracking message ${id}`);
     return {
       success: true,

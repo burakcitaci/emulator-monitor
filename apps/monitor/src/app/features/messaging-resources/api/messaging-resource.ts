@@ -21,7 +21,8 @@ export const useUpdateMessageResource = () => {
 export const useCreateMessageResource = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (resource: MessageResources) => apiClient.createMessageResource(resource),
+    mutationFn: (resource: Omit<MessageResources, 'id'>) =>
+      apiClient.createMessageResource(resource),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['message-resources'] });
     },

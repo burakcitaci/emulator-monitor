@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
+import { DataTable } from '../../components/data-table';
 import {
   useDeleteServiceBusMessage,
   useGetServiceBusMessages,
@@ -182,13 +182,11 @@ export const AzureSbDetailPage = () => {
 
         {/* Table */}
         <div className="w-full min-w-0 flex-1 min-h-0">
-          <VirtualizedDataTable
+          <DataTable
             columns={columns}
             data={allRows as ServiceBusMessageRow[]}
             searchKey="body"
             searchPlaceholder={`Search all messages (${totalMessages} total)...`}
-            estimateSize={48}
-            overscan={5}
             onAdd={() => setSendModalOpen(true)}
           />
         </div>

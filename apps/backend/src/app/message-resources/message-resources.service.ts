@@ -3,8 +3,9 @@ import { MessagingResource, MessagingResourceDocument } from "./message-resource
 import { Model } from "mongoose";
 import { CreateMessageResourceDto } from "./dto/create-message.dto";
 import { UpdateMessageResourceDto } from "./dto/update-message.dto";
-import { NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from '@nestjs/common';
 
+@Injectable()
 export class MessageResourcesService {
   constructor(
     @InjectModel(MessagingResource.name, 'MessageTrackingDb')
@@ -16,8 +17,8 @@ export class MessageResourcesService {
   }
   async createMessageResource(dto: CreateMessageResourceDto): Promise<MessagingResource> {
     const created = await this.messagingResourceModel.create({
-      id: crypto.randomUUID(),
       ...dto,
+      id: crypto.randomUUID(),
     });
     return created.toObject();
   }

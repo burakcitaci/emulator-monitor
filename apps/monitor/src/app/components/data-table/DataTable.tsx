@@ -30,6 +30,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   searchKey?: string;
   searchPlaceholder?: string;
+  onAdd?: () => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -37,6 +38,7 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   searchPlaceholder = 'Search...',
+  onAdd,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -76,9 +78,9 @@ export function DataTable<TData, TValue>({
         table={table}
         searchKey={searchKey}
         searchPlaceholder={searchPlaceholder}
-        onAdd={() => console.log('add')}
+        onAdd={onAdd}
       />
-      <div className="rounded-sm border overflow-x-auto">
+      <div className="rounded-sm border overflow-auto">
         <Table className="w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

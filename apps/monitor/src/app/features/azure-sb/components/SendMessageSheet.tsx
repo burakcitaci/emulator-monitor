@@ -26,7 +26,28 @@ import {
   adjectives,
   names,
 } from 'unique-names-generator';
-import { serviceBusConfig } from '@e2e-monitor/entities';
+
+const serviceBusConfig = {
+  Queues: [
+    {
+      Name: 'test-queue',
+      Properties: {
+        DefaultMessageTimeToLive: 'PT1H',
+        MaxDeliveryCount: 10,
+      },
+    },
+  ],
+  Topics: [
+    {
+      Name: 'test-topic',
+      Properties: {
+        DefaultMessageTimeToLive: 'PT1H',
+        DuplicateDetectionHistoryTimeWindow: 'PT20S',
+        RequiresDuplicateDetection: false,
+      },
+    },
+  ],
+};
 
 const config: Config = {
   dictionaries: [adjectives, names],

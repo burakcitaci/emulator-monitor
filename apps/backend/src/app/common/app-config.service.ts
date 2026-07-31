@@ -78,33 +78,6 @@ export class AppConfigService {
     return this.config.get<string>('LOG_LEVEL', 'info');
   }
 
-  get dockerSocketPath(): string {
-    if (process.platform === 'win32') {
-      return this.config.get<string>('DOCKER_SOCKET_PATH', '\\?\\pipe\\docker_engine');
-    }
-    return this.config.get<string>('DOCKER_SOCKET_PATH', '/var/run/docker.sock');
-  }
-
-  get dockerHost(): string {
-    return this.config.get<string>('DOCKER_HOST', 'tcp://localhost:2376');
-  }
-
-  get dockerProtocol(): string {
-    switch (process.platform) {
-      case 'win32':
-        return 'npipe';
-      case 'linux':
-      case 'darwin':
-        return 'unix';
-      default:
-        return 'socket';
-    }
-  }
-
-  get dockerTimeout(): number {
-    return this.config.get<number>('DOCKER_TIMEOUT', 30000);
-  }
-
   get serviceBusConnectionString(): string {
     return (
       this.config.get<string>('SERVICE_BUS_CONNECTION_STRING') ||
@@ -168,16 +141,6 @@ export class AppConfigService {
     return this.config.get<string>('AWS_SQS_QUEUE_NAME', 'orders-queue');
   }
 
-
-  getDockerConfig() {
-    return {
-      socketPath: this.dockerSocketPath,
-      host: this.dockerHost,
-      protocol: this.dockerProtocol,
-      timeout: this.dockerTimeout,
-      checkSocketExists: this.config.get<string>('DOCKER_CHECK_SOCKET', 'true') !== 'false',
-    };
-  }
 
   getServiceBusConfig() {
     return {
@@ -271,8 +234,6 @@ export class AppConfigService {
       endpoint: this.awsSqsEndpoint,
       region: this.awsRegion,
       queueName: this.awsSqsQueueName,
-      accessKeyId: this.awsAccessKeyId,
-      // Don't expose secret in config response
     };
   }
 

@@ -22,6 +22,7 @@ import {
   MessageResources,
   messageResourcesResponseSchema,
   messageResourceResponseSchema,
+  sendSqsMessageResponseSchema,
 } from './schemas';
 
 // Local types for API responses
@@ -109,8 +110,8 @@ class ApiClient {
             error: parseError,
           });
           const errorMessage = parseError instanceof ZodError
-            ? (parseError as ZodError & { errors: Array<{ path: (string | number)[]; message: string }> }).errors
-                .map((e) => `${e.path.join('.')}: ${e.message}`)
+            ? parseError.issues
+                .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
                 .join(', ')
             : 'Unknown error';
 
@@ -361,7 +362,7 @@ class ApiClient {
         method: 'POST',
         body: JSON.stringify(message),
       },
-      sendMessageResponseSchema
+      sendSqsMessageResponseSchema
     );
 
     if (!isApiResponse<{ queueName: string; messageId: string; queueUrl: string; md5OfBody: string }>(response) || !response.success || !response.data) {
@@ -419,7 +420,7 @@ class ApiClient {
     }
     return response.data;
   }
-  async createMessageResource(resource: MessageResources): Promise<MessageResources> {
+  async createMessageResource(resource: Omit<MessageResources, 'id'>): Promise<MessageResources> {
     const response = await this.request('/message-resources/resources', {
       method: 'POST',
       body: JSON.stringify(resource),
@@ -434,7 +435,12 @@ class ApiClient {
   async updateMessageResource(resource: MessageResources): Promise<MessageResources> {
     const response = await this.request(`/message-resources/resources/${resource.id}`, {
       method: 'PUT',
-      body: JSON.stringify(resource),
+      body: JSON.stringify({
+        name: resource.name,
+        provider: resource.provider,
+        type: resource.type,
+        status: resource.status,
+      }),
     }, messageResourceResponseSchema);
     if (!isApiResponse<MessageResources>(response) || !response.success || !response.data) {
       throw new ApiError(500, isApiResponse(response) ? (response.message || 'Failed to update message resource') : 'Invalid response format');

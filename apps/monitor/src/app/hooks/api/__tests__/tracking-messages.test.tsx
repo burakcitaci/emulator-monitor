@@ -9,7 +9,7 @@ import {
   useUpdateTrackingMessage,
   trackingMessageKeys
 } from '../tracking-messages';
-import { apiClient } from '../../../lib/api-client';
+import { apiClient, ApiError } from '../../../lib/api-client';
 
 // Mock the API client
 vi.mock('../../../lib/api-client', () => ({
@@ -92,8 +92,8 @@ describe('tracking-messages hooks', () => {
     });
 
     it('should handle error states', async () => {
-      const error = new Error('Network error');
-      mockApiClient.getTrackingMessages.mockRejectedValueOnce(error);
+      const error = new ApiError(400, 'Bad request');
+      mockApiClient.getTrackingMessages.mockRejectedValue(error);
 
       const { result } = renderHook(() => useTrackingMessages(), { wrapper });
 

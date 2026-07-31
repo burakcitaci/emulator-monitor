@@ -1,8 +1,18 @@
-import { Provider, ResourceType } from "../message-resources.schema";
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Provider, ResourceType } from '../message-resources.schema';
 
-export interface CreateMessageResourceDto {
-  name: string;
-  provider: Provider;
-  type: ResourceType;
-  status: 'active' | 'inactive';
+export class CreateMessageResourceDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsEnum(Provider)
+  provider!: Provider;
+
+  @IsEnum(ResourceType)
+  type!: ResourceType;
+
+  @IsOptional()
+  @IsEnum(['active', 'inactive'])
+  status?: 'active' | 'inactive';
 }

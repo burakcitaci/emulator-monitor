@@ -1,12 +1,24 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class SendSqsMessageDto {
   @IsOptional()
-  @IsString()
+  @IsUrl({ require_tld: false })
   queueUrl?: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(262_144)
   body!: string;
 
   @IsOptional()
@@ -30,11 +42,12 @@ export class SendSqsMessageDto {
   messageAttributes?: Record<string, { DataType: string; StringValue?: string; BinaryValue?: string }>;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(0)
+  @Max(900)
   delaySeconds?: number;
 
   @IsOptional()
   @IsEnum(['complete', 'abandon', 'deadletter', 'defer'])
   messageDisposition?: 'complete' | 'abandon' | 'deadletter' | 'defer';
 }
-

@@ -12,7 +12,6 @@ import {
   GetQueueUrlCommand,
   CreateQueueCommand,
   ChangeMessageVisibilityCommand,
-  GetQueueAttributesCommand,
   Message,
 } from '@aws-sdk/client-sqs';
 import { randomUUID } from 'crypto';
@@ -23,14 +22,16 @@ import { AppConfigService } from '../common/app-config.service';
 import { AppLogger } from '../common/logger.service';
 import { MessageService } from '../messages/messages.service';
 import { AwsSqsConnectionException } from '../common/exceptions';
-import { TrackingMessage } from '../messages/message.schema';
+import type { TrackingMessage } from '../messages/message.schema';
 import { MessageProcessor, DispositionActions } from '../common/message-processor';
 
 @Injectable()
 export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
   private readonly queueUrlCache = new Map<string, string>();
-  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private readonly pollingIntervals = new Map<string, NodeJS.Timeout>();
+  private readonly pollingTasks = new Map<string, Promise<void>>();
   private readonly messageProcessor: MessageProcessor;
+  private isShuttingDown = false;
 
   constructor(
     @Inject(AWS_SQS_CLIENT) private readonly client: SQSClient,
@@ -130,7 +131,11 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
     const messageId = message.MessageId || message.ReceiptHandle?.substring(0, 20) || randomUUID();
 
     if (message.MessageId) {
-      await this.messageService.markMessageReceived(message.MessageId, dto.receivedBy);
+      await this.messageService.markMessageReceived(
+        message.MessageId,
+        'sqs',
+        dto.receivedBy,
+      );
     }
 
     // Delete the message after receiving
@@ -160,13 +165,15 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
 
   async ping(): Promise<void> {
     try {
-      await this.getOrCreateQueueUrl(this.config.awsSqsQueueName);
+      await this.client.send(
+        new GetQueueUrlCommand({ QueueName: this.config.awsSqsQueueName }),
+      );
     } catch (error) {
       const errorMessage = this.extractErrorMessage(error);
       if (this.isConnectionError(errorMessage, error)) {
         throw new AwsSqsConnectionException(
           `Cannot connect to LocalStack at ${this.config.awsSqsEndpoint}. ` +
-          `Please ensure LocalStack is running: docker-compose up localstack. ` +
+          `Please ensure LocalStack is running: docker compose up localstack. ` +
           `Original error: ${errorMessage}`,
         );
       }
@@ -185,12 +192,18 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    this.queueUrlCache.clear();
+    this.isShuttingDown = true;
+
     for (const [queueName, interval] of this.pollingIntervals) {
       clearInterval(interval);
       this.logger.log(`Stopped polling for queue: ${queueName}`);
     }
     this.pollingIntervals.clear();
+
+    await Promise.allSettled(Array.from(this.pollingTasks.values()));
+    this.pollingTasks.clear();
+    this.queueUrlCache.clear();
+    this.client.destroy();
   }
 
   private async startPolling(queueName: string) {
@@ -201,15 +214,25 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(`Starting to poll for messages in queue: ${queueName}`);
 
-    const interval = setInterval(async () => {
-      try {
-        await this.pollAndProcessMessages(queueName);
-      } catch (error) {
-        this.logger.error(`Error polling messages for queue ${queueName}:`, error);
-      }
-    }, 5000);
+    const interval = setInterval(() => this.schedulePoll(queueName), 5000);
 
     this.pollingIntervals.set(queueName, interval);
+  }
+
+  private schedulePoll(queueName: string): void {
+    if (this.isShuttingDown || this.pollingTasks.has(queueName)) {
+      return;
+    }
+
+    const pollingTask = this.pollAndProcessMessages(queueName)
+      .catch((error) => {
+        this.logger.error(`Error polling messages for queue ${queueName}:`, error);
+      })
+      .finally(() => {
+        this.pollingTasks.delete(queueName);
+      });
+
+    this.pollingTasks.set(queueName, pollingTask);
   }
 
   private async pollAndProcessMessages(queueName: string) {
@@ -229,6 +252,16 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
 
       const message = response.Messages[0];
       const messageId = message.MessageId || message.ReceiptHandle?.substring(0, 20) || randomUUID();
+      await this.messageService.ensureTracking({
+        messageId,
+        body: message.Body ?? '',
+        sentBy:
+          message.MessageAttributes?.sentBy?.StringValue ?? 'external-sqs',
+        sentAt: new Date(),
+        status: 'processing',
+        queue: queueName,
+        emulatorType: 'sqs',
+      });
       const disposition = MessageProcessor.normalizeDisposition(
         message.MessageAttributes?.messageDisposition?.StringValue,
       );
@@ -310,7 +343,7 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
       if (this.isConnectionError(errorMessage, error)) {
         throw new AwsSqsConnectionException(
           `Cannot connect to LocalStack at ${this.config.awsSqsEndpoint}. ` +
-          `Please ensure LocalStack is running: docker-compose up localstack.`,
+          `Please ensure LocalStack is running: docker compose up localstack.`,
         );
       }
 
@@ -356,7 +389,7 @@ export class AwsSqsService implements OnModuleInit, OnModuleDestroy {
       if (this.isConnectionError(errorMessage, error)) {
         throw new AwsSqsConnectionException(
           `Cannot connect to LocalStack at ${this.config.awsSqsEndpoint}. ` +
-          `Please ensure LocalStack is running: docker-compose up localstack.`,
+          `Please ensure LocalStack is running: docker compose up localstack.`,
         );
       }
 
@@ -455,133 +488,5 @@ private isConnectionError(errorMessage: string, error: unknown): boolean {
       WaitTimeSeconds: dto.waitTimeSeconds ?? 0,
       MessageAttributeNames: ['All'],
     }));
-  }
-
-  private async fetchDlqMessages(
-    queueUrl: string,
-    queueName: string,
-    results: { dlq: Message[] },
-  ) {
-    try {
-      const attributesResponse = await this.client.send(new GetQueueAttributesCommand({
-        QueueUrl: queueUrl,
-        AttributeNames: ['RedrivePolicy'],
-      }));
-
-      const redrivePolicy = attributesResponse.Attributes?.RedrivePolicy;
-      if (redrivePolicy) {
-        try {
-          const redrivePolicyObj = JSON.parse(redrivePolicy);
-          const dlqArn = redrivePolicyObj.deadLetterTargetArn;
-          if (dlqArn) {
-            const dlqName = dlqArn.split(':').pop();
-            if (dlqName) {
-              const dlqUrl = await this.getOrCreateQueueUrl(dlqName);
-              const dlqResponse = await this.client.send(new ReceiveMessageCommand({
-                QueueUrl: dlqUrl,
-                MaxNumberOfMessages: 10,
-                MessageAttributeNames: ['All'],
-              }));
-              if (dlqResponse.Messages) {
-                results.dlq = dlqResponse.Messages;
-              }
-            }
-          }
-        } catch {
-          this.logger.warn('Failed to parse redrive policy or get DLQ messages');
-        }
-      }
-
-      // Try common DLQ naming convention
-      try {
-        const dlqName = `${queueName}-dlq`;
-        const dlqUrl = await this.getOrCreateQueueUrl(dlqName);
-        const dlqResponse = await this.client.send(new ReceiveMessageCommand({
-          QueueUrl: dlqUrl,
-          MaxNumberOfMessages: 10,
-          MessageAttributeNames: ['All'],
-        }));
-        if (dlqResponse.Messages?.length) {
-          results.dlq = [...results.dlq, ...dlqResponse.Messages];
-        }
-      } catch {
-        // DLQ doesn't exist, that's okay
-      }
-    } catch (error) {
-      this.logger.warn(`Failed to get DLQ messages: ${error}`);
-    }
-  }
-
-  private async fetchVisibleMessages(
-    queueUrl: string,
-    results: { dlq: Message[]; abandoned: Message[]; deferred: Message[] },
-  ) {
-    try {
-      const response = await this.client.send(new ReceiveMessageCommand({
-        QueueUrl: queueUrl,
-        MaxNumberOfMessages: 10,
-        MessageAttributeNames: ['All'],
-        VisibilityTimeout: 0,
-      }));
-
-      if (response.Messages) {
-        for (const message of response.Messages) {
-          const messageId = message.MessageId;
-          if (messageId) {
-            const tracking = await this.messageService.findOneTrackingByMessageId(messageId);
-            const disposition =
-              tracking?.disposition ||
-              message.MessageAttributes?.messageDisposition?.StringValue?.toLowerCase();
-
-            if (disposition === 'abandon') {
-              results.abandoned.push(message);
-            } else if (disposition === 'defer') {
-              results.deferred.push(message);
-            } else if (disposition === 'deadletter') {
-              results.dlq.push(message);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      this.logger.error(`Failed to receive messages from queue: ${error}`);
-    }
-  }
-
-  private addTrackingMessagesNotVisible(results: {
-    abandoned: Message[];
-    deferred: Message[];
-    tracking: { abandon: TrackingMessage[]; defer: TrackingMessage[] };
-  }) {
-    const visibleMessageIds = new Set([
-      ...results.abandoned.map((m) => m.MessageId),
-      ...results.deferred.map((m) => m.MessageId),
-    ]);
-
-    for (const trackingMsg of results.tracking.abandon) {
-      if (trackingMsg.messageId && !visibleMessageIds.has(trackingMsg.messageId)) {
-        results.abandoned.push(this.trackingToMessage(trackingMsg, 'abandon'));
-      }
-    }
-
-    for (const trackingMsg of results.tracking.defer) {
-      if (trackingMsg.messageId && !visibleMessageIds.has(trackingMsg.messageId)) {
-        results.deferred.push(this.trackingToMessage(trackingMsg, 'defer'));
-      }
-    }
-  }
-
-  private trackingToMessage(trackingMsg: TrackingMessage, disposition: string): Message {
-    return {
-      MessageId: trackingMsg.messageId,
-      Body: trackingMsg.body,
-      MessageAttributes: {
-        sentBy: { DataType: 'String', StringValue: trackingMsg.sentBy || '' },
-        messageDisposition: { DataType: 'String', StringValue: disposition },
-      },
-      Attributes: {
-        SentTimestamp: trackingMsg.sentAt ? new Date(trackingMsg.sentAt).getTime().toString() : undefined,
-      },
-    };
   }
 }

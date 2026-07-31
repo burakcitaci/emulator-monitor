@@ -1,6 +1,6 @@
 import { Row } from '@tanstack/react-table';
 import React from 'react';
-import { VirtualizedDataTable } from '../../../components/data-table/VirtualizedDataTable';
+import { DataTable } from '../../../components/data-table';
 import { TrackingMessage } from '@e2e-monitor/entities';
 import { createColumns } from './Columns';
 
@@ -48,8 +48,12 @@ export const MessagesTable: React.FC<MessagesTableProps> = ({
   }, []);
 
   const emulatorTypeFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
-    if (!value || !Array.isArray(value)) return true;
-    return value.includes(row.original.emulatorType);
+    if (!value) return true;
+    if (Array.isArray(value)) return value.includes(row.original.emulatorType);
+
+    return String(row.original.emulatorType ?? '')
+      .toLowerCase()
+      .includes(String(value).toLowerCase());
   }, []);
 
   const statusFilterFn = React.useCallback((row: Row<TrackingMessage>, id: string, value: unknown) => {
@@ -83,14 +87,11 @@ export const MessagesTable: React.FC<MessagesTableProps> = ({
 
   return (
     <div className="w-full min-w-0 flex-1 min-h-0">
-      <VirtualizedDataTable
+      <DataTable
         columns={columns}
         data={safeMessages}
         searchKey="emulatorType"
         searchPlaceholder="Search message emulator type..."
-        estimateSize={48}
-        overscan={5}
-        
       />
     </div>
   );

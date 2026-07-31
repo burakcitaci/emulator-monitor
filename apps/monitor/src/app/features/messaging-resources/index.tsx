@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VirtualizedDataTable } from '../../components/data-table/VirtualizedDataTable';
+import { DataTable } from '../../components/data-table';
 import { DetailSheet } from './components/DetailSheet';
 import { MessagingResource, Provider, ResourceType } from './lib/entities';
 import { createColumns } from './components/Columns';
@@ -45,11 +45,7 @@ export default function MessagingResources() {
         ...form,
       });
     } else {
-      console.log(form);
-      createMessageResource({
-        id: crypto.randomUUID(),
-        ...form,
-      });
+      createMessageResource(form);
     }
     resetForm();
     setOpen(false);
@@ -101,7 +97,7 @@ export default function MessagingResources() {
         </h2>
       </div>
 
-      <VirtualizedDataTable
+      <DataTable
         searchKey="name"
         searchPlaceholder="Search resources..."
         columns={createColumns(handleActivate, handleEdit, handleDelete)}
@@ -112,14 +108,12 @@ export default function MessagingResources() {
           resetForm();
           setOpen(true);
         }}
-        estimateSize={48}
-        overscan={5}
       />
       <DetailSheet
         open={open}
         setOpen={setOpen}
         editing={editing !== null}
-        form={{ ...form, id: currentResource?.id ?? crypto.randomUUID() }}
+        form={{ ...form, id: currentResource?.id ?? '' }}
         setForm={setForm}
         handleSave={handleSave}
       />
